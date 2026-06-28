@@ -1648,7 +1648,7 @@ function renderUltimas() {
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">
       <div>
         <div style="font-size:13px;font-weight:500;color:var(--text)">${m.desc}</div>
-        <div style="font-size:11px;color:var(--muted)">${fmtData(m.data)} · ${m.canal}</div>
+        <div style="font-size:11px;color:var(--muted)">${fmtData(m.data)} · ${m.canal}${m.vendedora ? ' · <span style="color:var(--navy);font-weight:600">'+m.vendedora+'</span>' : ''}</div>
       </div>
       <div class="${m.cor}" style="font-size:13px;white-space:nowrap">${m.val < 0 ? '− ' + fmt(-m.val) : fmt(m.val)}</div>
     </div>
