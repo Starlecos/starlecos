@@ -733,6 +733,7 @@
     </div>
   </div>
   <div class="header-right">
+    <span id="connStatusFin" style="font-size:12px;font-weight:600;color:#8AAFD4">🟡 Conectando...</span>
     <select class="period-selector" id="periodoGlobal" onchange="filtrarPeriodo()">
       <option value="todos">Todos os períodos</option>
       <option value="hoje">Hoje</option>
@@ -832,7 +833,7 @@
           </tr>
         </thead>
         <tbody id="bodyGeral">
-          <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><p>Sem registros</p></div></td></tr>
+          <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📭</div><p>Sem registros</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -875,7 +876,6 @@
             <option value="WhatsApp">WhatsApp</option>
             <option value="Instagram">Instagram</option>
             <option value="Site">Site próprio</option>
-            <option value="Congresso">Congresso</option>
             <option value="Outro">Outro</option>
           </select>
         </div>
@@ -916,6 +916,7 @@
           <tr>
             <th>Data</th>
             <th>Vendedora</th>
+            <th>Cliente</th>
             <th>Produto</th>
             <th>Qtd</th>
             <th>Canal</th>
@@ -926,7 +927,7 @@
           </tr>
         </thead>
         <tbody id="bodyVendasOnline">
-          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">💻</div><p>Nenhuma venda online registrada</p></div></td></tr>
+          <tr><td colspan="10"><div class="empty-state"><div class="empty-icon">💻</div><p>Nenhuma venda online registrada</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -1231,12 +1232,19 @@ async function sbInsert(table, data) {
 let dados = JSON.parse(localStorage.getItem('starlecos_dados') || '{"vendasOnline":[],"pedidosML":[],"vendasMaquina":[],"contasPagas":[]}');
 
 async function carregarVendasOnline() {
+  const statusEl = document.getElementById('connStatusFin');
+  if (statusEl) { statusEl.textContent = '🟡 Conectando...'; statusEl.style.color = 'var(--amber)'; }
   try {
     dados.vendasOnline = await sbGet('vendas', 'select=*&order=data.desc,id.desc');
+    if (statusEl) { statusEl.textContent = '🟢 Online'; statusEl.style.color = 'var(--jade)'; }
     atualizarTudo();
   } catch(e) {
-    console.error('Erro ao carregar vendas online:', e);
-    notify('Erro ao conectar ao banco de dados', 'err');
+    console.warn('Supabase indisponível, usando dados locais.');
+    if (statusEl) { statusEl.textContent = '🔴 Sem conexão'; statusEl.style.color = 'var(--rose)'; }
+    // Não bloqueia — usa o que já está em dados.vendasOnline
+    atualizarTudo();
+    // Tenta novamente em 10 segundos
+    setTimeout(carregarVendasOnline, 10000);
   }
 }
 
@@ -1341,22 +1349,28 @@ async function addVendaOnline() {
   document.getElementById('totalVendasOnline').textContent = fmt(total);
 
   if (!dados.vendasOnline.length) {
-    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">💻</div><p>Nenhuma venda online registrada</p></div></td></tr>';
+    body.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">💻</div><p>Nenhuma venda online registrada</p></div></td></tr>';
     return;
   }
 
-  body.innerHTML = [...dados.vendasOnline].reverse().map(v => `
-    <tr>
+  body.innerHTML = [...dados.vendasOnline].reverse().map(v => {
+    const badgeCls = v.status==='Pago'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber';
+    const itensHtml = v.itens && v.itens.length
+      ? v.itens.map(i => `<div style="font-size:11px;line-height:1.6">• ${i.qtd}x ${i.produto}${i.tamanho?' <b>('+i.tamanho+')</b>':''}${i.estampa?' — '+i.estampa:''}</div>`).join('')
+      : `<div style="font-size:12px">${v.produto||'—'}</div>`;
+    return `<tr>
       <td>${fmtData(v.data)}</td>
-      <td>${v.vendedora || '—'}</td>
-      <td style="max-width:220px;font-size:12px">${getVendaDesc(v)}</td>
+      <td><span style="font-weight:600;color:var(--navy)">${v.vendedora || '—'}</span></td>
+      <td style="font-size:13px">${v.cliente || '—'}</td>
+      <td style="max-width:200px">${itensHtml}</td>
       <td>${v.itens ? v.itens.reduce((a,i)=>a+i.qtd,0) : (v.qtd||1)}</td>
       <td><span class="badge badge-sky">${v.canal}</span></td>
       <td>${v.pagamento}</td>
-      <td><span class="badge ${`v.status==='Pago'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber'`}">${v.status}</span></td>
+      <td><span class="badge ${badgeCls}">${v.status}</span></td>
       <td class="val-pos">${fmt(getVendaValor(v))}</td>
       <td><button class="btn-del" onclick="del('vendasOnline',${v.id})">✕</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 // ====== MERCADO LIVRE ======
@@ -1633,7 +1647,7 @@ function renderChannels(rVO, rML, rMC, total) {
 function renderUltimas() {
   const el = document.getElementById('ultimasMovimentacoes');
   const todas = [
-    ...dados.vendasOnline.map(v => ({ data: v.data, tipo: 'Receita', desc: 'Venda: '+getVendaDesc(v), val: getVendaValor(v), cor: 'val-pos', canal: 'Online' })),
+    ...dados.vendasOnline.map(v => ({ data: v.data, tipo: 'Receita', desc: 'Venda: '+getVendaDesc(v), vendedora: v.vendedora||'', val: getVendaValor(v), cor: 'val-pos', canal: 'Online' })),
     ...dados.pedidosML.map(v => ({ data: v.data, tipo: 'Receita', desc: `ML: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'ML' })),
     ...dados.vendasMaquina.map(v => ({ data: v.data, tipo: 'Receita', desc: `Cartão: ${v.descricao}`, val: v.liquido, cor: 'val-pos', canal: 'Presencial' })),
     ...dados.contasPagas.map(v => ({ data: v.data, tipo: 'Despesa', desc: v.descricao, val: -v.valor, cor: 'val-neg', canal: v.categoria })),
@@ -1658,16 +1672,16 @@ function renderUltimas() {
 function renderGeral() {
   const body = document.getElementById('bodyGeral');
   const todas = [
-    ...dados.vendasOnline.map(v => ({ data: v.data, canal: 'Online', desc: getVendaDesc(v)+' ('+( v.vendedora||'')+')' , cat: v.canal, tipo: 'Receita', val: getVendaValor(v), id: v.id })),
-    ...dados.pedidosML.map(v => ({ data: v.data, canal: 'Mercado Livre', desc: v.produto, cat: 'ML', tipo: 'Receita', val: v.liquido, id: v.id })),
-    ...dados.vendasMaquina.map(v => ({ data: v.data, canal: 'Presencial', desc: v.descricao, cat: v.modalidade, tipo: 'Receita', val: v.liquido, id: v.id })),
-    ...dados.contasPagas.map(v => ({ data: v.data, canal: 'Despesa', desc: v.descricao, cat: v.categoria, tipo: 'Despesa', val: -v.valor, id: v.id })),
+    ...dados.vendasOnline.map(v => ({ data: v.data, canal: 'Online', vendedora: v.vendedora||'—', desc: getVendaDesc(v), cat: v.canal, tipo: 'Receita', val: getVendaValor(v), id: v.id })),
+    ...dados.pedidosML.map(v => ({ data: v.data, canal: 'Mercado Livre', vendedora: '—', desc: v.produto, cat: 'ML', tipo: 'Receita', val: v.liquido, id: v.id })),
+    ...dados.vendasMaquina.map(v => ({ data: v.data, canal: 'Presencial', vendedora: '—', desc: v.descricao, cat: v.modalidade, tipo: 'Receita', val: v.liquido, id: v.id })),
+    ...dados.contasPagas.map(v => ({ data: v.data, canal: 'Despesa', vendedora: '—', desc: v.descricao, cat: v.categoria, tipo: 'Despesa', val: -v.valor, id: v.id })),
   ].sort((a,b) => b.data.localeCompare(a.data));
 
   document.getElementById('totalMovimentacoes').textContent = `${todas.length} registros`;
 
   if (!todas.length) {
-    body.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><p>Sem registros</p></div></td></tr>';
+    body.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📭</div><p>Sem registros</p></div></td></tr>';
     return;
   }
 
@@ -1675,6 +1689,7 @@ function renderGeral() {
     <tr>
       <td>${fmtData(m.data)}</td>
       <td><span class="badge ${m.canal==='Mercado Livre'?'badge-amber':m.canal==='Presencial'?'badge-navy':m.canal==='Despesa'?'badge-red':'badge-sky'}">${m.canal}</span></td>
+      <td style="font-size:13px;font-weight:600;color:var(--navy)">${m.vendedora||'—'}</td>
       <td>${m.desc}</td>
       <td style="font-size:12px;color:var(--muted)">${m.cat}</td>
       <td><span class="badge ${m.tipo==='Receita'?'badge-green':'badge-red'}">${m.tipo}</span></td>
@@ -1706,8 +1721,8 @@ function exportarCSV() {
 
   <!-- PWA Service Worker -->
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    if ('serviceWorker' in navigator && !location.hostname.includes('claudeusercontent')) {
+      navigator.serviceWorker.register('/sw.js').catch(function(){});
     }
   </script>
 </body>
