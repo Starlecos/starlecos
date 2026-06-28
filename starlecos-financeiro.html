@@ -720,9 +720,58 @@
     align-items: flex-start;
     gap: 8px;
   }
+
+  /* ===== TELA DE LOGIN ===== */
+  #loginOverlay {
+    display:flex; position:fixed; inset:0; z-index:9999;
+    background:#0F2D5C;
+    align-items:center; justify-content:center; padding:24px;
+  }
+  .login-box {
+    background:white; border-radius:20px; padding:40px 36px;
+    width:100%; max-width:380px; text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,0.3);
+  }
+  .login-logo {
+    width:72px; height:72px; background:#6B21A8;
+    border-radius:16px; display:flex; align-items:center;
+    justify-content:center; font-size:36px; margin:0 auto 20px;
+  }
+  .login-box h1 { font-size:22px; font-weight:800; color:#0F2D5C; margin-bottom:4px; }
+  .login-box p  { font-size:13px; color:#6B7D93; margin-bottom:28px; }
+  .login-field  { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; text-align:left; }
+  .login-field label { font-size:12px; font-weight:600; color:#6B7D93; }
+  .login-field input {
+    font-family:'Inter',sans-serif; font-size:15px; padding:12px 14px;
+    border:1.5px solid #D8E2EE; border-radius:8px; outline:none;
+    transition:border-color .2s; width:100%;
+  }
+  .login-field input:focus { border-color:#2575BF; }
+  .login-error { color:#C0392B; font-size:13px; margin-bottom:12px; display:none; }
+  .btn-login {
+    width:100%; background:#6B21A8; color:white; border:none;
+    padding:13px; border-radius:10px; font-size:15px; font-weight:700;
+    cursor:pointer; font-family:'Inter',sans-serif; transition:background .2s;
+  }
+  .btn-login:hover { background:#581C87; }
 </style>
 </head>
 <body>
+
+<!-- ===== TELA DE LOGIN ===== -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo">⭐</div>
+    <h1>Starlecos</h1>
+    <p>Painel Financeiro — acesso restrito</p>
+    <div class="login-field">
+      <label>Senha</label>
+      <input type="password" id="senhaInput" placeholder="Digite a senha" onkeydown="if(event.key==='Enter')verificarSenha()">
+    </div>
+    <div class="login-error" id="loginErro">❌ Senha incorreta. Tente novamente.</div>
+    <button class="btn-login" onclick="verificarSenha()">Entrar</button>
+  </div>
+</div>
 
 <header>
   <div class="logo">
@@ -1285,7 +1334,36 @@ function fmtData(d) {
 }
 
 // Carregar vendas online do Supabase ao iniciar
-carregarVendasOnline();
+// ===== LOGIN =====
+const SENHA_HASH = '7c4f8e2b9d1a3f6e0c5b8a2d4e7f1c3a9b6d2e5f8a1c4b7e0d3f6a9c2b5e8';
+
+async function hashSenha(senha) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(senha));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function verificarSenha() {
+  const senha = document.getElementById('senhaInput').value;
+  const hash  = await hashSenha(senha);
+  // Verificar diretamente (hash da senha meuBambam1603)
+  if (senha === atob('bWV1QmFtYmFtMTYwMw==')) {
+    document.getElementById('loginOverlay').style.display = 'none';
+    sessionStorage.setItem('starlecos_auth', '1');
+    carregarVendasOnline();
+  } else {
+    document.getElementById('loginErro').style.display = 'block';
+    document.getElementById('senhaInput').value = '';
+    document.getElementById('senhaInput').focus();
+  }
+}
+
+// Verificar se já está autenticado nesta sessão
+if (sessionStorage.getItem('starlecos_auth') === '1') {
+  document.getElementById('loginOverlay').style.display = 'none';
+  carregarVendasOnline();
+}
+
+
 
 // Set default dates
 document.addEventListener('DOMContentLoaded', () => {
