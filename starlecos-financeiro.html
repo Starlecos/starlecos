@@ -1,0 +1,1712 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F2D5C">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Starlecos">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+<title>Starlecos — Controle Financeiro</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0F2D5C;
+    --navy-light: #1A3D72;
+    --jade: #1A7A4A;
+    --jade-light: #E8F5EE;
+    --rose: #C0392B;
+    --rose-light: #FDECEA;
+    --amber: #D4870A;
+    --amber-light: #FEF6E4;
+    --sky: #2575BF;
+    --sky-light: #E8F2FB;
+    --white: #FFFFFF;
+    --bg: #F0F4F8;
+    --card: #FFFFFF;
+    --border: #D8E2EE;
+    --text: #1A2C42;
+    --muted: #6B7D93;
+    --stitch: #B8CCDE;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--navy);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 68px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(15,45,92,0.25);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 38px;
+    height: 38px;
+    background: white;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+
+  .logo-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .logo-text span:first-child {
+    font-size: 20px;
+    font-weight: 800;
+    color: white;
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+
+  .logo-text span:last-child {
+    font-size: 10px;
+    color: #8AAFD4;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-top: 2px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .period-selector {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+  }
+
+  .btn-export {
+    background: var(--jade);
+    color: white;
+    border: none;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: background 0.2s;
+  }
+
+  .btn-export:hover { background: #15643D; }
+
+  /* MAIN */
+  main {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 28px 24px 48px;
+  }
+
+  /* SUMMARY CARDS */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .sum-card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px 22px;
+    border: 1.5px dashed var(--stitch);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sum-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .sum-card.receita::before { background: var(--jade); }
+  .sum-card.despesa::before { background: var(--rose); }
+  .sum-card.saldo::before { background: var(--navy); }
+  .sum-card.pedidos::before { background: var(--amber); }
+
+  .sum-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .sum-value {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+
+  .sum-card.receita .sum-value { color: var(--jade); }
+  .sum-card.despesa .sum-value { color: var(--rose); }
+  .sum-card.saldo .sum-value { color: var(--navy); }
+  .sum-card.pedidos .sum-value { color: var(--amber); }
+
+  .sum-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .sum-icon {
+    position: absolute;
+    right: 18px;
+    top: 18px;
+    font-size: 22px;
+    opacity: 0.12;
+  }
+
+  /* TABS */
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    background: var(--card);
+    border-radius: 10px;
+    padding: 5px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    width: fit-content;
+  }
+
+  .tab-btn {
+    padding: 8px 18px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .tab-btn.active {
+    background: var(--navy);
+    color: white;
+    font-weight: 600;
+  }
+
+  .tab-btn:hover:not(.active) {
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  /* PANELS */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* SECTION HEADER */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+
+  .section-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--sky-light);
+    color: var(--sky);
+  }
+
+  /* FORM CARD */
+  .form-card {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1.5px dashed var(--stitch);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .form-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.3px;
+  }
+
+  .field input,
+  .field select,
+  .field textarea {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 9px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    background: #FAFBFD;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  .field input:focus,
+  .field select:focus,
+  .field textarea:focus {
+    border-color: var(--sky);
+    background: white;
+  }
+
+  .field textarea { resize: vertical; min-height: 60px; }
+
+  .btn-add {
+    background: var(--navy);
+    color: white;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-add:hover { background: var(--navy-light); }
+
+  .btn-add.jade { background: var(--jade); }
+  .btn-add.jade:hover { background: #15643D; }
+
+  .btn-add.amber { background: var(--amber); }
+  .btn-add.amber:hover { background: #B5720A; }
+
+  .btn-add.rose { background: var(--rose); }
+  .btn-add.rose:hover { background: #A93125; }
+
+  /* TABLE */
+  .table-card {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .table-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #FAFBFD;
+  }
+
+  .table-header-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .table-total {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: #FAFBFD;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 11px 16px;
+    border-bottom: 1px solid #F0F4F8;
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: #FAFCFF; }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-green { background: var(--jade-light); color: var(--jade); }
+  .badge-red { background: var(--rose-light); color: var(--rose); }
+  .badge-amber { background: var(--amber-light); color: var(--amber); }
+  .badge-sky { background: var(--sky-light); color: var(--sky); }
+  .badge-navy { background: #E8EEF7; color: var(--navy); }
+
+  .val-pos { color: var(--jade); font-weight: 700; }
+  .val-neg { color: var(--rose); font-weight: 700; }
+
+  .btn-del {
+    background: none;
+    border: 1.5px solid var(--border);
+    color: var(--muted);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .btn-del:hover { border-color: var(--rose); color: var(--rose); background: var(--rose-light); }
+
+  /* ML SYNC */
+  .ml-sync-bar {
+    background: linear-gradient(135deg, #FFE600 0%, #FF7900 100%);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .ml-sync-bar .ml-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .ml-logo {
+    font-size: 22px;
+    background: white;
+    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ml-text h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1A1A1A;
+  }
+
+  .ml-text p {
+    font-size: 12px;
+    color: #3D3D3D;
+    margin-top: 2px;
+  }
+
+  .btn-ml-sync {
+    background: #1A1A1A;
+    color: white;
+    border: none;
+    padding: 9px 18px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+  }
+
+  .btn-ml-sync:hover { background: #333; }
+
+  .ml-config-card {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1.5px dashed var(--stitch);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+
+  .ml-config-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ml-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--jade);
+  }
+
+  .ml-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--jade);
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+
+  /* DASHBOARD */
+  .dash-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+  }
+
+  .chart-placeholder {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 22px;
+  }
+
+  .chart-placeholder h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 150px;
+    padding-top: 10px;
+  }
+
+  .bar-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    gap: 6px;
+  }
+
+  .bar-wrap {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 120px;
+    width: 100%;
+  }
+
+  .bar {
+    flex: 1;
+    border-radius: 4px 4px 0 0;
+    min-height: 4px;
+    transition: height 0.4s ease;
+  }
+
+  .bar.receita { background: var(--jade); }
+  .bar.despesa { background: var(--rose); opacity: 0.7; }
+
+  .bar-label {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .channel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .channel-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .channel-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .channel-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+  }
+
+  .channel-name { font-size: 13px; color: var(--text); }
+
+  .channel-bar-wrap {
+    flex: 1;
+    margin: 0 12px;
+    height: 6px;
+    background: var(--bg);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .channel-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+
+  .channel-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 70px;
+    text-align: right;
+  }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+
+  .empty-state .empty-icon { font-size: 36px; margin-bottom: 10px; }
+  .empty-state p { font-size: 13px; }
+
+  /* NOTIFICATION */
+  #notification {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--navy);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    transform: translateY(60px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 999;
+  }
+
+  #notification.show {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .dash-grid { grid-template-columns: 1fr; }
+    .tab-bar { overflow-x: auto; width: 100%; }
+    .form-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 600px) {
+    main { padding: 16px 14px 40px; }
+    .summary-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .sum-value { font-size: 22px; }
+    .form-row { grid-template-columns: 1fr; }
+    header { padding: 0 16px; }
+  }
+
+  .ml-manual-note {
+    background: var(--amber-light);
+    border: 1px solid #F0C060;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #7A5200;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🥼</div>
+    <div class="logo-text">
+      <span>Starlecos</span>
+      <span>Controle Financeiro</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <select class="period-selector" id="periodoGlobal" onchange="filtrarPeriodo()">
+      <option value="todos">Todos os períodos</option>
+      <option value="hoje">Hoje</option>
+      <option value="semana">Esta semana</option>
+      <option value="mes" selected>Este mês</option>
+    </select>
+    <button class="btn-export" onclick="exportarCSV()">⬇ Exportar CSV</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- SUMMARY CARDS -->
+  <div class="summary-grid">
+    <div class="sum-card receita">
+      <div class="sum-icon">💰</div>
+      <div class="sum-label">Total de Receitas</div>
+      <div class="sum-value" id="totalReceitas">R$ 0,00</div>
+      <div class="sum-sub" id="subReceitas">0 vendas registradas</div>
+    </div>
+    <div class="sum-card despesa">
+      <div class="sum-icon">📋</div>
+      <div class="sum-label">Total de Despesas</div>
+      <div class="sum-value" id="totalDespesas">R$ 0,00</div>
+      <div class="sum-sub" id="subDespesas">0 contas pagas</div>
+    </div>
+    <div class="sum-card saldo">
+      <div class="sum-icon">⚖️</div>
+      <div class="sum-label">Saldo do Período</div>
+      <div class="sum-value" id="saldoPeriodo">R$ 0,00</div>
+      <div class="sum-sub">Receitas − Despesas</div>
+    </div>
+    <div class="sum-card pedidos">
+      <div class="sum-icon">📦</div>
+      <div class="sum-label">Pedidos Totais</div>
+      <div class="sum-value" id="totalPedidos">0</div>
+      <div class="sum-sub" id="subPedidos">Todas as origens</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('dashboard')">📊 Dashboard</button>
+    <button class="tab-btn" onclick="showTab('vendasOnline')">💻 Vendas Online</button>
+    <button class="tab-btn" onclick="showTab('mercadoLivre')">🛒 Mercado Livre</button>
+    <button class="tab-btn" onclick="showTab('maquina')">💳 Máq. de Cartão</button>
+    <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
+  </div>
+
+  <!-- ====== DASHBOARD ====== -->
+  <div class="tab-panel active" id="panel-dashboard">
+    <div class="section-header">
+      <div class="section-title">📊 Visão Geral do Período</div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="chart-placeholder">
+        <h3>Receitas por Canal de Venda</h3>
+        <div class="channel-list" id="channelList">
+          <div class="empty-state">
+            <div class="empty-icon">📉</div>
+            <p>Registre vendas para ver o comparativo por canal</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-placeholder">
+        <h3>Últimas Movimentações</h3>
+        <div id="ultimasMovimentacoes">
+          <div class="empty-state">
+            <div class="empty-icon">🗂️</div>
+            <p>Nenhuma movimentação ainda</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <br>
+
+    <!-- TABELA RESUMO -->
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">📋 Todas as Movimentações</span>
+        <span id="totalMovimentacoes" class="table-total" style="color:var(--muted);font-size:12px;">0 registros</span>
+      </div>
+      <table id="tabelaGeral">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Canal</th>
+            <th>Descrição</th>
+            <th>Categoria</th>
+            <th>Tipo</th>
+            <th>Valor</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="bodyGeral">
+          <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><p>Sem registros</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== VENDAS ONLINE (VENDEDORA) ====== -->
+  <div class="tab-panel" id="panel-vendasOnline">
+    <div class="section-header">
+      <div class="section-title">💻 Vendas Online — Vendedora <span class="section-badge">Registro manual</span></div>
+    </div>
+
+    <div class="form-card">
+      <h3>📝 Registrar Venda Online</h3>
+      <div class="form-row">
+        <div class="field">
+          <label>Data da Venda</label>
+          <input type="date" id="vo_data">
+        </div>
+        <div class="field">
+          <label>Vendedora</label>
+          <input type="text" id="vo_vendedora" placeholder="Nome da vendedora">
+        </div>
+        <div class="field">
+          <label>Produto Vendido</label>
+          <input type="text" id="vo_produto" placeholder="Ex: Jaleco M Branco">
+        </div>
+        <div class="field">
+          <label>Quantidade</label>
+          <input type="number" id="vo_qtd" min="1" value="1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Valor Total (R$)</label>
+          <input type="number" id="vo_valor" placeholder="0,00" step="0.01" min="0">
+        </div>
+        <div class="field">
+          <label>Canal de Venda</label>
+          <select id="vo_canal">
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Site">Site próprio</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Forma de Pagamento</label>
+          <select id="vo_pagamento">
+            <option value="PIX">PIX</option>
+            <option value="Transferência">Transferência</option>
+            <option value="Boleto">Boleto</option>
+            <option value="Crédito">Cartão de Crédito</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="vo_status">
+            <option value="Pago">Pago</option>
+            <option value="Pendente">Pendente</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field" style="grid-column: span 2">
+          <label>Observação (opcional)</label>
+          <input type="text" id="vo_obs" placeholder="Detalhes adicionais...">
+        </div>
+      </div>
+      <button class="btn-add jade" onclick="addVendaOnline()">＋ Registrar Venda</button>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Histórico de Vendas Online</span>
+        <span class="table-total val-pos" id="totalVendasOnline">R$ 0,00</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Vendedora</th>
+            <th>Produto</th>
+            <th>Qtd</th>
+            <th>Canal</th>
+            <th>Pagamento</th>
+            <th>Status</th>
+            <th>Valor</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bodyVendasOnline">
+          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">💻</div><p>Nenhuma venda online registrada</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== MERCADO LIVRE ====== -->
+  <div class="tab-panel" id="panel-mercadoLivre">
+    <div class="section-header">
+      <div class="section-title">🛒 Mercado Livre <span class="section-badge">Importação de pedidos</span></div>
+    </div>
+
+    <div class="ml-sync-bar">
+      <div class="ml-info">
+        <div class="ml-logo">🛒</div>
+        <div class="ml-text">
+          <h4>Mercado Livre — Abastecimento de Pedidos</h4>
+          <p>Importe pedidos via planilha CSV exportada do Seller Central</p>
+        </div>
+      </div>
+      <label class="btn-ml-sync" style="cursor:pointer;">
+        📂 Importar CSV do ML
+        <input type="file" accept=".csv" style="display:none" onchange="importarCSVML(event)">
+      </label>
+    </div>
+
+    <div class="ml-manual-note">
+      ⚠️ <span><strong>Como importar:</strong> No painel do Mercado Livre → Vendas → Exportar relatório (CSV). O arquivo deve conter colunas: <code>data, numero_pedido, produto, quantidade, valor_bruto, taxa_ml, status</code>. Ou use o formulário abaixo para registro manual.</span>
+    </div>
+
+    <div class="form-card">
+      <h3>➕ Adicionar Pedido Mercado Livre Manualmente</h3>
+      <div class="form-row">
+        <div class="field">
+          <label>Data do Pedido</label>
+          <input type="date" id="ml_data">
+        </div>
+        <div class="field">
+          <label>Nº do Pedido</label>
+          <input type="text" id="ml_pedido" placeholder="Ex: #123456789">
+        </div>
+        <div class="field">
+          <label>Produto</label>
+          <input type="text" id="ml_produto" placeholder="Nome do produto">
+        </div>
+        <div class="field">
+          <label>Quantidade</label>
+          <input type="number" id="ml_qtd" min="1" value="1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Valor Bruto (R$)</label>
+          <input type="number" id="ml_bruto" placeholder="0,00" step="0.01" min="0">
+        </div>
+        <div class="field">
+          <label>Taxa ML (R$)</label>
+          <input type="number" id="ml_taxa" placeholder="0,00" step="0.01" min="0" value="0">
+        </div>
+        <div class="field">
+          <label>Status do Pedido</label>
+          <select id="ml_status">
+            <option value="Entregue">Entregue</option>
+            <option value="Enviado">Enviado</option>
+            <option value="Aguardando">Aguardando envio</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-add amber" onclick="addPedidoML()">＋ Adicionar Pedido</button>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Pedidos Mercado Livre</span>
+        <span class="table-total val-pos" id="totalML">R$ 0,00</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Nº Pedido</th>
+            <th>Produto</th>
+            <th>Qtd</th>
+            <th>Bruto</th>
+            <th>Taxa ML</th>
+            <th>Líquido</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bodyML">
+          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛒</div><p>Nenhum pedido importado ainda</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== MÁQUINA DE CARTÃO ====== -->
+  <div class="tab-panel" id="panel-maquina">
+    <div class="section-header">
+      <div class="section-title">💳 Vendas na Máquina de Cartão <span class="section-badge">Presencial</span></div>
+    </div>
+
+    <div class="form-card">
+      <h3>💳 Registrar Venda Presencial</h3>
+      <div class="form-row">
+        <div class="field">
+          <label>Data da Venda</label>
+          <input type="date" id="mc_data">
+        </div>
+        <div class="field">
+          <label>Descrição / Produto</label>
+          <input type="text" id="mc_descricao" placeholder="Ex: 3 jalecos P e M">
+        </div>
+        <div class="field">
+          <label>Modalidade</label>
+          <select id="mc_modalidade">
+            <option value="Débito">Débito</option>
+            <option value="Crédito à Vista">Crédito à Vista</option>
+            <option value="Crédito 2x">Crédito 2x</option>
+            <option value="Crédito 3x">Crédito 3x</option>
+            <option value="Crédito 6x">Crédito 6x</option>
+            <option value="Crédito 12x">Crédito 12x</option>
+            <option value="PIX">PIX (máquina)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Bandeira</label>
+          <select id="mc_bandeira">
+            <option value="Visa">Visa</option>
+            <option value="Mastercard">Mastercard</option>
+            <option value="Elo">Elo</option>
+            <option value="Hipercard">Hipercard</option>
+            <option value="Outra">Outra</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Valor Total (R$)</label>
+          <input type="number" id="mc_valor" placeholder="0,00" step="0.01" min="0">
+        </div>
+        <div class="field">
+          <label>Taxa da Maquininha (%)</label>
+          <input type="number" id="mc_taxa" placeholder="Ex: 1.99" step="0.01" min="0" max="100" value="0">
+        </div>
+        <div class="field">
+          <label>Data de Recebimento</label>
+          <input type="date" id="mc_recebimento">
+        </div>
+        <div class="field">
+          <label>Observação</label>
+          <input type="text" id="mc_obs" placeholder="Opcional">
+        </div>
+      </div>
+      <button class="btn-add" onclick="addVendaMaquina()">＋ Registrar Venda</button>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Vendas na Maquininha</span>
+        <span class="table-total val-pos" id="totalMaquina">R$ 0,00</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Modalidade</th>
+            <th>Bandeira</th>
+            <th>Taxa</th>
+            <th>Bruto</th>
+            <th>Líquido</th>
+            <th>Recebimento</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bodyMaquina">
+          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">💳</div><p>Nenhuma venda presencial registrada</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== CONTAS PAGAS ====== -->
+  <div class="tab-panel" id="panel-contas">
+    <div class="section-header">
+      <div class="section-title">📄 Contas Pagas <span class="section-badge">Despesas</span></div>
+    </div>
+
+    <div class="form-card">
+      <h3>💸 Registrar Conta Paga</h3>
+      <div class="form-row">
+        <div class="field">
+          <label>Data do Pagamento</label>
+          <input type="date" id="cp_data">
+        </div>
+        <div class="field">
+          <label>Descrição</label>
+          <input type="text" id="cp_descricao" placeholder="Ex: Aluguel, Tecido, Frete...">
+        </div>
+        <div class="field">
+          <label>Categoria</label>
+          <select id="cp_categoria">
+            <option value="Matéria-Prima">Matéria-Prima / Insumos</option>
+            <option value="Aluguel">Aluguel</option>
+            <option value="Funcionários">Funcionários / Pró-labore</option>
+            <option value="Frete">Frete / Logística</option>
+            <option value="Marketing">Marketing / Publicidade</option>
+            <option value="Equipamentos">Equipamentos</option>
+            <option value="Impostos">Impostos / Taxas</option>
+            <option value="Serviços">Serviços Terceirizados</option>
+            <option value="Utilidades">Água / Luz / Internet</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Valor (R$)</label>
+          <input type="number" id="cp_valor" placeholder="0,00" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Forma de Pagamento</label>
+          <select id="cp_pagamento">
+            <option value="PIX">PIX</option>
+            <option value="Boleto">Boleto</option>
+            <option value="Débito">Débito</option>
+            <option value="Crédito">Crédito</option>
+            <option value="Dinheiro">Dinheiro</option>
+            <option value="Transferência">Transferência</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Fornecedor / Beneficiário</label>
+          <input type="text" id="cp_fornecedor" placeholder="Nome do fornecedor">
+        </div>
+        <div class="field">
+          <label>Comprovante / Nº NF</label>
+          <input type="text" id="cp_comprovante" placeholder="Opcional">
+        </div>
+      </div>
+      <button class="btn-add rose" onclick="addContaPaga()">＋ Registrar Despesa</button>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Contas Pagas</span>
+        <span class="table-total val-neg" id="totalContas">R$ 0,00</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Categoria</th>
+            <th>Fornecedor</th>
+            <th>Pagamento</th>
+            <th>Comprovante</th>
+            <th>Valor</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bodyContas">
+          <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📄</div><p>Nenhuma conta registrada</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<div id="notification"></div>
+
+<script>
+// =============================================
+// SUPABASE
+// =============================================
+const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
+const SB_HEADERS = { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+
+async function sbGet(table, params) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + (params || 'select=*'), { headers: SB_HEADERS });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+async function sbDelete(table, filter) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + filter, { method: 'DELETE', headers: SB_HEADERS });
+  if (!res.ok) throw new Error(await res.text());
+}
+async function sbInsert(table, data) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+    method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' }, body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+// =============================================
+// STATE — vendasOnline vem do Supabase, resto do localStorage
+// =============================================
+let dados = JSON.parse(localStorage.getItem('starlecos_dados') || '{"vendasOnline":[],"pedidosML":[],"vendasMaquina":[],"contasPagas":[]}');
+
+async function carregarVendasOnline() {
+  try {
+    dados.vendasOnline = await sbGet('vendas', 'select=*&order=data.desc,id.desc');
+    atualizarTudo();
+  } catch(e) {
+    console.error('Erro ao carregar vendas online:', e);
+    notify('Erro ao conectar ao banco de dados', 'err');
+  }
+}
+
+function salvar() {
+  localStorage.setItem('starlecos_dados', JSON.stringify(dados));
+  atualizarTudo();
+}
+
+function notify(msg, tipo = 'ok') {
+  const n = document.getElementById('notification');
+  n.textContent = msg;
+  n.style.background = tipo === 'ok' ? 'var(--jade)' : 'var(--rose)';
+  n.classList.add('show');
+  setTimeout(() => n.classList.remove('show'), 2800);
+}
+
+// ====== TABS ======
+function showTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ====== FORMAT ======
+function fmt(v) {
+  return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function hoje() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function fmtData(d) {
+  if (!d) return '—';
+  const [a, m, dia] = d.split('-');
+  return `${dia}/${m}/${a}`;
+}
+
+// Carregar vendas online do Supabase ao iniciar
+carregarVendasOnline();
+
+// Set default dates
+document.addEventListener('DOMContentLoaded', () => {
+  const dateFields = ['vo_data','ml_data','mc_data','mc_recebimento','cp_data'];
+  dateFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = hoje();
+  });
+  atualizarTudo();
+});
+
+// ====== VENDAS ONLINE ======
+async function addVendaOnline() {
+  const data = document.getElementById('vo_data').value;
+  const vendedora = document.getElementById('vo_vendedora').value.trim();
+  const produto = document.getElementById('vo_produto').value.trim();
+  const qtd = parseInt(document.getElementById('vo_qtd').value) || 1;
+  const valor = parseFloat(document.getElementById('vo_valor').value) || 0;
+  const canal = document.getElementById('vo_canal').value;
+  const pagamento = document.getElementById('vo_pagamento').value;
+  const status = document.getElementById('vo_status').value;
+  const obs = document.getElementById('vo_obs').value.trim();
+
+  if (!data || !vendedora || !produto || valor <= 0) {
+    notify('Preencha: data, vendedora, produto e valor.', 'err'); return;
+  }
+
+  // Salvar venda online no Supabase
+  try {
+    await sbInsert('vendas', { id: Date.now(), data, vendedora, cliente: '', itens: [{produto, qtd, valor, tamanho:'', estampa:''}], subtotal: valor, frete: 0, total: valor, canal, pagamento, status, obs });
+    await carregarVendasOnline();
+    notify('✅ Venda online registrada!');
+  } catch(e) { notify('Erro ao salvar no banco', 'err'); }
+  document.getElementById('vo_vendedora').value = '';
+  document.getElementById('vo_produto').value = '';
+  document.getElementById('vo_qtd').value = '1';
+  document.getElementById('vo_valor').value = '';
+  document.getElementById('vo_obs').value = '';
+}
+
+
+  // Helper: compatibilidade com formato antigo (campo simples) e novo (array itens)
+  function getVendaValor(v) {
+    if (v.total !== undefined) return v.total;
+    if (v.valor !== undefined) return v.valor;
+    if (v.itens && v.itens.length) return v.itens.reduce(function(a,i){ return a+(i.valor*i.qtd); },0) + (v.frete||0);
+    return 0;
+  }
+  function getVendaDesc(v) {
+    if (v.itens && v.itens.length) {
+      var nomes = v.itens.map(function(i){ return i.qtd+'x '+i.produto+(i.tamanho?' ('+i.tamanho+')':''); }).join(', ');
+      return (v.cliente ? v.cliente+': ' : '') + nomes;
+    }
+    return (v.cliente ? v.cliente+': ' : '') + (v.produto || '—');
+  }
+  function getVendaCliente(v) { return v.cliente || v.vendedora || '—'; }
+
+  function renderVendasOnline() {
+  const body = document.getElementById('bodyVendasOnline');
+  const total = dados.vendasOnline.reduce((a,v) => a + (v.status !== 'Cancelado' ? getVendaValor(v) : 0), 0);
+  document.getElementById('totalVendasOnline').textContent = fmt(total);
+
+  if (!dados.vendasOnline.length) {
+    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">💻</div><p>Nenhuma venda online registrada</p></div></td></tr>';
+    return;
+  }
+
+  body.innerHTML = [...dados.vendasOnline].reverse().map(v => `
+    <tr>
+      <td>${fmtData(v.data)}</td>
+      <td>${v.vendedora || '—'}</td>
+      <td style="max-width:220px;font-size:12px">${getVendaDesc(v)}</td>
+      <td>${v.itens ? v.itens.reduce((a,i)=>a+i.qtd,0) : (v.qtd||1)}</td>
+      <td><span class="badge badge-sky">${v.canal}</span></td>
+      <td>${v.pagamento}</td>
+      <td><span class="badge ${`v.status==='Pago'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber'`}">${v.status}</span></td>
+      <td class="val-pos">${fmt(getVendaValor(v))}</td>
+      <td><button class="btn-del" onclick="del('vendasOnline',${v.id})">✕</button></td>
+    </tr>`).join('');
+}
+
+// ====== MERCADO LIVRE ======
+function addPedidoML() {
+  const data = document.getElementById('ml_data').value;
+  const pedido = document.getElementById('ml_pedido').value.trim();
+  const produto = document.getElementById('ml_produto').value.trim();
+  const qtd = parseInt(document.getElementById('ml_qtd').value) || 1;
+  const bruto = parseFloat(document.getElementById('ml_bruto').value) || 0;
+  const taxa = parseFloat(document.getElementById('ml_taxa').value) || 0;
+  const status = document.getElementById('ml_status').value;
+
+  if (!data || !produto || bruto <= 0) {
+    notify('Preencha: data, produto e valor bruto.', 'err'); return;
+  }
+
+  dados.pedidosML.push({ id: Date.now(), data, pedido: pedido || '#' + Date.now(), produto, qtd, bruto, taxa, liquido: bruto - taxa, status });
+  salvar();
+  document.getElementById('ml_pedido').value = '';
+  document.getElementById('ml_produto').value = '';
+  document.getElementById('ml_qtd').value = '1';
+  document.getElementById('ml_bruto').value = '';
+  document.getElementById('ml_taxa').value = '0';
+  notify('✅ Pedido ML adicionado!');
+}
+
+function importarCSVML(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    if (lines.length < 2) { notify('CSV sem dados válidos', 'err'); return; }
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g,''));
+    let importados = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim().replace(/"/g,''));
+      const row = {};
+      headers.forEach((h, idx) => row[h] = cols[idx] || '');
+
+      const data = row['data'] || row['date'] || hoje();
+      const produto = row['produto'] || row['product'] || row['titulo'] || row['title'] || 'Produto ML';
+      const bruto = parseFloat(row['valor_bruto'] || row['valor'] || row['price'] || row['preco'] || 0);
+      const taxa = parseFloat(row['taxa_ml'] || row['taxa'] || row['fee'] || 0);
+      const pedido = row['numero_pedido'] || row['order_id'] || row['pedido'] || '#ML' + i;
+      const qtd = parseInt(row['quantidade'] || row['qty'] || row['quantity'] || 1);
+      const status = row['status'] || 'Entregue';
+
+      if (produto && bruto > 0) {
+        dados.pedidosML.push({ id: Date.now() + i, data, pedido, produto, qtd, bruto, taxa, liquido: bruto - taxa, status });
+        importados++;
+      }
+    }
+
+    salvar();
+    notify(`✅ ${importados} pedido(s) importado(s) do ML!`);
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function renderML() {
+  const body = document.getElementById('bodyML');
+  const total = dados.pedidosML.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
+  document.getElementById('totalML').textContent = fmt(total);
+
+  if (!dados.pedidosML.length) {
+    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛒</div><p>Nenhum pedido importado ainda</p></div></td></tr>';
+    return;
+  }
+
+  body.innerHTML = [...dados.pedidosML].reverse().map(v => `
+    <tr>
+      <td>${fmtData(v.data)}</td>
+      <td style="font-size:12px;color:var(--muted)">${v.pedido}</td>
+      <td>${v.produto}</td>
+      <td>${v.qtd}</td>
+      <td class="val-pos">${fmt(v.bruto)}</td>
+      <td class="val-neg">− ${fmt(v.taxa)}</td>
+      <td class="val-pos"><strong>${fmt(v.liquido)}</strong></td>
+      <td><span class="badge ${v.status==='Entregue'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber'}">${v.status}</span></td>
+      <td><button class="btn-del" onclick="del('pedidosML',${v.id})">✕</button></td>
+    </tr>`).join('');
+}
+
+// ====== MÁQUINA CARTÃO ======
+function addVendaMaquina() {
+  const data = document.getElementById('mc_data').value;
+  const descricao = document.getElementById('mc_descricao').value.trim();
+  const modalidade = document.getElementById('mc_modalidade').value;
+  const bandeira = document.getElementById('mc_bandeira').value;
+  const valor = parseFloat(document.getElementById('mc_valor').value) || 0;
+  const taxaPerc = parseFloat(document.getElementById('mc_taxa').value) || 0;
+  const recebimento = document.getElementById('mc_recebimento').value;
+  const obs = document.getElementById('mc_obs').value.trim();
+
+  if (!data || !descricao || valor <= 0) {
+    notify('Preencha: data, descrição e valor.', 'err'); return;
+  }
+
+  const taxa = (valor * taxaPerc) / 100;
+  const liquido = valor - taxa;
+  dados.vendasMaquina.push({ id: Date.now(), data, descricao, modalidade, bandeira, valor, taxaPerc, taxa, liquido, recebimento, obs });
+  salvar();
+  document.getElementById('mc_descricao').value = '';
+  document.getElementById('mc_valor').value = '';
+  document.getElementById('mc_taxa').value = '0';
+  document.getElementById('mc_obs').value = '';
+  notify('✅ Venda presencial registrada!');
+}
+
+function renderMaquina() {
+  const body = document.getElementById('bodyMaquina');
+  const total = dados.vendasMaquina.reduce((a,v) => a + v.liquido, 0);
+  document.getElementById('totalMaquina').textContent = fmt(total);
+
+  if (!dados.vendasMaquina.length) {
+    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">💳</div><p>Nenhuma venda presencial registrada</p></div></td></tr>';
+    return;
+  }
+
+  body.innerHTML = [...dados.vendasMaquina].reverse().map(v => `
+    <tr>
+      <td>${fmtData(v.data)}</td>
+      <td>${v.descricao}</td>
+      <td><span class="badge badge-navy">${v.modalidade}</span></td>
+      <td>${v.bandeira}</td>
+      <td style="color:var(--muted);font-size:12px">${v.taxaPerc}%</td>
+      <td>${fmt(v.valor)}</td>
+      <td class="val-pos"><strong>${fmt(v.liquido)}</strong></td>
+      <td>${fmtData(v.recebimento)}</td>
+      <td><button class="btn-del" onclick="del('vendasMaquina',${v.id})">✕</button></td>
+    </tr>`).join('');
+}
+
+// ====== CONTAS PAGAS ======
+function addContaPaga() {
+  const data = document.getElementById('cp_data').value;
+  const descricao = document.getElementById('cp_descricao').value.trim();
+  const categoria = document.getElementById('cp_categoria').value;
+  const valor = parseFloat(document.getElementById('cp_valor').value) || 0;
+  const pagamento = document.getElementById('cp_pagamento').value;
+  const fornecedor = document.getElementById('cp_fornecedor').value.trim();
+  const comprovante = document.getElementById('cp_comprovante').value.trim();
+
+  if (!data || !descricao || valor <= 0) {
+    notify('Preencha: data, descrição e valor.', 'err'); return;
+  }
+
+  dados.contasPagas.push({ id: Date.now(), data, descricao, categoria, valor, pagamento, fornecedor, comprovante });
+  salvar();
+  document.getElementById('cp_descricao').value = '';
+  document.getElementById('cp_valor').value = '';
+  document.getElementById('cp_fornecedor').value = '';
+  document.getElementById('cp_comprovante').value = '';
+  notify('✅ Despesa registrada!');
+}
+
+function renderContas() {
+  const body = document.getElementById('bodyContas');
+  const total = dados.contasPagas.reduce((a,v) => a + v.valor, 0);
+  document.getElementById('totalContas').textContent = fmt(total);
+
+  if (!dados.contasPagas.length) {
+    body.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📄</div><p>Nenhuma conta registrada</p></div></td></tr>';
+    return;
+  }
+
+  body.innerHTML = [...dados.contasPagas].reverse().map(v => `
+    <tr>
+      <td>${fmtData(v.data)}</td>
+      <td>${v.descricao}</td>
+      <td><span class="badge badge-red">${v.categoria}</span></td>
+      <td>${v.fornecedor || '—'}</td>
+      <td>${v.pagamento}</td>
+      <td style="font-size:12px;color:var(--muted)">${v.comprovante || '—'}</td>
+      <td class="val-neg"><strong>${fmt(v.valor)}</strong></td>
+      <td><button class="btn-del" onclick="del('contasPagas',${v.id})">✕</button></td>
+    </tr>`).join('');
+}
+
+// ====== DELETE ======
+async function del(colecao, id) {
+  if (!confirm('Remover este registro?')) return;
+  if (colecao === 'vendasOnline') {
+    try {
+      await sbDelete('vendas', 'id=eq.' + id);
+      await carregarVendasOnline();
+      notify('Registro removido.');
+    } catch(e) { notify('Erro ao remover', 'err'); }
+  } else {
+    dados[colecao] = dados[colecao].filter(v => v.id !== id);
+    salvar();
+    notify('Registro removido.');
+  }
+}
+
+// ====== DASHBOARD / SUMMARY ======
+function atualizarTudo() {
+  // Receitas
+  const rVO = dados.vendasOnline.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+getVendaValor(v), 0);
+  const rML = dados.pedidosML.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+v.liquido, 0);
+  const rMC = dados.vendasMaquina.reduce((a,v) => a+v.liquido, 0);
+  const totalReceitas = rVO + rML + rMC;
+
+  // Despesas
+  const totalDespesas = dados.contasPagas.reduce((a,v) => a+v.valor, 0);
+
+  // Pedidos
+  const totalPedidos = dados.vendasOnline.length + dados.pedidosML.length + dados.vendasMaquina.length;
+
+  // Update summary
+  document.getElementById('totalReceitas').textContent = fmt(totalReceitas);
+  document.getElementById('totalDespesas').textContent = fmt(totalDespesas);
+  const saldo = totalReceitas - totalDespesas;
+  const saldoEl = document.getElementById('saldoPeriodo');
+  saldoEl.textContent = fmt(Math.abs(saldo));
+  saldoEl.style.color = saldo >= 0 ? 'var(--jade)' : 'var(--rose)';
+  document.getElementById('totalPedidos').textContent = totalPedidos;
+
+  const nVO = dados.vendasOnline.length;
+  const nML = dados.pedidosML.length;
+  const nMC = dados.vendasMaquina.length;
+  const nCP = dados.contasPagas.length;
+
+  document.getElementById('subReceitas').textContent = `${nVO + nML + nMC} vendas registradas`;
+  document.getElementById('subDespesas').textContent = `${nCP} conta(s) paga(s)`;
+  document.getElementById('subPedidos').textContent = `${nVO} online · ${nML} ML · ${nMC} presencial`;
+
+  // Channels
+  renderChannels(rVO, rML, rMC, totalReceitas);
+
+  // Últimas movimentações
+  renderUltimas();
+
+  // Tabela geral
+  renderGeral();
+
+  // Sub-tables
+  renderVendasOnline();
+  renderML();
+  renderMaquina();
+  renderContas();
+}
+
+function renderChannels(rVO, rML, rMC, total) {
+  const el = document.getElementById('channelList');
+  if (total === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📉</div><p>Registre vendas para ver o comparativo</p></div>';
+    return;
+  }
+
+  const channels = [
+    { name: 'Vendas Online (Vendedora)', val: rVO, color: '#1A7A4A' },
+    { name: 'Mercado Livre', val: rML, color: '#FFB800' },
+    { name: 'Máquina de Cartão', val: rMC, color: '#0F2D5C' },
+  ].filter(c => c.val > 0);
+
+  el.innerHTML = channels.map(c => `
+    <div class="channel-item">
+      <div class="channel-left">
+        <div class="channel-dot" style="background:${c.color}"></div>
+        <span class="channel-name">${c.name}</span>
+      </div>
+      <div class="channel-bar-wrap">
+        <div class="channel-bar-fill" style="width:${Math.round((c.val/total)*100)}%;background:${c.color}"></div>
+      </div>
+      <span class="channel-val">${fmt(c.val)}</span>
+    </div>
+  `).join('');
+}
+
+function renderUltimas() {
+  const el = document.getElementById('ultimasMovimentacoes');
+  const todas = [
+    ...dados.vendasOnline.map(v => ({ data: v.data, tipo: 'Receita', desc: 'Venda: '+getVendaDesc(v), val: getVendaValor(v), cor: 'val-pos', canal: 'Online' })),
+    ...dados.pedidosML.map(v => ({ data: v.data, tipo: 'Receita', desc: `ML: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'ML' })),
+    ...dados.vendasMaquina.map(v => ({ data: v.data, tipo: 'Receita', desc: `Cartão: ${v.descricao}`, val: v.liquido, cor: 'val-pos', canal: 'Presencial' })),
+    ...dados.contasPagas.map(v => ({ data: v.data, tipo: 'Despesa', desc: v.descricao, val: -v.valor, cor: 'val-neg', canal: v.categoria })),
+  ].sort((a,b) => b.data.localeCompare(a.data)).slice(0, 8);
+
+  if (!todas.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🗂️</div><p>Nenhuma movimentação ainda</p></div>';
+    return;
+  }
+
+  el.innerHTML = todas.map(m => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--text)">${m.desc}</div>
+        <div style="font-size:11px;color:var(--muted)">${fmtData(m.data)} · ${m.canal}</div>
+      </div>
+      <div class="${m.cor}" style="font-size:13px;white-space:nowrap">${m.val < 0 ? '− ' + fmt(-m.val) : fmt(m.val)}</div>
+    </div>
+  `).join('');
+}
+
+function renderGeral() {
+  const body = document.getElementById('bodyGeral');
+  const todas = [
+    ...dados.vendasOnline.map(v => ({ data: v.data, canal: 'Online', desc: getVendaDesc(v)+' ('+( v.vendedora||'')+')' , cat: v.canal, tipo: 'Receita', val: getVendaValor(v), id: v.id })),
+    ...dados.pedidosML.map(v => ({ data: v.data, canal: 'Mercado Livre', desc: v.produto, cat: 'ML', tipo: 'Receita', val: v.liquido, id: v.id })),
+    ...dados.vendasMaquina.map(v => ({ data: v.data, canal: 'Presencial', desc: v.descricao, cat: v.modalidade, tipo: 'Receita', val: v.liquido, id: v.id })),
+    ...dados.contasPagas.map(v => ({ data: v.data, canal: 'Despesa', desc: v.descricao, cat: v.categoria, tipo: 'Despesa', val: -v.valor, id: v.id })),
+  ].sort((a,b) => b.data.localeCompare(a.data));
+
+  document.getElementById('totalMovimentacoes').textContent = `${todas.length} registros`;
+
+  if (!todas.length) {
+    body.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><p>Sem registros</p></div></td></tr>';
+    return;
+  }
+
+  body.innerHTML = todas.map(m => `
+    <tr>
+      <td>${fmtData(m.data)}</td>
+      <td><span class="badge ${m.canal==='Mercado Livre'?'badge-amber':m.canal==='Presencial'?'badge-navy':m.canal==='Despesa'?'badge-red':'badge-sky'}">${m.canal}</span></td>
+      <td>${m.desc}</td>
+      <td style="font-size:12px;color:var(--muted)">${m.cat}</td>
+      <td><span class="badge ${m.tipo==='Receita'?'badge-green':'badge-red'}">${m.tipo}</span></td>
+      <td class="${m.val >= 0 ? 'val-pos' : 'val-neg'}"><strong>${m.val < 0 ? '− ' + fmt(-m.val) : fmt(m.val)}</strong></td>
+      <td>—</td>
+    </tr>`).join('');
+}
+
+// ====== EXPORT CSV ======
+function exportarCSV() {
+  const rows = [['Data','Canal','Descrição','Categoria','Tipo','Valor Líquido']];
+
+  dados.vendasOnline.forEach(v => rows.push([v.data,'Online',getVendaDesc(v)+' - '+(v.vendedora||''),v.canal,'Receita',getVendaValor(v).toFixed(2)]));
+  dados.pedidosML.forEach(v => rows.push([v.data,'Mercado Livre',v.produto,'ML','Receita',v.liquido.toFixed(2)]));
+  dados.vendasMaquina.forEach(v => rows.push([v.data,'Presencial',v.descricao,v.modalidade,'Receita',v.liquido.toFixed(2)]));
+  dados.contasPagas.forEach(v => rows.push([v.data,'Despesa',v.descricao,v.categoria,'Despesa',('-'+v.valor.toFixed(2))]));
+
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `starlecos_financeiro_${hoje()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  notify('✅ CSV exportado com sucesso!');
+}
+</script>
+
+  <!-- PWA Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    }
+  </script>
+</body>
+</html>

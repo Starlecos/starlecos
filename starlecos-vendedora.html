@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F2D5C">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Starlecos">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+<title>Starlecos — Lançar Venda</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:#0F2D5C; --jade:#1A7A4A; --jade-light:#E8F5EE;
+    --rose:#C0392B; --rose-light:#FDECEA; --amber:#D4870A;
+    --amber-light:#FEF6E4; --sky:#2575BF; --sky-light:#E8F2FB;
+    --border:#D8E2EE; --bg:#F0F4F8; --card:#FFFFFF;
+    --text:#1A2C42; --muted:#6B7D93; --stitch:#B8CCDE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+
+  header{background:var(--navy);padding:0 24px;height:62px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 10px rgba(15,45,92,.25);}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo-icon{width:34px;height:34px;background:white;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .logo-text span:first-child{display:block;font-size:18px;font-weight:800;color:white;letter-spacing:-.5px;line-height:1;}
+  .logo-text span:last-child{display:block;font-size:10px;color:#8AAFD4;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;margin-top:1px;}
+  .header-right{display:flex;align-items:center;gap:8px;}
+  .header-badge{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:white;font-size:12px;font-weight:600;padding:5px 14px;border-radius:20px;}
+  .btn-header{border:none;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:5px;transition:background .2s;white-space:nowrap;}
+  .btn-excel{background:#1D6F42;color:white;} .btn-excel:hover{background:#155232;}
+  .btn-config{background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.25)!important;} .btn-config:hover{background:rgba(255,255,255,.25);}
+
+  main{flex:1;display:flex;flex-direction:column;align-items:center;padding:32px 16px 48px;}
+  .page-title{text-align:center;margin-bottom:28px;}
+  .page-title h1{font-size:24px;font-weight:800;color:var(--navy);letter-spacing:-.5px;}
+  .page-title p{font-size:14px;color:var(--muted);margin-top:4px;}
+
+  .form-card{background:var(--card);border-radius:16px;border:1.5px dashed var(--stitch);padding:28px 28px 24px;width:100%;max-width:600px;box-shadow:0 4px 24px rgba(15,45,92,.07);}
+  .form-card h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+  .section-divider{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:18px 0 12px;display:flex;align-items:center;gap:8px;}
+  .section-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .field label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.3px;}
+  .field input,.field select{font-family:'Inter',sans-serif;font-size:15px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;color:var(--text);background:#FAFBFD;outline:none;transition:border-color .2s;width:100%;}
+  .field input:focus,.field select:focus{border-color:var(--sky);background:white;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+  #itensList{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;}
+  .item-row{background:#F7FAFD;border:1.5px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;animation:fadeIn .2s ease;position:relative;}
+  .item-row-top{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .item-row-mid{display:grid;grid-template-columns:2fr 80px 110px;gap:10px;align-items:end;}
+  .item-row .field{margin-bottom:0;}
+  .item-row .field label{font-size:11px;}
+  .item-row .field input,.item-row .field select{font-size:13px;padding:8px 10px;}
+  .btn-remove-item{position:absolute;top:10px;right:10px;background:var(--rose-light);color:var(--rose);border:1.5px solid #F0B8B2;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+  .btn-remove-item:hover{background:var(--rose);color:white;}
+  .btn-add-item{background:var(--sky-light);color:var(--sky);border:1.5px dashed var(--sky);border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;width:100%;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .btn-add-item:hover{background:var(--sky);color:white;}
+  .subtotal-itens{display:flex;justify-content:flex-end;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-top:6px;margin-bottom:4px;}
+  .subtotal-itens strong{color:var(--text);font-size:15px;}
+  .total-box{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#E8F5EE,#D4EDE0);border:2px solid #A8D8BA;border-radius:10px;padding:14px 18px;margin-bottom:14px;}
+  .total-box-label{font-size:14px;font-weight:600;color:var(--jade);}
+  .total-box-valor{font-size:24px;font-weight:800;color:var(--jade);letter-spacing:-.5px;}
+  .btn-submit{width:100%;background:var(--jade);color:white;border:none;padding:14px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-top:8px;transition:background .2s,transform .1s;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .btn-submit:hover{background:#15643D;} .btn-submit:active{transform:scale(.98);}
+  .btn-submit:disabled{background:var(--muted);cursor:not-allowed;}
+
+  #successBox{display:none;background:var(--jade-light);border:1.5px solid #A8D8BA;border-radius:10px;padding:16px 18px;margin-bottom:18px;text-align:center;width:100%;max-width:600px;}
+  #successBox .success-icon{font-size:28px;margin-bottom:6px;}
+  #successBox h3{font-size:15px;font-weight:700;color:var(--jade);}
+  #successBox p{font-size:13px;color:#2D6B47;margin-top:3px;}
+
+  .day-summary{display:flex;gap:10px;width:100%;max-width:600px;margin-top:24px;}
+  .day-card{flex:1;background:var(--card);border-radius:12px;border:1.5px dashed var(--stitch);padding:14px 16px;text-align:center;}
+  .day-card .val{font-size:20px;font-weight:800;color:var(--navy);letter-spacing:-.5px;}
+  .day-card .lbl{font-size:11px;color:var(--muted);font-weight:500;margin-top:2px;text-transform:uppercase;letter-spacing:.5px;}
+
+  .historico-card{background:var(--card);border-radius:16px;border:1px solid var(--border);width:100%;max-width:600px;margin-top:16px;overflow:hidden;}
+  .historico-header{padding:14px 20px;background:#FAFBFD;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .historico-header span:first-child{font-size:13px;font-weight:700;color:var(--text);}
+  .historico-total{font-size:14px;font-weight:800;color:var(--jade);}
+  .venda-item{display:flex;align-items:flex-start;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #F0F4F8;gap:12px;animation:fadeIn .25s ease;}
+  .venda-item:last-child{border-bottom:none;}
+  .venda-left{flex:1;min-width:0;}
+  .venda-cliente{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:3px;}
+  .venda-produto-linha{font-size:13px;color:var(--text);padding:1px 0;}
+  .venda-meta{font-size:11px;color:var(--muted);margin-top:4px;}
+  .venda-valor{font-size:15px;font-weight:800;color:var(--jade);white-space:nowrap;}
+
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;}
+  .badge-green{background:var(--jade-light);color:var(--jade);}
+  .badge-amber{background:var(--amber-light);color:var(--amber);}
+  .badge-red{background:var(--rose-light);color:var(--rose);}
+  .tag-tam{background:#E8EEF7;color:var(--navy);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;}
+  .tag-est{background:var(--amber-light);color:var(--amber);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;}
+  .btn-excluir-pedido{background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;white-space:nowrap;margin-top:6px;display:inline-flex;align-items:center;gap:4px;}
+  .btn-excluir-pedido:hover{background:var(--rose-light);border-color:var(--rose);color:var(--rose);}
+
+  /* MODAIS */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,45,92,.45);z-index:200;align-items:center;justify-content:center;padding:16px;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:white;border-radius:16px;width:100%;max-width:640px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.2);overflow:hidden;}
+  .modal-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#FAFBFD;}
+  .modal-header h2{font-size:16px;font-weight:800;color:var(--navy);}
+  .modal-close{background:none;border:1.5px solid var(--border);border-radius:7px;width:32px;height:32px;cursor:pointer;font-size:16px;color:var(--muted);display:flex;align-items:center;justify-content:center;transition:all .2s;}
+  .modal-close:hover{border-color:var(--rose);color:var(--rose);}
+  .modal-body{padding:20px 24px;overflow-y:auto;flex:1;}
+  .modal-footer{padding:14px 24px;border-top:1px solid var(--border);background:#FAFBFD;display:flex;justify-content:flex-end;gap:8px;}
+  .btn-modal-ok{background:var(--jade);color:white;border:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;}
+  .btn-modal-ok:hover{background:#15643D;}
+
+  .tags-panel{background:#F7FAFD;border:1.5px solid var(--border);border-radius:10px;padding:16px;min-height:70px;}
+  .tags-panel-empty{color:var(--muted);font-size:13px;text-align:center;padding:16px 0;}
+  .item-tag{display:inline-flex;align-items:center;gap:6px;border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;margin:4px;animation:fadeIn .2s ease;}
+  .item-tag.amber{background:var(--amber-light);border:1px solid #F0C060;color:#7A5200;}
+  .item-tag.navy{background:#E8EEF7;border:1px solid #C0CCDE;color:var(--navy);}
+  .item-tag button{background:none;border:none;cursor:pointer;font-size:14px;line-height:1;padding:0;transition:color .2s;color:inherit;opacity:.6;}
+  .item-tag button:hover{color:var(--rose);opacity:1;}
+  .add-row{display:flex;gap:8px;margin-top:12px;}
+  .add-row input{flex:1;font-family:'Inter',sans-serif;font-size:14px;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;outline:none;transition:border-color .2s;}
+  .add-row input:focus{border-color:var(--sky);}
+  .btn-add-tag{background:var(--navy);color:white;border:none;padding:9px 18px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;transition:background .2s;}
+  .btn-add-tag:hover{background:var(--sky);}
+  .modal-produto-selector{margin-bottom:16px;}
+  .modal-produto-selector label{font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;}
+  .modal-produto-selector select{font-family:'Inter',sans-serif;font-size:14px;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;width:100%;color:var(--text);background:#FAFBFD;outline:none;}
+
+  /* CONFIRM */
+  .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,45,92,.5);z-index:300;align-items:center;justify-content:center;padding:16px;}
+  .confirm-overlay.open{display:flex;}
+  .confirm-box{background:white;border-radius:14px;padding:28px 24px;width:100%;max-width:340px;box-shadow:0 16px 48px rgba(0,0,0,.2);text-align:center;}
+  .confirm-box .confirm-icon{font-size:36px;margin-bottom:12px;}
+  .confirm-box h3{font-size:16px;font-weight:800;color:var(--navy);margin-bottom:8px;}
+  .confirm-box p{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;}
+  .confirm-btns{display:flex;gap:10px;}
+  .confirm-btns button{flex:1;padding:11px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;border:none;transition:all .2s;}
+  .btn-confirm-cancel{background:var(--bg);color:var(--muted);} .btn-confirm-cancel:hover{background:var(--border);}
+  .btn-confirm-delete{background:var(--rose);color:white;} .btn-confirm-delete:hover{background:#A93125;}
+
+  /* STATUS CONEXÃO */
+  .conn-status{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;}
+  .conn-status.ok{background:#E8F5EE;color:var(--jade);}
+  .conn-status.err{background:var(--rose-light);color:var(--rose);}
+  .conn-status.loading{background:var(--amber-light);color:var(--amber);}
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+
+  #notification{position:fixed;bottom:24px;right:24px;background:var(--jade);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.2);transform:translateY(60px);opacity:0;transition:all .3s;z-index:999;}
+  #notification.show{transform:translateY(0);opacity:1;}
+
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+  @media(max-width:540px){.field-row{grid-template-columns:1fr;}.item-row-top,.item-row-mid{grid-template-columns:1fr;}.form-card{padding:20px 14px;}main{padding:20px 10px 40px;}.header-badge{display:none;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🥼</div>
+    <div class="logo-text">
+      <span>Starlecos</span>
+      <span>Área da Vendedora</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="connStatus" class="conn-status loading"><div class="conn-dot"></div><span>Conectando...</span></div>
+    <button class="btn-header btn-config" onclick="abrirModalVendedores()">👤 Vendedores</button>
+    <button class="btn-header btn-config" onclick="abrirModalEstampas()">🎨 Estampas</button>
+    <button class="btn-header btn-excel" onclick="exportarExcel()">📥 Excel</button>
+  </div>
+</header>
+
+<!-- MODAL VENDEDORES -->
+<div class="modal-overlay" id="modalVendedores">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h2>👤 Cadastro de Vendedores</h2>
+      <button class="modal-close" onclick="fecharModalVendedores()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Nomes cadastrados aparecem no campo <strong>Seu nome</strong> do formulário.</p>
+      <div class="tags-panel" id="vendedoresPanel"><div class="tags-panel-empty">Nenhum vendedor cadastrado.</div></div>
+      <div class="add-row" style="margin-top:12px">
+        <input type="text" id="novoVendedorInput" placeholder="Nome do vendedor(a)" onkeydown="if(event.key==='Enter')adicionarVendedor()">
+        <button class="btn-add-tag" onclick="adicionarVendedor()">＋ Adicionar</button>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn-modal-ok" onclick="fecharModalVendedores()">✓ Concluído</button></div>
+  </div>
+</div>
+
+<!-- MODAL ESTAMPAS -->
+<div class="modal-overlay" id="modalEstampas">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>🎨 Gerenciar Estampas</h2>
+      <button class="modal-close" onclick="fecharModalEstampas()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-produto-selector">
+        <label>Selecione o produto para editar as estampas</label>
+        <select id="modalProdutoSelect" onchange="renderEstampasModal()">
+          <option value="">— Escolha um produto —</option>
+          <optgroup label="🥼 Jalecos Femininos">
+            <option>Jaleco Estampado Feminino</option>
+            <option>Jaleco Liso Feminino</option>
+            <option>Jaleco Estampado Feminino Botões</option>
+            <option>Jaleco S/Manga Feminino</option>
+          </optgroup>
+          <optgroup label="🥼 Jalecos Masculinos">
+            <option>Jaleco Estampado Masculino</option>
+            <option>Jaleco Liso Masculino</option>
+          </optgroup>
+          <optgroup label="👖 Calças">
+            <option>Calça Feminino</option>
+            <option>Calça Masculino</option>
+          </optgroup>
+          <optgroup label="👕 Blusas">
+            <option>Blusa Feminino Liso</option>
+            <option>Blusa Feminino Estampado</option>
+            <option>Blusa Masculino Liso</option>
+            <option>Blusa Masculino Estampado</option>
+          </optgroup>
+          <optgroup label="✨ Acessórios">
+            <option>Faixa de Cabelo</option>
+            <option>Touca</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="tags-panel" id="estampasPanel"><div class="tags-panel-empty">Selecione um produto acima.</div></div>
+      <div class="add-row" id="addEstampaRow" style="display:none;margin-top:12px">
+        <input type="text" id="novaEstampaInput" placeholder="Nome da estampa (ex: Rosa Floral)" onkeydown="if(event.key==='Enter')adicionarEstampa()">
+        <button class="btn-add-tag" onclick="adicionarEstampa()">＋ Adicionar</button>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn-modal-ok" onclick="fecharModalEstampas()">✓ Concluído</button></div>
+  </div>
+</div>
+
+<!-- CONFIRM EXCLUIR -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="confirm-icon">🗑️</div>
+    <h3>Excluir pedido?</h3>
+    <p>Esta ação não pode ser desfeita.<br>O pedido será removido permanentemente.</p>
+    <div class="confirm-btns">
+      <button class="btn-confirm-cancel" onclick="fecharConfirm()">Cancelar</button>
+      <button class="btn-confirm-delete" onclick="confirmarExclusao()">Sim, excluir</button>
+    </div>
+  </div>
+</div>
+
+<main>
+  <div class="page-title">
+    <h1>Registrar Venda</h1>
+    <p>Preencha os dados do pedido do cliente</p>
+  </div>
+
+  <div id="successBox">
+    <div class="success-icon">✅</div>
+    <h3>Pedido registrado com sucesso!</h3>
+    <p id="successMsg"></p>
+  </div>
+
+  <div class="form-card">
+    <h2>📝 Dados do Pedido</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>Seu nome (vendedora)</label>
+        <select id="vo_vendedora"><option value="">— Selecione seu nome —</option></select>
+      </div>
+      <div class="field">
+        <label>Nome do Cliente</label>
+        <input type="text" id="vo_cliente" placeholder="Nome do cliente">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Data da Venda</label>
+        <input type="date" id="vo_data">
+      </div>
+      <div class="field">
+        <label>Canal de Venda</label>
+        <select id="vo_canal">
+          <option value="WhatsApp">WhatsApp</option>
+          <option value="Instagram">Instagram</option>
+          <option value="Site">Site próprio</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 12px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)">🛍️ Produtos do Pedido</div>
+    </div>
+    <div id="itensList"></div>
+    <button class="btn-add-item" onclick="adicionarItem()">＋ Adicionar Produto</button>
+    <div class="subtotal-itens"><span>Subtotal dos produtos:</span><strong id="subtotalProdutos">R$ 0,00</strong></div>
+
+    <div class="section-divider">🚚 Entrega e Pagamento</div>
+    <div class="field-row">
+      <div class="field">
+        <label>Frete Cobrado (R$)</label>
+        <input type="number" id="vo_frete" placeholder="0,00" step="0.01" min="0" value="0" oninput="calcTotal()">
+      </div>
+      <div class="field">
+        <label>Forma de Pagamento</label>
+        <select id="vo_pagamento">
+          <option value="PIX">PIX</option>
+          <option value="Crédito">Cartão de Crédito</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Status do Pagamento</label>
+        <select id="vo_status">
+          <option value="Pago">✅ Pago</option>
+          <option value="Pendente">⏳ Pendente</option>
+          <option value="Cancelado">❌ Cancelado</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Observação (opcional)</label>
+        <input type="text" id="vo_obs" placeholder="Ex: entrega urgente...">
+      </div>
+    </div>
+
+    <div class="total-box" id="totalBox">
+      <span class="total-box-label">💰 Total do Pedido</span>
+      <span class="total-box-valor" id="totalValor">R$ 0,00</span>
+    </div>
+    <button class="btn-submit" id="btnRegistrar" onclick="registrarVenda()">＋ Registrar Pedido</button>
+  </div>
+
+  <div class="day-summary" id="daySummary" style="display:none">
+    <div class="day-card"><div class="val" id="qtdHoje">0</div><div class="lbl">Pedidos hoje</div></div>
+    <div class="day-card"><div class="val" id="totalHoje">R$ 0</div><div class="lbl">Total hoje</div></div>
+  </div>
+
+  <div class="historico-card" id="historicoCard" style="display:none">
+    <div class="historico-header">
+      <span>📋 Seus pedidos de hoje</span>
+      <span class="historico-total" id="historicoTotal">R$ 0,00</span>
+    </div>
+    <div id="historicoLista"></div>
+  </div>
+</main>
+
+<div id="notification"></div>
+
+<script>
+// =============================================
+// CONFIGURAÇÃO SUPABASE
+// =============================================
+const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
+const HEADERS = { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+
+async function sbGet(table, params) {
+  var url = SUPABASE_URL + '/rest/v1/' + table + '?' + (params || 'select=*&order=created_at.desc');
+  var res = await fetch(url, { headers: HEADERS });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+async function sbInsert(table, data) {
+  var res = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+    method: 'POST', headers: { ...HEADERS, 'Prefer': 'return=minimal' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+async function sbDelete(table, filter) {
+  var res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + filter, {
+    method: 'DELETE', headers: HEADERS
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+// =============================================
+// PRODUTOS
+// =============================================
+const PRODUTOS = [
+  { group:'🥼 Jalecos Femininos', items:['Jaleco Estampado Feminino','Jaleco Liso Feminino','Jaleco Estampado Feminino Botões','Jaleco S/Manga Feminino'] },
+  { group:'🥼 Jalecos Masculinos', items:['Jaleco Estampado Masculino','Jaleco Liso Masculino'] },
+  { group:'👖 Calças', items:['Calça Feminino','Calça Masculino'] },
+  { group:'👕 Blusas', items:['Blusa Feminino Liso','Blusa Feminino Estampado','Blusa Masculino Liso','Blusa Masculino Estampado'] },
+  { group:'✨ Acessórios', items:['Faixa de Cabelo','Touca'] }
+];
+
+function buildSelectOptions() {
+  var opts = '<option value="">— Produto —</option>';
+  PRODUTOS.forEach(function(g) {
+    opts += '<optgroup label="' + g.group + '">';
+    g.items.forEach(function(p) { opts += '<option value="' + p + '">' + p + '</option>'; });
+    opts += '</optgroup>';
+  });
+  return opts;
+}
+
+// =============================================
+// UTILITÁRIOS
+// =============================================
+function fmt(v) { return 'R$ ' + parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function hoje() { return new Date().toISOString().split('T')[0]; }
+function fmtData(d) { if(!d) return ''; var p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function notify(msg, tipo) {
+  var n = document.getElementById('notification');
+  n.textContent = msg;
+  n.style.background = tipo === 'err' ? 'var(--rose)' : 'var(--jade)';
+  n.classList.add('show');
+  setTimeout(function(){ n.classList.remove('show'); }, 2800);
+}
+function setConn(estado) {
+  var el = document.getElementById('connStatus');
+  if (estado === 'ok')      { el.className='conn-status ok';      el.innerHTML='<div class="conn-dot"></div><span>Online</span>'; }
+  else if (estado === 'err'){ el.className='conn-status err';     el.innerHTML='<div class="conn-dot"></div><span>Sem conexão</span>'; }
+  else                      { el.className='conn-status loading'; el.innerHTML='<div class="conn-dot"></div><span>Conectando...</span>'; }
+}
+
+// =============================================
+// VENDEDORES
+// =============================================
+var _vendedores = [];
+
+async function carregarVendedores() {
+  try {
+    var data = await sbGet('vendedores', 'select=*&order=nome.asc');
+    _vendedores = data.map(function(v){ return v.nome; });
+    renderSelectVendedores();
+    renderVendedoresModal();
+  } catch(e) { console.error('Erro vendedores:', e); }
+}
+
+function renderSelectVendedores() {
+  var sel = document.getElementById('vo_vendedora');
+  var atual = sel.value || localStorage.getItem('starlecos_vendedora_nome') || '';
+  sel.innerHTML = '<option value="">— Selecione seu nome —</option>' +
+    _vendedores.map(function(v){ return '<option value="'+v+'"'+( v===atual?' selected':'')+'>'+v+'</option>'; }).join('');
+}
+
+function renderVendedoresModal() {
+  var panel = document.getElementById('vendedoresPanel');
+  if (!panel) return;
+  if (!_vendedores.length) { panel.innerHTML='<div class="tags-panel-empty">Nenhum vendedor cadastrado.</div>'; return; }
+  panel.innerHTML = _vendedores.map(function(v,i){
+    return '<span class="item-tag navy">👤 '+v+'<button onclick="removerVendedor(\''+v.replace(/'/g,"\\'")+'\')">✕</button></span>';
+  }).join('');
+}
+
+async function adicionarVendedor() {
+  var input = document.getElementById('novoVendedorInput');
+  var nome  = input.value.trim();
+  if (!nome) return;
+  try {
+    await sbInsert('vendedores', { nome: nome });
+    input.value = '';
+    await carregarVendedores();
+    notify('Vendedor(a) "'+nome+'" cadastrado(a)!');
+  } catch(e) { notify('Erro ao cadastrar vendedor', 'err'); }
+}
+
+async function removerVendedor(nome) {
+  try {
+    await sbDelete('vendedores', 'nome=eq.'+encodeURIComponent(nome));
+    await carregarVendedores();
+  } catch(e) { notify('Erro ao remover', 'err'); }
+}
+
+function abrirModalVendedores() { document.getElementById('modalVendedores').classList.add('open'); renderVendedoresModal(); }
+function fecharModalVendedores() { document.getElementById('modalVendedores').classList.remove('open'); renderSelectVendedores(); }
+document.getElementById('modalVendedores').addEventListener('click', function(e){ if(e.target===this) fecharModalVendedores(); });
+
+// =============================================
+// ESTAMPAS
+// =============================================
+var _estampas = {}; // { produto: [estampa, ...] }
+
+async function carregarEstampas() {
+  try {
+    var data = await sbGet('estampas', 'select=*&order=estampa.asc');
+    _estampas = {};
+    data.forEach(function(r){
+      if (!_estampas[r.produto]) _estampas[r.produto] = [];
+      _estampas[r.produto].push(r.estampa);
+    });
+  } catch(e) { console.error('Erro estampas:', e); }
+}
+
+function renderEstampasModal() {
+  var produto = document.getElementById('modalProdutoSelect').value;
+  var panel   = document.getElementById('estampasPanel');
+  var addRow  = document.getElementById('addEstampaRow');
+  if (!produto) { panel.innerHTML='<div class="tags-panel-empty">Selecione um produto acima.</div>'; addRow.style.display='none'; return; }
+  addRow.style.display = 'flex';
+  document.getElementById('novaEstampaInput').value = '';
+  var lista = _estampas[produto] || [];
+  if (!lista.length) { panel.innerHTML='<div class="tags-panel-empty">Nenhuma estampa cadastrada. Adicione abaixo ↓</div>'; return; }
+  panel.innerHTML = lista.map(function(e){
+    return '<span class="item-tag amber">'+e+'<button onclick="removerEstampa(\''+produto.replace(/'/g,"\\'")+'\',\''+e.replace(/'/g,"\\'")+'\')">✕</button></span>';
+  }).join('');
+}
+
+async function adicionarEstampa() {
+  var produto = document.getElementById('modalProdutoSelect').value;
+  var input   = document.getElementById('novaEstampaInput');
+  var nome    = input.value.trim();
+  if (!produto || !nome) return;
+  try {
+    await sbInsert('estampas', { produto: produto, estampa: nome });
+    input.value = '';
+    await carregarEstampas();
+    renderEstampasModal();
+    atualizarTodosEstampaSelects();
+    notify('Estampa "'+nome+'" adicionada!');
+  } catch(e) { notify('Erro ao adicionar estampa', 'err'); }
+}
+
+async function removerEstampa(produto, estampa) {
+  try {
+    await sbDelete('estampas', 'produto=eq.'+encodeURIComponent(produto)+'&estampa=eq.'+encodeURIComponent(estampa));
+    await carregarEstampas();
+    renderEstampasModal();
+    atualizarTodosEstampaSelects();
+  } catch(e) { notify('Erro ao remover estampa', 'err'); }
+}
+
+function abrirModalEstampas() { document.getElementById('modalEstampas').classList.add('open'); document.getElementById('modalProdutoSelect').value=''; renderEstampasModal(); }
+function fecharModalEstampas() { document.getElementById('modalEstampas').classList.remove('open'); }
+document.getElementById('modalEstampas').addEventListener('click', function(e){ if(e.target===this) fecharModalEstampas(); });
+
+// =============================================
+// ITENS DO PEDIDO
+// =============================================
+var itemCount = 0;
+
+function adicionarItem() {
+  itemCount++;
+  var id = itemCount;
+  var div = document.createElement('div');
+  div.className = 'item-row'; div.id = 'item-'+id;
+  div.innerHTML =
+    '<button class="btn-remove-item" onclick="removerItem('+id+')" title="Remover">✕</button>'+
+    '<div class="item-row-top">'+
+      '<div class="field" style="grid-column:1/-1"><label>Produto</label>'+
+        '<select id="prod-'+id+'" onchange="atualizarEstampaSelect('+id+');calcTotal()">'+buildSelectOptions()+'</select></div>'+
+    '</div>'+
+    '<div id="estampa-wrap-'+id+'" style="display:none">'+
+      '<div class="field"><label>Estampa</label>'+
+        '<select id="estampa-'+id+'"><option value="">— Selecione a estampa —</option></select></div>'+
+    '</div>'+
+    '<div class="item-row-mid">'+
+      '<div class="field"><label>Tamanho</label>'+
+        '<select id="tam-'+id+'"><option value="">—</option><option>PP</option><option>P</option><option>M</option><option>G</option><option>GG</option><option>G1</option><option>G2</option><option>G3</option><option>G4</option></select></div>'+
+      '<div class="field"><label>Qtd</label><input type="number" id="qtd-'+id+'" min="1" value="1" oninput="calcTotal()"></div>'+
+      '<div class="field"><label>Valor (R$)</label><input type="number" id="val-'+id+'" placeholder="0,00" step="0.01" min="0" oninput="calcTotal()"></div>'+
+    '</div>';
+  document.getElementById('itensList').appendChild(div);
+  calcTotal();
+}
+
+function atualizarEstampaSelect(id) {
+  var prod = document.getElementById('prod-'+id);
+  var wrap = document.getElementById('estampa-wrap-'+id);
+  var sel  = document.getElementById('estampa-'+id);
+  if (!prod||!wrap||!sel) return;
+  var lista = _estampas[prod.value] || [];
+  if (lista.length) {
+    sel.innerHTML = '<option value="">— Selecione a estampa —</option>' + lista.map(function(e){ return '<option value="'+e+'">'+e+'</option>'; }).join('');
+    wrap.style.display = 'block';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function atualizarTodosEstampaSelects() {
+  document.querySelectorAll('#itensList .item-row').forEach(function(row){
+    atualizarEstampaSelect(row.id.replace('item-',''));
+  });
+}
+
+function removerItem(id) { var el=document.getElementById('item-'+id); if(el){el.remove();calcTotal();} }
+
+function getItens() {
+  var itens = [];
+  document.querySelectorAll('#itensList .item-row').forEach(function(row){
+    var n = row.id.replace('item-','');
+    itens.push({
+      produto: (document.getElementById('prod-'+n)||{}).value||'',
+      estampa: (document.getElementById('estampa-'+n)||{}).value||'',
+      tamanho: (document.getElementById('tam-'+n)||{}).value||'',
+      qtd:     parseInt((document.getElementById('qtd-'+n)||{}).value)||1,
+      valor:   parseFloat((document.getElementById('val-'+n)||{}).value)||0
+    });
+  });
+  return itens;
+}
+
+function calcTotal() {
+  var itens    = getItens();
+  var subtotal = itens.reduce(function(a,i){ return a+i.valor*i.qtd; },0);
+  var frete    = parseFloat(document.getElementById('vo_frete').value)||0;
+  var total    = subtotal+frete;
+  document.getElementById('subtotalProdutos').textContent = fmt(subtotal);
+  document.getElementById('totalValor').textContent = fmt(total);
+  document.getElementById('totalBox').style.borderColor = total>0?'#1A7A4A':'#A8D8BA';
+}
+
+// =============================================
+// REGISTRAR VENDA
+// =============================================
+async function registrarVenda() {
+  var vendedora = document.getElementById('vo_vendedora').value;
+  var cliente   = document.getElementById('vo_cliente').value.trim();
+  var data      = document.getElementById('vo_data').value;
+  var canal     = document.getElementById('vo_canal').value;
+  var frete     = parseFloat(document.getElementById('vo_frete').value)||0;
+  var pagamento = document.getElementById('vo_pagamento').value;
+  var status    = document.getElementById('vo_status').value;
+  var obs       = document.getElementById('vo_obs').value.trim();
+  var itens     = getItens();
+
+  if (!vendedora) { alert('Selecione seu nome.'); return; }
+  if (!data)      { alert('Informe a data.'); return; }
+  var validos = itens.filter(function(i){ return i.produto && i.valor>0; });
+  if (!validos.length) { alert('Adicione pelo menos um produto com valor.'); return; }
+
+  var subtotal = validos.reduce(function(a,i){ return a+i.valor*i.qtd; },0);
+  var total    = subtotal+frete;
+  var id       = Date.now();
+
+  var btn = document.getElementById('btnRegistrar');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  try {
+    await sbInsert('vendas', { id, data, vendedora, cliente, itens: validos, subtotal, frete, total, canal, pagamento, status, obs });
+    localStorage.setItem('starlecos_vendedora_nome', vendedora);
+
+    var nomes = validos.map(function(i){ return i.qtd+'x '+i.produto; }).join(', ');
+    var box = document.getElementById('successBox');
+    document.getElementById('successMsg').textContent = (cliente||'Cliente')+' · '+nomes+' · '+fmt(total);
+    box.style.display='block';
+    setTimeout(function(){ box.style.display='none'; },4000);
+
+    document.getElementById('vo_cliente').value='';
+    document.getElementById('vo_frete').value='0';
+    document.getElementById('vo_obs').value='';
+    document.getElementById('vo_status').value='Pago';
+    document.getElementById('itensList').innerHTML='';
+    itemCount=0; adicionarItem(); calcTotal();
+    await renderHistorico();
+    notify('Pedido salvo na nuvem! ☁️');
+  } catch(e) {
+    notify('Erro ao salvar. Verifique a conexão.','err');
+  }
+  btn.disabled=false; btn.textContent='＋ Registrar Pedido';
+}
+
+// =============================================
+// HISTÓRICO
+// =============================================
+async function renderHistorico() {
+  var nome     = document.getElementById('vo_vendedora').value || localStorage.getItem('starlecos_vendedora_nome') || '';
+  var dataHoje = hoje();
+  try {
+    var params = 'select=*&data=eq.'+dataHoje+(nome?'&vendedora=eq.'+encodeURIComponent(nome):'')+'&order=id.desc';
+    var pedidos = await sbGet('vendas', params);
+
+    var totalHoje = pedidos.filter(function(v){ return v.status!=='Cancelado'; }).reduce(function(a,v){ return a+(v.total||0); },0);
+
+    var ds = document.getElementById('daySummary');
+    var hc = document.getElementById('historicoCard');
+
+    if (pedidos.length) {
+      ds.style.display='flex'; hc.style.display='block';
+      document.getElementById('qtdHoje').textContent       = pedidos.length;
+      document.getElementById('totalHoje').textContent     = fmt(totalHoje);
+      document.getElementById('historicoTotal').textContent = fmt(totalHoje);
+    } else {
+      ds.style.display='none'; hc.style.display='none'; return;
+    }
+
+    document.getElementById('historicoLista').innerHTML = pedidos.map(function(v){
+      var badgeCls = v.status==='Pago'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber';
+      var itensArr = v.itens && v.itens.length ? v.itens : [{produto:v.produto||'',tamanho:'',estampa:'',qtd:1,valor:v.valor||0}];
+      var itensHtml = itensArr.map(function(i){
+        return '<div class="venda-produto-linha">• '+i.qtd+'x '+i.produto+
+          (i.tamanho?' <span class="tag-tam">'+i.tamanho+'</span>':'')+
+          (i.estampa?' <span class="tag-est">'+i.estampa+'</span>':'')+
+          ' — '+fmt((i.valor||0)*(i.qtd||1))+'</div>';
+      }).join('');
+      var freteInfo = v.frete>0?' · Frete: '+fmt(v.frete):'';
+      return '<div class="venda-item">'+
+        '<div class="venda-left">'+
+          '<div class="venda-cliente">'+(v.cliente||'Cliente não informado')+'</div>'+
+          itensHtml+
+          '<div class="venda-meta">'+fmtData(v.data)+' · '+v.canal+' · '+v.pagamento+freteInfo+
+            ' &nbsp;<span class="badge '+badgeCls+'">'+v.status+'</span></div>'+
+          '<button class="btn-excluir-pedido" onclick="excluirPedido('+v.id+')">🗑 Excluir pedido</button>'+
+        '</div>'+
+        '<div class="venda-valor">'+fmt(v.total||0)+'</div>'+
+      '</div>';
+    }).join('');
+  } catch(e) { console.error('Erro histórico:', e); }
+}
+
+// =============================================
+// EXCLUIR PEDIDO
+// =============================================
+var _pedidoParaExcluir = null;
+function excluirPedido(id) { _pedidoParaExcluir=id; document.getElementById('confirmOverlay').classList.add('open'); }
+function fecharConfirm()   { _pedidoParaExcluir=null; document.getElementById('confirmOverlay').classList.remove('open'); }
+async function confirmarExclusao() {
+  if (!_pedidoParaExcluir) return;
+  try {
+    await sbDelete('vendas','id=eq.'+_pedidoParaExcluir);
+    fecharConfirm();
+    await renderHistorico();
+    notify('Pedido excluído.');
+  } catch(e) { notify('Erro ao excluir','err'); }
+}
+document.getElementById('confirmOverlay').addEventListener('click', function(e){ if(e.target===this) fecharConfirm(); });
+
+// =============================================
+// EXPORTAR EXCEL
+// =============================================
+async function exportarExcel() {
+  try {
+    var vendas = await sbGet('vendas','select=*&order=data.desc,id.desc');
+    if (!vendas.length) { alert('Nenhuma venda para exportar.'); return; }
+
+    var cab = ['Data','Vendedora','Cliente','Produto','Estampa','Tamanho','Qtd','Valor Unit.(R$)','Subtotal Produto(R$)','Frete(R$)','Total Pedido(R$)','Canal','Pagamento','Status','Observação'];
+    var linhas = [];
+    vendas.forEach(function(v){
+      var itensArr = v.itens && v.itens.length ? v.itens : [{produto:v.produto||'',estampa:'',tamanho:'',qtd:1,valor:v.valor||0}];
+      itensArr.forEach(function(i,idx){
+        linhas.push([
+          idx===0?fmtData(v.data):'', idx===0?(v.vendedora||''):'', idx===0?(v.cliente||''):'',
+          i.produto||'', i.estampa||'', i.tamanho||'', i.qtd||1,
+          (i.valor||0).toFixed(2).replace('.',','), ((i.valor||0)*(i.qtd||1)).toFixed(2).replace('.',','),
+          idx===0?(v.frete||0).toFixed(2).replace('.',','):'',
+          idx===0?(v.total||0).toFixed(2).replace('.',','):'',
+          idx===0?(v.canal||''):'', idx===0?(v.pagamento||''):'',
+          idx===0?(v.status||''):'', idx===0?(v.obs||''):''
+        ]);
+      });
+      linhas.push(new Array(15).fill(''));
+    });
+
+    var totalG = vendas.filter(function(v){return v.status!=='Cancelado';}).reduce(function(a,v){return a+(v.total||0);},0);
+    linhas.push(new Array(15).fill(''));
+    linhas.push(['TOTAL GERAL (R$)','','','','','','','','','',totalG.toFixed(2).replace('.',','),'','','','']);
+
+    var bom='\uFEFF';
+    var csv=bom+[cab].concat(linhas).map(function(r){ return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(';'); }).join('\r\n');
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='starlecos_vendas_'+new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')+'.csv'; a.click();
+    URL.revokeObjectURL(url);
+    notify('Relatório exportado!');
+  } catch(e) { notify('Erro ao exportar','err'); }
+}
+
+// =============================================
+// INICIALIZAR
+// =============================================
+async function init() {
+  document.getElementById('vo_data').value = hoje();
+  try {
+    await Promise.all([carregarVendedores(), carregarEstampas()]);
+    setConn('ok');
+    await renderHistorico();
+  } catch(e) {
+    setConn('err');
+    notify('Erro de conexão com o banco','err');
+  }
+  adicionarItem();
+}
+
+init();
+</script>
+
+  <!-- PWA Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    }
+  </script>
+</body>
+</html>

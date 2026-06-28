@@ -1,0 +1,28 @@
+{
+  "name": "Starlecos",
+  "short_name": "Starlecos",
+  "description": "Sistema de vendas e controle financeiro Starlecos",
+  "start_url": "/starlecos-vendedora.html",
+  "display": "standalone",
+  "background_color": "#F0F4F8",
+  "theme_color": "#0F2D5C",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Lançar Venda",
+      "short_name": "Vendas",
+      "url": "/starlecos-vendedora.html",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Painel Financeiro",
+      "short_name": "Financeiro",
+      "url": "/starlecos-financeiro.html",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
