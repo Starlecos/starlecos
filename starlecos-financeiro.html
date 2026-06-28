@@ -828,7 +828,7 @@
     <button class="tab-btn active" onclick="showTab('dashboard')">📊 Dashboard</button>
     <button class="tab-btn" onclick="showTab('vendasOnline')">💻 Vendas Online</button>
     <button class="tab-btn" onclick="showTab('mercadoLivre')">🛒 Mercado Livre</button>
-    <button class="tab-btn" onclick="showTab('maquina')">💳 Máq. de Cartão</button>
+    <button class="tab-btn" onclick="showTab('shopee')">🛍️ Shopee</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
   </div>
 
@@ -1075,87 +1075,92 @@
   </div>
 
   <!-- ====== MÁQUINA DE CARTÃO ====== -->
-  <div class="tab-panel" id="panel-maquina">
+  <div class="tab-panel" id="panel-shopee">
     <div class="section-header">
-      <div class="section-title">💳 Vendas na Máquina de Cartão <span class="section-badge">Presencial</span></div>
+      <div class="section-title">🛍️ Shopee <span class="section-badge">Importação de pedidos</span></div>
+    </div>
+
+    <div class="ml-sync-bar" style="background:linear-gradient(135deg,#FF6633 0%,#FF9900 100%)">
+      <div class="ml-info">
+        <div class="ml-logo">🛍️</div>
+        <div class="ml-text">
+          <h4 style="color:#1A1A1A">Shopee — Importar Relatório de Vendas</h4>
+          <p style="color:#3D3D3D">Importe o CSV exportado do Painel do Vendedor Shopee</p>
+        </div>
+      </div>
+      <label class="btn-ml-sync" style="cursor:pointer;">
+        📂 Importar CSV da Shopee
+        <input type="file" accept=".csv,.txt" style="display:none" onchange="importarCSVShopee(event)">
+      </label>
+    </div>
+
+    <div class="ml-manual-note">
+      ⚠️ <span><strong>Como exportar:</strong> No Painel do Vendedor Shopee → Meus Pedidos → Exportar → selecione o período → Download CSV. O sistema lê automaticamente as colunas: <code>ID do pedido, Nome do Produto, Data de criação do pedido, Preço acordado, Taxa de comissão líquida, Total global, Status do pedido</code>.</span>
     </div>
 
     <div class="form-card">
-      <h3>💳 Registrar Venda Presencial</h3>
+      <h3>➕ Adicionar Pedido Shopee Manualmente</h3>
       <div class="form-row">
         <div class="field">
-          <label>Data da Venda</label>
-          <input type="date" id="mc_data">
+          <label>Data do Pedido</label>
+          <input type="date" id="sh_data">
         </div>
         <div class="field">
-          <label>Descrição / Produto</label>
-          <input type="text" id="mc_descricao" placeholder="Ex: 3 jalecos P e M">
+          <label>Nº do Pedido</label>
+          <input type="text" id="sh_pedido" placeholder="Ex: 2501234567890">
         </div>
         <div class="field">
-          <label>Modalidade</label>
-          <select id="mc_modalidade">
-            <option value="Débito">Débito</option>
-            <option value="Crédito à Vista">Crédito à Vista</option>
-            <option value="Crédito 2x">Crédito 2x</option>
-            <option value="Crédito 3x">Crédito 3x</option>
-            <option value="Crédito 6x">Crédito 6x</option>
-            <option value="Crédito 12x">Crédito 12x</option>
-            <option value="PIX">PIX (máquina)</option>
-          </select>
+          <label>Produto</label>
+          <input type="text" id="sh_produto" placeholder="Nome do produto">
         </div>
         <div class="field">
-          <label>Bandeira</label>
-          <select id="mc_bandeira">
-            <option value="Visa">Visa</option>
-            <option value="Mastercard">Mastercard</option>
-            <option value="Elo">Elo</option>
-            <option value="Hipercard">Hipercard</option>
-            <option value="Outra">Outra</option>
-          </select>
+          <label>Quantidade</label>
+          <input type="number" id="sh_qtd" min="1" value="1">
         </div>
       </div>
       <div class="form-row">
         <div class="field">
-          <label>Valor Total (R$)</label>
-          <input type="number" id="mc_valor" placeholder="0,00" step="0.01" min="0">
+          <label>Valor Bruto (R$)</label>
+          <input type="number" id="sh_bruto" placeholder="0,00" step="0.01" min="0">
         </div>
         <div class="field">
-          <label>Taxa da Maquininha (%)</label>
-          <input type="number" id="mc_taxa" placeholder="Ex: 1.99" step="0.01" min="0" max="100" value="0">
+          <label>Taxa Shopee (R$)</label>
+          <input type="number" id="sh_taxa" placeholder="0,00" step="0.01" min="0" value="0">
         </div>
         <div class="field">
-          <label>Data de Recebimento</label>
-          <input type="date" id="mc_recebimento">
-        </div>
-        <div class="field">
-          <label>Observação</label>
-          <input type="text" id="mc_obs" placeholder="Opcional">
+          <label>Status do Pedido</label>
+          <select id="sh_status">
+            <option value="Entregue">Entregue</option>
+            <option value="Enviado">Enviado</option>
+            <option value="Aguardando">Aguardando envio</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
         </div>
       </div>
-      <button class="btn-add" onclick="addVendaMaquina()">＋ Registrar Venda</button>
+      <button class="btn-add amber" onclick="addPedidoShopee()">＋ Adicionar Pedido</button>
     </div>
 
     <div class="table-card">
       <div class="table-header">
-        <span class="table-header-title">Vendas na Maquininha</span>
-        <span class="table-total val-pos" id="totalMaquina">R$ 0,00</span>
+        <span class="table-header-title">Pedidos Shopee</span>
+        <span class="table-total val-pos" id="totalShopee">R$ 0,00</span>
       </div>
       <table>
         <thead>
           <tr>
             <th>Data</th>
-            <th>Descrição</th>
-            <th>Modalidade</th>
-            <th>Bandeira</th>
-            <th>Taxa</th>
+            <th>Nº Pedido</th>
+            <th>Produto</th>
+            <th>Qtd</th>
             <th>Bruto</th>
+            <th>Taxa Shopee</th>
             <th>Líquido</th>
-            <th>Recebimento</th>
+            <th>Status</th>
             <th></th>
           </tr>
         </thead>
-        <tbody id="bodyMaquina">
-          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">💳</div><p>Nenhuma venda presencial registrada</p></div></td></tr>
+        <tbody id="bodyShopee">
+          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛍️</div><p>Nenhum pedido importado ainda</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -1278,7 +1283,7 @@ async function sbInsert(table, data) {
 // =============================================
 // STATE — vendasOnline vem do Supabase, resto do localStorage
 // =============================================
-let dados = JSON.parse(localStorage.getItem('starlecos_dados') || '{"vendasOnline":[],"pedidosML":[],"vendasMaquina":[],"contasPagas":[]}');
+let dados = JSON.parse(localStorage.getItem('starlecos_dados') || '{"vendasOnline":[],"pedidosML":[],"vendasShopee":[],"contasPagas":[]}');
 
 async function carregarVendasOnline() {
   const statusEl = document.getElementById('connStatusFin');
@@ -1367,7 +1372,7 @@ if (sessionStorage.getItem('starlecos_auth') === '1') {
 
 // Set default dates
 document.addEventListener('DOMContentLoaded', () => {
-  const dateFields = ['vo_data','ml_data','mc_data','mc_recebimento','cp_data'];
+  const dateFields = ['vo_data','ml_data','sh_data','cp_data'];
   dateFields.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = hoje();
@@ -1536,52 +1541,107 @@ function renderML() {
 }
 
 // ====== MÁQUINA CARTÃO ======
-function addVendaMaquina() {
-  const data = document.getElementById('mc_data').value;
-  const descricao = document.getElementById('mc_descricao').value.trim();
-  const modalidade = document.getElementById('mc_modalidade').value;
-  const bandeira = document.getElementById('mc_bandeira').value;
-  const valor = parseFloat(document.getElementById('mc_valor').value) || 0;
-  const taxaPerc = parseFloat(document.getElementById('mc_taxa').value) || 0;
-  const recebimento = document.getElementById('mc_recebimento').value;
-  const obs = document.getElementById('mc_obs').value.trim();
+function addPedidoShopee() {
+  const data    = document.getElementById('sh_data').value;
+  const pedido  = document.getElementById('sh_pedido').value.trim();
+  const produto = document.getElementById('sh_produto').value.trim();
+  const qtd     = parseInt(document.getElementById('sh_qtd').value) || 1;
+  const bruto   = parseFloat(document.getElementById('sh_bruto').value) || 0;
+  const taxa    = parseFloat(document.getElementById('sh_taxa').value) || 0;
+  const status  = document.getElementById('sh_status').value;
 
-  if (!data || !descricao || valor <= 0) {
-    notify('Preencha: data, descrição e valor.', 'err'); return;
+  if (!data || !produto || bruto <= 0) {
+    notify('Preencha: data, produto e valor bruto.', 'err'); return;
   }
 
-  const taxa = (valor * taxaPerc) / 100;
-  const liquido = valor - taxa;
-  dados.vendasMaquina.push({ id: Date.now(), data, descricao, modalidade, bandeira, valor, taxaPerc, taxa, liquido, recebimento, obs });
+  dados.vendasShopee.push({ id: Date.now(), data, pedido: pedido || '#SH' + Date.now(), produto, qtd, bruto, taxa, liquido: bruto - taxa, status });
   salvar();
-  document.getElementById('mc_descricao').value = '';
-  document.getElementById('mc_valor').value = '';
-  document.getElementById('mc_taxa').value = '0';
-  document.getElementById('mc_obs').value = '';
-  notify('✅ Venda presencial registrada!');
+  document.getElementById('sh_pedido').value = '';
+  document.getElementById('sh_produto').value = '';
+  document.getElementById('sh_qtd').value = '1';
+  document.getElementById('sh_bruto').value = '';
+  document.getElementById('sh_taxa').value = '0';
+  notify('✅ Pedido Shopee adicionado!');
 }
 
-function renderMaquina() {
-  const body = document.getElementById('bodyMaquina');
-  const total = dados.vendasMaquina.reduce((a,v) => a + v.liquido, 0);
-  document.getElementById('totalMaquina').textContent = fmt(total);
+function importarCSVShopee(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    // CSV da Shopee usa ponto e vírgula como separador
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    if (lines.length < 2) { notify('CSV sem dados válidos', 'err'); return; }
 
-  if (!dados.vendasMaquina.length) {
-    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">💳</div><p>Nenhuma venda presencial registrada</p></div></td></tr>';
+    const SEP = ';';
+    const headers = lines[0].split(SEP).map(h => h.trim().replace(/"/g,''));
+    let importados = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      // Parser robusto — respeita vírgulas dentro de aspas
+      const cols = [];
+      let cur = '', inQ = false;
+      for (const c of lines[i]) {
+        if (c === '"') { inQ = !inQ; }
+        else if (c === SEP && !inQ) { cols.push(cur.trim()); cur = ''; }
+        else { cur += c; }
+      }
+      cols.push(cur.trim());
+
+      const row = {};
+      headers.forEach((h, idx) => row[h] = (cols[idx] || '').replace(/^"|"$/g, '').trim());
+
+      const pedido  = row['ID do pedido'] || '#SH' + i;
+      const produto = row['Nome do Produto'] || '';
+      const qtd     = parseInt(row['Quantidade']) || 1;
+      const status  = row['Status do pedido'] || 'Concluído';
+
+      // Data formato "YYYY-MM-DD HH:MM" → pegar só a data
+      let data = hoje();
+      const dc = row['Data de criação do pedido'] || '';
+      if (dc) { data = dc.split(' ')[0] || hoje(); }
+
+      // Valores — já vêm como número decimal com ponto
+      const parseVal = v => parseFloat((v || '0').toString().replace(',', '.')) || 0;
+      const bruto   = parseVal(row['Preço acordado']);
+      const taxa    = parseVal(row['Taxa de comissão líquida']);
+      const liquido = parseVal(row['Total global']) || (bruto - taxa);
+
+      // Pular linhas sem produto ou cancelados com valor zero
+      if (!produto) continue;
+      if (status === 'Cancelado' && bruto === 0) continue;
+
+      dados.vendasShopee.push({ id: Date.now() + i, data, pedido, produto, qtd, bruto, taxa, liquido, status });
+      importados++;
+    }
+    salvar();
+    notify('✅ ' + importados + ' pedido(s) importado(s) da Shopee!');
+    event.target.value = '';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function renderShopee() {
+  const body  = document.getElementById('bodyShopee');
+  const total = dados.vendasShopee.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
+  document.getElementById('totalShopee').textContent = fmt(total);
+
+  if (!dados.vendasShopee.length) {
+    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛍️</div><p>Nenhum pedido importado ainda</p></div></td></tr>';
     return;
   }
 
-  body.innerHTML = [...dados.vendasMaquina].reverse().map(v => `
+  body.innerHTML = [...dados.vendasShopee].reverse().map(v => `
     <tr>
       <td>${fmtData(v.data)}</td>
-      <td>${v.descricao}</td>
-      <td><span class="badge badge-navy">${v.modalidade}</span></td>
-      <td>${v.bandeira}</td>
-      <td style="color:var(--muted);font-size:12px">${v.taxaPerc}%</td>
-      <td>${fmt(v.valor)}</td>
+      <td style="font-size:12px;color:var(--muted)">${v.pedido}</td>
+      <td>${v.produto}</td>
+      <td>${v.qtd}</td>
+      <td class="val-pos">${fmt(v.bruto)}</td>
+      <td class="val-neg">− ${fmt(v.taxa)}</td>
       <td class="val-pos"><strong>${fmt(v.liquido)}</strong></td>
-      <td>${fmtData(v.recebimento)}</td>
-      <td><button class="btn-del" onclick="del('vendasMaquina',${v.id})">✕</button></td>
+      <td><span class="badge ${v.status==='Entregue'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber'}">${v.status}</span></td>
+      <td><button class="btn-del" onclick="del('vendasShopee',${v.id})">✕</button></td>
     </tr>`).join('');
 }
 
@@ -1652,14 +1712,14 @@ function atualizarTudo() {
   // Receitas
   const rVO = dados.vendasOnline.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+getVendaValor(v), 0);
   const rML = dados.pedidosML.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+v.liquido, 0);
-  const rMC = dados.vendasMaquina.reduce((a,v) => a+v.liquido, 0);
-  const totalReceitas = rVO + rML + rMC;
+  const rSH = dados.vendasShopee ? dados.vendasShopee.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0) : 0;
+  const totalReceitas = rVO + rML + rSH;
 
   // Despesas
   const totalDespesas = dados.contasPagas.reduce((a,v) => a+v.valor, 0);
 
   // Pedidos
-  const totalPedidos = dados.vendasOnline.length + dados.pedidosML.length + dados.vendasMaquina.length;
+  const totalPedidos = dados.vendasOnline.length + dados.pedidosML.length + (dados.vendasShopee ? dados.vendasShopee.length : 0);
 
   // Update summary
   document.getElementById('totalReceitas').textContent = fmt(totalReceitas);
@@ -1672,15 +1732,15 @@ function atualizarTudo() {
 
   const nVO = dados.vendasOnline.length;
   const nML = dados.pedidosML.length;
-  const nMC = dados.vendasMaquina.length;
+  const nSH = dados.vendasShopee ? dados.vendasShopee.length : 0;
   const nCP = dados.contasPagas.length;
 
   document.getElementById('subReceitas').textContent = `${nVO + nML + nMC} vendas registradas`;
   document.getElementById('subDespesas').textContent = `${nCP} conta(s) paga(s)`;
-  document.getElementById('subPedidos').textContent = `${nVO} online · ${nML} ML · ${nMC} presencial`;
+  document.getElementById('subPedidos').textContent = `${nVO} online · ${nML} ML · ${nSH} Shopee`;
 
   // Channels
-  renderChannels(rVO, rML, rMC, totalReceitas);
+  renderChannels(rVO, rML, rSH, totalReceitas);
 
   // Últimas movimentações
   renderUltimas();
@@ -1691,7 +1751,7 @@ function atualizarTudo() {
   // Sub-tables
   renderVendasOnline();
   renderML();
-  renderMaquina();
+  renderShopee();
   renderContas();
 }
 
@@ -1705,7 +1765,7 @@ function renderChannels(rVO, rML, rMC, total) {
   const channels = [
     { name: 'Vendas Online (Vendedora)', val: rVO, color: '#1A7A4A' },
     { name: 'Mercado Livre', val: rML, color: '#FFB800' },
-    { name: 'Máquina de Cartão', val: rMC, color: '#0F2D5C' },
+    { name: 'Shopee', val: rSH, color: '#FF6633' },
   ].filter(c => c.val > 0);
 
   el.innerHTML = channels.map(c => `
@@ -1727,7 +1787,7 @@ function renderUltimas() {
   const todas = [
     ...dados.vendasOnline.map(v => ({ data: v.data, tipo: 'Receita', desc: 'Venda: '+getVendaDesc(v), vendedora: v.vendedora||'', val: getVendaValor(v), cor: 'val-pos', canal: 'Online' })),
     ...dados.pedidosML.map(v => ({ data: v.data, tipo: 'Receita', desc: `ML: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'ML' })),
-    ...dados.vendasMaquina.map(v => ({ data: v.data, tipo: 'Receita', desc: `Cartão: ${v.descricao}`, val: v.liquido, cor: 'val-pos', canal: 'Presencial' })),
+    ...(dados.vendasShopee || []).map(v => ({ data: v.data, tipo: 'Receita', desc: `Shopee: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'Shopee' })),
     ...dados.contasPagas.map(v => ({ data: v.data, tipo: 'Despesa', desc: v.descricao, val: -v.valor, cor: 'val-neg', canal: v.categoria })),
   ].sort((a,b) => b.data.localeCompare(a.data)).slice(0, 8);
 
@@ -1752,7 +1812,7 @@ function renderGeral() {
   const todas = [
     ...dados.vendasOnline.map(v => ({ data: v.data, canal: 'Online', vendedora: v.vendedora||'—', desc: getVendaDesc(v), cat: v.canal, tipo: 'Receita', val: getVendaValor(v), id: v.id })),
     ...dados.pedidosML.map(v => ({ data: v.data, canal: 'Mercado Livre', vendedora: '—', desc: v.produto, cat: 'ML', tipo: 'Receita', val: v.liquido, id: v.id })),
-    ...dados.vendasMaquina.map(v => ({ data: v.data, canal: 'Presencial', vendedora: '—', desc: v.descricao, cat: v.modalidade, tipo: 'Receita', val: v.liquido, id: v.id })),
+    ...(dados.vendasShopee || []).map(v => ({ data: v.data, canal: 'Shopee', vendedora: '—', desc: v.produto, cat: 'Shopee', tipo: 'Receita', val: v.liquido, id: v.id })),
     ...dados.contasPagas.map(v => ({ data: v.data, canal: 'Despesa', vendedora: '—', desc: v.descricao, cat: v.categoria, tipo: 'Despesa', val: -v.valor, id: v.id })),
   ].sort((a,b) => b.data.localeCompare(a.data));
 
@@ -1766,7 +1826,7 @@ function renderGeral() {
   body.innerHTML = todas.map(m => `
     <tr>
       <td>${fmtData(m.data)}</td>
-      <td><span class="badge ${m.canal==='Mercado Livre'?'badge-amber':m.canal==='Presencial'?'badge-navy':m.canal==='Despesa'?'badge-red':'badge-sky'}">${m.canal}</span></td>
+      <td><span class="badge ${m.canal==='Mercado Livre'?'badge-amber':m.canal==='Shopee'?'badge-red':m.canal==='Despesa'?'badge-red':'badge-sky'}">${m.canal}</span></td>
       <td style="font-size:13px;font-weight:600;color:var(--navy)">${m.vendedora||'—'}</td>
       <td>${m.desc}</td>
       <td style="font-size:12px;color:var(--muted)">${m.cat}</td>
@@ -1782,7 +1842,7 @@ function exportarCSV() {
 
   dados.vendasOnline.forEach(v => rows.push([v.data,'Online',getVendaDesc(v)+' - '+(v.vendedora||''),v.canal,'Receita',getVendaValor(v).toFixed(2)]));
   dados.pedidosML.forEach(v => rows.push([v.data,'Mercado Livre',v.produto,'ML','Receita',v.liquido.toFixed(2)]));
-  dados.vendasMaquina.forEach(v => rows.push([v.data,'Presencial',v.descricao,v.modalidade,'Receita',v.liquido.toFixed(2)]));
+  (dados.vendasShopee || []).forEach(v => rows.push([v.data,'Shopee',v.produto,'Shopee','Receita',v.liquido.toFixed(2)]));
   dados.contasPagas.forEach(v => rows.push([v.data,'Despesa',v.descricao,v.categoria,'Despesa',('-'+v.valor.toFixed(2))]));
 
   const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
