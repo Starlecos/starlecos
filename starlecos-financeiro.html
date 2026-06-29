@@ -701,11 +701,57 @@
   }
 
   @media (max-width: 600px) {
-    main { padding: 16px 14px 40px; }
-    .summary-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-    .sum-value { font-size: 22px; }
+    main { padding: 12px 10px 40px; }
+    .summary-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .sum-value { font-size: 18px; }
+    .sum-card { padding: 14px 14px; }
     .form-row { grid-template-columns: 1fr; }
-    header { padding: 0 16px; }
+    header { padding: 0 12px; height: auto; min-height: 56px; flex-wrap: wrap; gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+    .header-right { gap: 6px; flex-wrap: wrap; }
+    .btn-export { font-size: 11px; padding: 5px 10px; }
+    .period-selector { font-size: 11px; padding: 5px 8px; }
+    #connStatusFin { font-size: 10px; }
+
+    /* Tabs no mobile */
+    .tab-bar { 
+      display: flex; overflow-x: auto; 
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; gap: 2px;
+      padding: 4px; border-radius: 8px;
+    }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .tab-btn { font-size: 11px; padding: 6px 10px; white-space: nowrap; }
+
+    /* Tabelas com scroll horizontal */
+    .table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { min-width: 500px; font-size: 11px; }
+    th { font-size: 10px; padding: 8px 10px; }
+    td { padding: 8px 10px; }
+
+    /* Formulários */
+    .form-card { padding: 16px 12px; }
+    .form-card h3 { font-size: 11px; }
+    .field input, .field select { font-size: 13px; padding: 8px 10px; }
+    .field label { font-size: 11px; }
+    .btn-add { font-size: 13px; padding: 9px 16px; }
+
+    /* ML sync bar */
+    .ml-sync-bar { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; }
+    .btn-ml-sync { font-size: 12px; padding: 8px 14px; }
+
+    /* Section header */
+    .section-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .section-title { font-size: 14px; }
+
+    /* Dashboard */
+    .chart-placeholder { padding: 16px; }
+    .channel-val { font-size: 11px; min-width: 55px; }
+    .channel-name { font-size: 11px; }
+
+    /* Table header */
+    .table-header { padding: 10px 14px; }
+    .table-header-title { font-size: 12px; }
+    .table-total { font-size: 12px; }
   }
 
   .ml-manual-note {
