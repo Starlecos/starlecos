@@ -775,8 +775,10 @@ async function init() {
     setConn('ok');
     await renderHistorico();
   } catch(e) {
+    console.warn('Erro de conexão:', e.message);
     setConn('err');
-    notify('Erro de conexão com o banco','err');
+    // Tenta reconectar em 8 segundos
+    setTimeout(init, 8000);
   }
   adicionarItem();
 }
@@ -786,8 +788,8 @@ init();
 
   <!-- PWA Service Worker -->
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    if ('serviceWorker' in navigator && !location.hostname.includes('claudeusercontent')) {
+      navigator.serviceWorker.register('/sw.js').catch(function(){});
     }
   </script>
 </body>
