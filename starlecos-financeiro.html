@@ -1906,7 +1906,7 @@ function atualizarTudo() {
   const nSH = dados.vendasShopee ? dados.vendasShopee.length : 0;
   const nCP = dados.contasPagas.length;
 
-  document.getElementById('subReceitas').textContent = `${nVO + nML + nMC} vendas registradas`;
+  document.getElementById('subReceitas').textContent = `${nVO + nML + nSH} vendas registradas`;
   document.getElementById('subDespesas').textContent = `${nCP} conta(s) paga(s)`;
   document.getElementById('subPedidos').textContent = `${nVO} online · ${nML} ML · ${nSH} Shopee`;
 
