@@ -10,26 +10,14 @@ exports.handler = async function(event) {
   }
 
   try {
-    const token   = (event.headers.authorization || '').replace('Bearer ', '');
-    const userId  = event.queryStringParameters && event.queryStringParameters.user_id;
-    const orderId = event.queryStringParameters && event.queryStringParameters.order_id;
+    const token      = (event.headers.authorization || '').replace('Bearer ', '');
+    const shippingId = event.queryStringParameters && event.queryStringParameters.shipping_id;
 
-    if (!token || !userId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'token e user_id obrigatórios' }) };
+    if (!token || !shippingId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'token e shipping_id obrigatórios' }) };
     }
 
-    // Tentar diferentes endpoints de liquidação
-    const endpoints = [
-      `https://api.mercadolibre.com/users/${userId}/mercadopago_account/movements?type=release&limit=50`,
-      `https://api.mercadolibre.com/collections/search?seller_id=${userId}&status=approved&sort=date_created.desc&limit=1`,
-      `https://api.mercadolibre.com/orders/${orderId}/payments`
-    ];
-
-    const url = orderId
-      ? `https://api.mercadolibre.com/orders/${orderId}/payments`
-      : `https://api.mercadolibre.com/users/${userId}/mercadopago_account/movements?type=release&limit=10`;
-
-    const res  = await fetch(url, {
+    const res  = await fetch(`https://api.mercadolibre.com/shipments/${shippingId}`, {
       headers: { 'Authorization': 'Bearer ' + token }
     });
     const data = await res.json();
