@@ -1992,7 +1992,7 @@ function renderGeral() {
     ...dados.pedidosML.map(v => ({ data: v.data, canal: 'Mercado Livre', vendedora: '—', desc: v.produto, cat: 'ML', tipo: 'Receita', val: v.liquido, id: v.id })),
     ...(dados.vendasShopee || []).map(v => ({ data: v.data, canal: 'Shopee', vendedora: '—', desc: v.produto, cat: 'Shopee', tipo: 'Receita', val: v.liquido, id: v.id })),
     ...dados.contasPagas.map(v => ({ data: v.data, canal: 'Despesa', vendedora: '—', desc: v.descricao, cat: v.categoria, tipo: 'Despesa', val: -v.valor, id: v.id })),
-  ].sort((a,b) => b.data.localeCompare(a.data));
+  ].sort((a,b) => b.data.localeCompare(a.data) || b.id - a.id);
 
   document.getElementById('totalMovimentacoes').textContent = `${todas.length} registros`;
 
