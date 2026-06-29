@@ -11,7 +11,7 @@ exports.handler = async function(event) {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { grant_type, code, refresh_token } = body;
+    const { grant_type, code, refresh_token, code_verifier } = body;
 
     const params = new URLSearchParams({
       grant_type,
@@ -20,8 +20,11 @@ exports.handler = async function(event) {
       redirect_uri:  'https://ubiquitous-youtiao-3a8ab4.netlify.app/starlecos-financeiro.html'
     });
 
-    if (grant_type === 'authorization_code') params.set('code', code);
-    if (grant_type === 'refresh_token')      params.set('refresh_token', refresh_token);
+    if (grant_type === 'authorization_code') {
+      params.set('code', code);
+      if (code_verifier) params.set('code_verifier', code_verifier);
+    }
+    if (grant_type === 'refresh_token') params.set('refresh_token', refresh_token);
 
     const res  = await fetch('https://api.mercadolibre.com/oauth/token', {
       method:  'POST',
