@@ -10,22 +10,24 @@ exports.handler = async function(event) {
   }
 
   try {
-    const token  = (event.headers.authorization || '').replace('Bearer ', '');
-    const userId = event.queryStringParameters && event.queryStringParameters.user_id;
+    const token   = (event.headers.authorization || '').replace('Bearer ', '');
+    const userId  = event.queryStringParameters && event.queryStringParameters.user_id;
     const orderId = event.queryStringParameters && event.queryStringParameters.order_id;
 
     if (!token || !userId) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'token e user_id obrigatórios' }) };
     }
 
-    // Buscar liquidações do pedido específico ou listar todas
-    let url;
-    if (orderId) {
-      url = `https://api.mercadolibre.com/account/settlement_report/bulk/download?external_reference=${orderId}&user_id=${userId}`;
-    } else {
-      // Buscar movimentos financeiros (releases) do vendedor
-      url = `https://api.mercadolibre.com/account/movements/search?user_id=${userId}&type=release&offset=0&limit=50`;
-    }
+    // Tentar diferentes endpoints de liquidação
+    const endpoints = [
+      `https://api.mercadolibre.com/users/${userId}/mercadopago_account/movements?type=release&limit=50`,
+      `https://api.mercadolibre.com/collections/search?seller_id=${userId}&status=approved&sort=date_created.desc&limit=1`,
+      `https://api.mercadolibre.com/orders/${orderId}/payments`
+    ];
+
+    const url = orderId
+      ? `https://api.mercadolibre.com/orders/${orderId}/payments`
+      : `https://api.mercadolibre.com/users/${userId}/mercadopago_account/movements?type=release&limit=10`;
 
     const res  = await fetch(url, {
       headers: { 'Authorization': 'Bearer ' + token }
