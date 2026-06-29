@@ -1294,15 +1294,37 @@ async function gerarCodeChallenge(verifier) {
 }
 
 async function iniciarLoginML() {
-  const verifier   = gerarRandomString(64);
-  const challenge  = await gerarCodeChallenge(verifier);
+  const verifier  = gerarRandomString(64);
+  const challenge = await gerarCodeChallenge(verifier);
   localStorage.setItem('ml_code_verifier', verifier);
   const url = 'https://auth.mercadolivre.com.br/authorization?response_type=code' +
     '&client_id=' + ML_APP_ID +
     '&redirect_uri=' + encodeURIComponent(ML_REDIRECT) +
     '&code_challenge=' + challenge +
     '&code_challenge_method=S256';
-  window.location.href = url;
+
+  // Abrir em popup para não sair do PWA
+  const popup = window.open(url, 'ml_auth', 'width=480,height=640,scrollbars=yes');
+
+  // Monitorar o popup para capturar o código quando voltar
+  const timer = setInterval(async function() {
+    try {
+      if (!popup || popup.closed) {
+        clearInterval(timer);
+        return;
+      }
+      const popupUrl = popup.location.href;
+      if (popupUrl && popupUrl.includes('code=TG-')) {
+        clearInterval(timer);
+        const params = new URLSearchParams(popupUrl.split('?')[1]);
+        const code   = params.get('code');
+        popup.close();
+        if (code) await trocarCodigoML(code);
+      }
+    } catch(e) {
+      // Cross-origin — popup ainda no ML, aguardar
+    }
+  }, 500);
 }
 
 async function mlRequest(path, method, body) {
