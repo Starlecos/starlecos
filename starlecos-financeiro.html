@@ -1659,7 +1659,7 @@ async function addVendaOnline() {
     return;
   }
 
-  body.innerHTML = [...dados.vendasOnline].reverse().map(v => {
+  body.innerHTML = [...dados.vendasOnline].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => {
     const badgeCls = v.status==='Pago'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber';
     const itensHtml = v.itens && v.itens.length
       ? v.itens.map(i => `<div style="font-size:11px;line-height:1.6">• ${i.qtd}x ${i.produto}${i.tamanho?' <b>('+i.tamanho+')</b>':''}${i.estampa?' — '+i.estampa:''}</div>`).join('')
@@ -1753,7 +1753,7 @@ function renderML() {
     return;
   }
 
-  body.innerHTML = [...dados.pedidosML].reverse().map(v => `
+  body.innerHTML = [...dados.pedidosML].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
     <tr>
       <td>${fmtData(v.data)}</td>
       <td style="font-size:12px;color:var(--muted)">${v.pedido}</td>
@@ -1858,7 +1858,7 @@ function renderShopee() {
     return;
   }
 
-  body.innerHTML = [...dados.vendasShopee].reverse().map(v => `
+  body.innerHTML = [...dados.vendasShopee].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
     <tr>
       <td>${fmtData(v.data)}</td>
       <td style="font-size:12px;color:var(--muted)">${v.pedido}</td>
@@ -1905,7 +1905,7 @@ function renderContas() {
     return;
   }
 
-  body.innerHTML = [...dados.contasPagas].reverse().map(v => `
+  body.innerHTML = [...dados.contasPagas].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
     <tr>
       <td>${fmtData(v.data)}</td>
       <td>${v.descricao}</td>
