@@ -992,14 +992,19 @@
       <div class="ml-info">
         <div class="ml-logo">🛒</div>
         <div class="ml-text">
-          <h4>Mercado Livre — Abastecimento de Pedidos</h4>
-          <p>Importe pedidos via planilha CSV exportada do Seller Central</p>
+          <h4>Mercado Livre — Sincronização Automática</h4>
+          <p>Conecte sua conta para buscar pedidos em tempo real</p>
         </div>
       </div>
-      <label class="btn-ml-sync" style="cursor:pointer;">
-        📂 Importar CSV do ML
-        <input type="file" accept=".csv" style="display:none" onchange="importarCSVML(event)">
-      </label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="mlStatusBtn" class="btn-ml-sync" onclick="acaoML()" style="background:#C0392B">
+          🔴 Conectar Mercado Livre
+        </button>
+        <label class="btn-ml-sync" style="cursor:pointer;background:#555">
+          📂 Importar CSV
+          <input type="file" accept=".csv" style="display:none" onchange="importarCSVML(event)">
+        </label>
+      </div>
     </div>
 
     <div class="ml-manual-note">
@@ -1257,6 +1262,151 @@
 <div id="notification"></div>
 
 <script>
+// =============================================
+// MERCADO LIVRE — CONFIGURAÇÃO
+// =============================================
+const ML_APP_ID      = '6624742243995383';
+const ML_SECRET      = 'KxM33KRxAQf6Y82GaWi9paRiiKv7KawK';
+const ML_REDIRECT    = 'https://ubiquitous-youtiao-3a8ab4.netlify.app/starlecos-financeiro.html';
+const ML_AUTH_URL    = 'https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=' + ML_APP_ID + '&redirect_uri=' + encodeURIComponent(ML_REDIRECT);
+
+let mlToken     = localStorage.getItem('ml_access_token')  || '';
+let mlRefresh   = localStorage.getItem('ml_refresh_token') || '';
+let mlUserId    = localStorage.getItem('ml_user_id')       || '';
+
+async function mlRequest(path, method, body) {
+  if (!mlToken) return null;
+  const res = await fetch('https://api.mercadolibre.com' + path, {
+    method: method || 'GET',
+    headers: { 'Authorization': 'Bearer ' + mlToken, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (res.status === 401) { await renovarTokenML(); return mlRequest(path, method, body); }
+  return res.json();
+}
+
+async function trocarCodigoML(code) {
+  try {
+    const res = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: ML_APP_ID,
+        client_secret: ML_SECRET,
+        code: code,
+        redirect_uri: ML_REDIRECT
+      })
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      mlToken   = data.access_token;
+      mlRefresh = data.refresh_token;
+      mlUserId  = data.user_id;
+      localStorage.setItem('ml_access_token',  mlToken);
+      localStorage.setItem('ml_refresh_token', mlRefresh);
+      localStorage.setItem('ml_user_id',       mlUserId);
+      // Remover code da URL
+      window.history.replaceState({}, document.title, ML_REDIRECT);
+      notify('✅ Mercado Livre conectado!');
+      atualizarStatusML(true);
+      await sincronizarPedidosML();
+    } else {
+      console.error('Erro ML token:', data);
+      notify('Erro ao conectar ML', 'err');
+    }
+  } catch(e) { console.error('Erro ML:', e); }
+}
+
+async function renovarTokenML() {
+  if (!mlRefresh) return;
+  try {
+    const res = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: ML_APP_ID,
+        client_secret: ML_SECRET,
+        refresh_token: mlRefresh
+      })
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      mlToken   = data.access_token;
+      mlRefresh = data.refresh_token;
+      localStorage.setItem('ml_access_token',  mlToken);
+      localStorage.setItem('ml_refresh_token', mlRefresh);
+    }
+  } catch(e) { console.error('Erro renovar token ML:', e); }
+}
+
+async function sincronizarPedidosML() {
+  if (!mlToken || !mlUserId) return;
+  try {
+    const res = await mlRequest('/orders/search?seller=' + mlUserId + '&sort=date_desc&limit=50');
+    if (!res || !res.results) return;
+
+    const jaExistentes = new Set((dados.pedidosML || []).map(p => String(p.pedido)));
+    let novos = 0;
+
+    res.results.forEach(function(order) {
+      const pedidoId = String(order.id);
+      if (jaExistentes.has(pedidoId)) return;
+
+      const produto = order.order_items && order.order_items[0] ? order.order_items[0].item.title : 'Produto ML';
+      const qtd     = order.order_items && order.order_items[0] ? order.order_items[0].quantity : 1;
+      const bruto   = order.total_amount || 0;
+      const taxa    = order.marketplace_fee || 0;
+      const liquido = bruto - taxa;
+      const data    = (order.date_created || '').split('T')[0] || hoje();
+      const status  = order.status === 'paid' ? 'Entregue' : order.status === 'cancelled' ? 'Cancelado' : 'Aguardando';
+
+      dados.pedidosML.push({ id: Date.now() + novos, pedido: pedidoId, produto, qtd, bruto, taxa, liquido, data, status });
+      novos++;
+    });
+
+    if (novos > 0) {
+      salvar();
+      notify('✅ ' + novos + ' novo(s) pedido(s) do ML sincronizado(s)!');
+    } else {
+      notify('ML atualizado — nenhum pedido novo.');
+    }
+    atualizarStatusML(true);
+  } catch(e) {
+    console.error('Erro sincronizar ML:', e);
+    notify('Erro ao sincronizar ML', 'err');
+  }
+}
+
+function atualizarStatusML(conectado) {
+  const el = document.getElementById('mlStatusBtn');
+  if (!el) return;
+  if (conectado) {
+    el.textContent = '🟢 ML Conectado — Sincronizar';
+    el.style.background = '#1A7A4A';
+  } else {
+    el.textContent = '🔴 Conectar Mercado Livre';
+    el.style.background = '#C0392B';
+  }
+}
+
+function acaoML() {
+  if (mlToken) { sincronizarPedidosML(); }
+  else { window.location.href = ML_AUTH_URL; }
+}
+
+// Verificar se voltou do OAuth com código
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const code   = params.get('code');
+  if (code && code.startsWith('TG-')) {
+    trocarCodigoML(code);
+  } else if (mlToken) {
+    atualizarStatusML(true);
+  }
+})();
+
 // =============================================
 // SUPABASE
 // =============================================
