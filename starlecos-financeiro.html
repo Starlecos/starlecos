@@ -1000,7 +1000,10 @@
         <button id="mlStatusBtn" class="btn-ml-sync" onclick="acaoML()" style="background:#C0392B">
           🔴 Conectar Mercado Livre
         </button>
-        <label class="btn-ml-sync" style="cursor:pointer;background:#555">
+        <button class="btn-ml-sync" onclick="limparEReimportarML()" style="background:#555;cursor:pointer">
+          🔄 Limpar e Reimportar
+        </button>
+        <label class="btn-ml-sync" style="cursor:pointer;background:#777">
           📂 Importar CSV
           <input type="file" accept=".csv" style="display:none" onchange="importarCSVML(event)">
         </label>
@@ -1358,6 +1361,17 @@ async function renovarTokenML() {
   } catch(e) { console.error('Erro renovar token ML:', e); }
 }
 
+async function limparEReimportarML() {
+  if (!confirm('Isso vai apagar todos os pedidos ML e reimportar do zero. Continuar?')) return;
+  try {
+    await sbDelete('pedidos_ml', 'id=gte.0');
+    notify('🗑 Pedidos ML limpos! Sincronizando...');
+  } catch(e) { notify('Erro ao limpar', 'err'); return; }
+  dados.pedidosML = [];
+  localStorage.setItem('starlecos_dados', JSON.stringify(dados));
+  setTimeout(sincronizarPedidosML, 500);
+}
+
 async function buscarFreteML(shippingId) {
   try {
     const res = await fetch('/.netlify/functions/ml-shipping?shipping_id=' + shippingId, {
@@ -1377,7 +1391,12 @@ async function sincronizarPedidosML() {
     const resJson = await res.json();
     if (!resJson || !resJson.results) return;
 
-    const jaExistentes = new Set((dados.pedidosML || []).map(p => String(p.pedido)));
+    // Buscar IDs já existentes no Supabase para evitar duplicatas
+    let pedidosExistentes = [];
+    try {
+      pedidosExistentes = await sbGet('pedidos_ml', 'select=pedido');
+    } catch(e) { pedidosExistentes = dados.pedidosML || []; }
+    const jaExistentes = new Set(pedidosExistentes.map(p => String(p.pedido)));
     let novos = 0;
     const pedidosNovos = resJson.results.filter(o => !jaExistentes.has(String(o.id)));
 
@@ -1401,7 +1420,16 @@ async function sincronizarPedidosML() {
       const data    = (order.date_created || '').split('T')[0] || hoje();
       const status  = order.status === 'paid' ? 'Entregue' : order.status === 'cancelled' ? 'Cancelado' : 'Aguardando';
 
-      dados.pedidosML.push({ id: Date.now() + i, pedido: pedidoId, produto, qtd, bruto, taxaVenda, taxaFrete, taxa, liquido, data, status });
+      const novoId = Date.now() + i;
+      const novoPedido = { id: novoId, pedido: pedidoId, produto, qtd, bruto, taxaVenda, taxaFrete, taxa, liquido, data, status };
+      // Salvar no Supabase
+      try {
+        await sbInsert('pedidos_ml', {
+          id: novoId, pedido: pedidoId, produto, qtd,
+          bruto, taxa_venda: taxaVenda, taxa_frete: taxaFrete, taxa, liquido, data, status
+        });
+      } catch(e) { console.warn('Erro salvar pedido ML no Supabase:', e); }
+      dados.pedidosML.push(novoPedido);
       novos++;
     }
 
@@ -1652,7 +1680,7 @@ async function addVendaOnline() {
 }
 
 // ====== MERCADO LIVRE ======
-function addPedidoML() {
+async function addPedidoML() {
   const data = document.getElementById('ml_data').value;
   const pedido = document.getElementById('ml_pedido').value.trim();
   const produto = document.getElementById('ml_produto').value.trim();
@@ -1665,7 +1693,11 @@ function addPedidoML() {
     notify('Preencha: data, produto e valor bruto.', 'err'); return;
   }
 
-  dados.pedidosML.push({ id: Date.now(), data, pedido: pedido || '#' + Date.now(), produto, qtd, bruto, taxa, liquido: bruto - taxa, status });
+  const novoML = { id: Date.now(), data, pedido: pedido || '#' + Date.now(), produto, qtd, bruto, taxa, liquido: bruto - taxa, status };
+  try {
+    await sbInsert('pedidos_ml', { ...novoML, taxa_venda: taxa, taxa_frete: 0 });
+  } catch(e) { console.warn('Erro salvar ML Supabase:', e); }
+  dados.pedidosML.push(novoML);
   salvar();
   document.getElementById('ml_pedido').value = '';
   document.getElementById('ml_produto').value = '';
