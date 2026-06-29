@@ -1394,9 +1394,10 @@ async function sincronizarPedidosML() {
       notify('ML atualizado — nenhum pedido novo.');
     }
     atualizarStatusML(true);
-    // Abrir a aba ML automaticamente e renderizar
-    showTab('mercadoLivre');
+    // Renderizar aba ML
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-mercadoLivre').classList.add('active');
     document.querySelector('[onclick*="mercadoLivre"]').classList.add('active');
     renderML();
   } catch(e) {
