@@ -1265,14 +1265,42 @@
 // =============================================
 // MERCADO LIVRE — CONFIGURAÇÃO
 // =============================================
-const ML_APP_ID      = '6624742243995383';
-const ML_SECRET      = 'KxM33KRxAQf6Y82GaWi9paRiiKv7KawK';
-const ML_REDIRECT    = 'https://ubiquitous-youtiao-3a8ab4.netlify.app/starlecos-financeiro.html';
-const ML_AUTH_URL    = 'https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=' + ML_APP_ID + '&redirect_uri=' + encodeURIComponent(ML_REDIRECT);
+const ML_APP_ID   = '6624742243995383';
+const ML_SECRET   = 'KxM33KRxAQf6Y82GaWi9paRiiKv7KawK';
+const ML_REDIRECT = 'https://ubiquitous-youtiao-3a8ab4.netlify.app/starlecos-financeiro.html';
 
-let mlToken     = localStorage.getItem('ml_access_token')  || '';
-let mlRefresh   = localStorage.getItem('ml_refresh_token') || '';
-let mlUserId    = localStorage.getItem('ml_user_id')       || '';
+let mlToken   = localStorage.getItem('ml_access_token')  || '';
+let mlRefresh = localStorage.getItem('ml_refresh_token') || '';
+let mlUserId  = localStorage.getItem('ml_user_id')       || '';
+
+// ===== PKCE =====
+function gerarRandomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  let result = '';
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  array.forEach(x => result += chars[x % chars.length]);
+  return result;
+}
+
+async function gerarCodeChallenge(verifier) {
+  const data    = new TextEncoder().encode(verifier);
+  const digest  = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function iniciarLoginML() {
+  const verifier   = gerarRandomString(64);
+  const challenge  = await gerarCodeChallenge(verifier);
+  localStorage.setItem('ml_code_verifier', verifier);
+  const url = 'https://auth.mercadolivre.com.br/authorization?response_type=code' +
+    '&client_id=' + ML_APP_ID +
+    '&redirect_uri=' + encodeURIComponent(ML_REDIRECT) +
+    '&code_challenge=' + challenge +
+    '&code_challenge_method=S256';
+  window.location.href = url;
+}
 
 async function mlRequest(path, method, body) {
   if (!mlToken) return null;
@@ -1287,10 +1315,11 @@ async function mlRequest(path, method, body) {
 
 async function trocarCodigoML(code) {
   try {
+    const verifier = localStorage.getItem('ml_code_verifier') || '';
     const res = await fetch('/.netlify/functions/ml-token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ grant_type: 'authorization_code', code })
+      body: JSON.stringify({ grant_type: 'authorization_code', code, code_verifier: verifier })
     });
     const data = await res.json();
     if (data.access_token) {
@@ -1385,7 +1414,7 @@ function atualizarStatusML(conectado) {
 
 function acaoML() {
   if (mlToken) { sincronizarPedidosML(); }
-  else { window.location.href = ML_AUTH_URL; }
+  else { iniciarLoginML(); }
 }
 
 // Verificar se voltou do OAuth com código
