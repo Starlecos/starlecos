@@ -1385,9 +1385,23 @@ async function buscarFreteML(shippingId) {
 async function sincronizarPedidosML() {
   if (!mlToken || !mlUserId) return;
   try {
-    const res = await fetch('/.netlify/functions/ml-orders?user_id=' + mlUserId, {
+    let res = await fetch('/.netlify/functions/ml-orders?user_id=' + mlUserId, {
       headers: { 'Authorization': 'Bearer ' + mlToken }
     });
+    // Se token expirou, renovar e tentar novamente
+    if (res.status === 401) {
+      notify('🔄 Renovando token ML...');
+      await renovarTokenML();
+      res = await fetch('/.netlify/functions/ml-orders?user_id=' + mlUserId, {
+        headers: { 'Authorization': 'Bearer ' + mlToken }
+      });
+    }
+    // Se ainda 401 após renovar, pedir reconexão
+    if (res.status === 401) {
+      notify('⚠️ Sessão ML expirada. Clique em Conectar ML.', 'err');
+      atualizarStatusML(false);
+      return;
+    }
     const resJson = await res.json();
     if (!resJson || !resJson.results) return;
 
@@ -1465,11 +1479,16 @@ function acaoML() {
 }
 
 // Verificar se voltou do OAuth com código
-(function() {
+(async function() {
   const params = new URLSearchParams(window.location.search);
   const code   = params.get('code');
   if (code && code.startsWith('TG-')) {
     trocarCodigoML(code);
+  } else if (mlRefresh) {
+    // Tentar renovar token automaticamente ao abrir o painel
+    await renovarTokenML();
+    if (mlToken) atualizarStatusML(true);
+    else atualizarStatusML(false);
   } else if (mlToken) {
     atualizarStatusML(true);
   }
