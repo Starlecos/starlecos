@@ -1358,6 +1358,16 @@ async function renovarTokenML() {
   } catch(e) { console.error('Erro renovar token ML:', e); }
 }
 
+async function buscarFreteML(shippingId) {
+  try {
+    const res = await fetch('/.netlify/functions/ml-shipping?shipping_id=' + shippingId, {
+      headers: { 'Authorization': 'Bearer ' + mlToken }
+    });
+    const data = await res.json();
+    return data.shipping_option ? (data.shipping_option.list_cost || 0) : 0;
+  } catch(e) { return 0; }
+}
+
 async function sincronizarPedidosML() {
   if (!mlToken || !mlUserId) return;
   try {
@@ -1366,27 +1376,34 @@ async function sincronizarPedidosML() {
     });
     const resJson = await res.json();
     if (!resJson || !resJson.results) return;
-    const mlResult = resJson;
 
     const jaExistentes = new Set((dados.pedidosML || []).map(p => String(p.pedido)));
     let novos = 0;
+    const pedidosNovos = resJson.results.filter(o => !jaExistentes.has(String(o.id)));
 
-    mlResult.results.forEach(function(order) {
-      const pedidoId = String(order.id);
-      if (jaExistentes.has(pedidoId)) return;
+    notify('🔄 Buscando ' + pedidosNovos.length + ' pedido(s)...');
 
-      const item    = order.order_items && order.order_items[0] ? order.order_items[0] : null;
-      const produto = item ? item.item.title : 'Produto ML';
-      const qtd     = item ? item.quantity : 1;
-      const bruto   = order.total_amount || 0;
-      const taxa    = item ? (item.sale_fee || 0) : (order.marketplace_fee || 0);
+    for (let i = 0; i < pedidosNovos.length; i++) {
+      const order     = pedidosNovos[i];
+      const pedidoId  = String(order.id);
+      const item      = order.order_items && order.order_items[0] ? order.order_items[0] : null;
+      const produto   = item ? item.item.title : 'Produto ML';
+      const qtd       = item ? item.quantity : 1;
+      const bruto     = order.total_amount || 0;
+      const taxaVenda = item ? (item.sale_fee || 0) : 0;
+
+      // Buscar frete real do envio
+      const shippingId = order.shipping ? order.shipping.id : null;
+      const taxaFrete  = shippingId ? await buscarFreteML(shippingId) : 0;
+
+      const taxa    = taxaVenda + taxaFrete;
       const liquido = bruto - taxa;
       const data    = (order.date_created || '').split('T')[0] || hoje();
       const status  = order.status === 'paid' ? 'Entregue' : order.status === 'cancelled' ? 'Cancelado' : 'Aguardando';
 
-      dados.pedidosML.push({ id: Date.now() + novos, pedido: pedidoId, produto, qtd, bruto, taxa, liquido, data, status });
+      dados.pedidosML.push({ id: Date.now() + i, pedido: pedidoId, produto, qtd, bruto, taxaVenda, taxaFrete, taxa, liquido, data, status });
       novos++;
-    });
+    }
 
     if (novos > 0) {
       salvar();
@@ -1395,7 +1412,6 @@ async function sincronizarPedidosML() {
       notify('ML atualizado — nenhum pedido novo.');
     }
     atualizarStatusML(true);
-    // Renderizar tabela ML
     renderML();
   } catch(e) {
     console.error('Erro sincronizar ML:', e);
@@ -1712,7 +1728,7 @@ function renderML() {
       <td>${v.produto}</td>
       <td>${v.qtd}</td>
       <td class="val-pos">${fmt(v.bruto)}</td>
-      <td class="val-neg">− ${fmt(v.taxa)}</td>
+      <td class="val-neg" title="Taxa venda: ${fmt(v.taxaVenda||0)} | Frete: ${fmt(v.taxaFrete||0)}">− ${fmt(v.taxa)}</td>
       <td class="val-pos"><strong>${fmt(v.liquido)}</strong></td>
       <td><span class="badge ${v.status==='Entregue'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber'}">${v.status}</span></td>
       <td><button class="btn-del" onclick="del('pedidosML',${v.id})">✕</button></td>
