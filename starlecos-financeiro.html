@@ -1434,12 +1434,17 @@ function acaoML() {
 // SUPABASE
 // =============================================
 const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
-const SB_HEADERS = { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
+const SUPABASE_PUB = 'sb_publishable_veG4pqJH4m0kAflv7kZgYA_zvJam1Fa';
+const SB_HEADERS = { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON };
 
 async function sbGet(table, params) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + (params || 'select=*'), { headers: SB_HEADERS });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const err = await res.text();
+    console.error('Supabase erro:', res.status, err);
+    throw new Error(err);
+  }
   return res.json();
 }
 async function sbDelete(table, filter) {
