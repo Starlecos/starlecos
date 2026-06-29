@@ -1394,6 +1394,11 @@ async function sincronizarPedidosML() {
       notify('ML atualizado — nenhum pedido novo.');
     }
     atualizarStatusML(true);
+    // Abrir a aba ML automaticamente e renderizar
+    showTab('mercadoLivre');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[onclick*="mercadoLivre"]').classList.add('active');
+    renderML();
   } catch(e) {
     console.error('Erro sincronizar ML:', e);
     notify('Erro ao sincronizar ML', 'err');
