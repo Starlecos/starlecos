@@ -1738,15 +1738,16 @@ async function addVendaOnline() {
 
   function renderVendasOnline() {
   const body = document.getElementById('bodyVendasOnline');
-  const total = dados.vendasOnline.reduce((a,v) => a + (v.status !== 'Cancelado' ? getVendaValor(v) : 0), 0);
+  const lista = dados.vendasOnline.filter(v => dataNoFiltro(v.data));
+  const total = lista.reduce((a,v) => a + (v.status !== 'Cancelado' ? getVendaValor(v) : 0), 0);
   document.getElementById('totalVendasOnline').textContent = fmt(total);
 
-  if (!dados.vendasOnline.length) {
-    body.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">💻</div><p>Nenhuma venda online registrada</p></div></td></tr>';
+  if (!lista.length) {
+    body.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">💻</div><p>Nenhuma venda no período</p></div></td></tr>';
     return;
   }
 
-  body.innerHTML = [...dados.vendasOnline].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => {
+  body.innerHTML = [...lista].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => {
     const badgeCls = v.status==='Pago'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber';
     const itensHtml = v.itens && v.itens.length
       ? v.itens.map(i => `<div style="font-size:11px;line-height:1.6">• ${i.qtd}x ${i.produto}${i.tamanho?' <b>('+i.tamanho+')</b>':''}${i.estampa?' — '+i.estampa:''}</div>`).join('')
@@ -1832,15 +1833,16 @@ function importarCSVML(event) {
 
 function renderML() {
   const body = document.getElementById('bodyML');
-  const total = dados.pedidosML.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
+  const lista = dados.pedidosML.filter(v => dataNoFiltro(v.data));
+  const total = lista.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
   document.getElementById('totalML').textContent = fmt(total);
 
-  if (!dados.pedidosML.length) {
-    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛒</div><p>Nenhum pedido importado ainda</p></div></td></tr>';
+  if (!lista.length) {
+    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛒</div><p>Nenhum pedido no período</p></div></td></tr>';
     return;
   }
 
-  body.innerHTML = [...dados.pedidosML].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
+  body.innerHTML = [...lista].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
     <tr>
       <td>${fmtData(v.data)}</td>
       <td style="font-size:12px;color:var(--muted)">${v.pedido}</td>
@@ -1937,15 +1939,16 @@ function importarCSVShopee(event) {
 
 function renderShopee() {
   const body  = document.getElementById('bodyShopee');
-  const total = dados.vendasShopee.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
+  const lista = (dados.vendasShopee || []).filter(v => dataNoFiltro(v.data));
+  const total = lista.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
   document.getElementById('totalShopee').textContent = fmt(total);
 
-  if (!dados.vendasShopee.length) {
-    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛍️</div><p>Nenhum pedido importado ainda</p></div></td></tr>';
+  if (!lista.length) {
+    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛍️</div><p>Nenhum pedido no período</p></div></td></tr>';
     return;
   }
 
-  body.innerHTML = [...dados.vendasShopee].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
+  body.innerHTML = [...lista].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
     <tr>
       <td>${fmtData(v.data)}</td>
       <td style="font-size:12px;color:var(--muted)">${v.pedido}</td>
@@ -1984,15 +1987,16 @@ function addContaPaga() {
 
 function renderContas() {
   const body = document.getElementById('bodyContas');
-  const total = dados.contasPagas.reduce((a,v) => a + v.valor, 0);
+  const lista = dados.contasPagas.filter(v => dataNoFiltro(v.data));
+  const total = lista.reduce((a,v) => a + v.valor, 0);
   document.getElementById('totalContas').textContent = fmt(total);
 
-  if (!dados.contasPagas.length) {
-    body.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📄</div><p>Nenhuma conta registrada</p></div></td></tr>';
+  if (!lista.length) {
+    body.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📄</div><p>Nenhuma conta no período</p></div></td></tr>';
     return;
   }
 
-  body.innerHTML = [...dados.contasPagas].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
+  body.innerHTML = [...lista].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
     <tr>
       <td>${fmtData(v.data)}</td>
       <td>${v.descricao}</td>
@@ -2021,19 +2025,63 @@ async function del(colecao, id) {
   }
 }
 
+// ====== FILTRO DE PERÍODO ======
+function getDataLimite() {
+  const periodo = document.getElementById('periodoGlobal').value;
+  const hojeDate = new Date();
+  hojeDate.setHours(0,0,0,0);
+
+  if (periodo === 'todos') return null;
+
+  if (periodo === 'hoje') {
+    return hoje();
+  }
+  if (periodo === 'semana') {
+    const inicio = new Date(hojeDate);
+    inicio.setDate(inicio.getDate() - inicio.getDay()); // domingo desta semana
+    return inicio.toISOString().split('T')[0];
+  }
+  if (periodo === 'mes') {
+    const inicio = new Date(hojeDate.getFullYear(), hojeDate.getMonth(), 1);
+    return inicio.toISOString().split('T')[0];
+  }
+  return null;
+}
+
+function dataNoFiltro(dataStr) {
+  const periodo = document.getElementById('periodoGlobal').value;
+  if (periodo === 'todos') return true;
+  const limite = getDataLimite();
+  if (!limite) return true;
+
+  if (periodo === 'hoje') return dataStr === limite;
+  // semana e mes: data >= limite
+  return dataStr >= limite;
+}
+
+function filtrarPeriodo() {
+  atualizarTudo();
+}
+
 // ====== DASHBOARD / SUMMARY ======
 function atualizarTudo() {
+  // Aplicar filtro de período em cópias filtradas
+  const vendasOnlineF = dados.vendasOnline.filter(v => dataNoFiltro(v.data));
+  const pedidosMLF    = dados.pedidosML.filter(v => dataNoFiltro(v.data));
+  const vendasShopeeF = (dados.vendasShopee || []).filter(v => dataNoFiltro(v.data));
+  const contasPagasF  = dados.contasPagas.filter(v => dataNoFiltro(v.data));
+
   // Receitas
-  const rVO = dados.vendasOnline.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+getVendaValor(v), 0);
-  const rML = dados.pedidosML.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+v.liquido, 0);
-  const rSH = dados.vendasShopee ? dados.vendasShopee.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0) : 0;
+  const rVO = vendasOnlineF.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+getVendaValor(v), 0);
+  const rML = pedidosMLF.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+v.liquido, 0);
+  const rSH = vendasShopeeF.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
   const totalReceitas = rVO + rML + rSH;
 
   // Despesas
-  const totalDespesas = dados.contasPagas.reduce((a,v) => a+v.valor, 0);
+  const totalDespesas = contasPagasF.reduce((a,v) => a+v.valor, 0);
 
   // Pedidos
-  const totalPedidos = dados.vendasOnline.length + dados.pedidosML.length + (dados.vendasShopee ? dados.vendasShopee.length : 0);
+  const totalPedidos = vendasOnlineF.length + pedidosMLF.length + vendasShopeeF.length;
 
   // Update summary
   document.getElementById('totalReceitas').textContent = fmt(totalReceitas);
@@ -2044,10 +2092,10 @@ function atualizarTudo() {
   saldoEl.style.color = saldo >= 0 ? 'var(--jade)' : 'var(--rose)';
   document.getElementById('totalPedidos').textContent = totalPedidos;
 
-  const nVO = dados.vendasOnline.length;
-  const nML = dados.pedidosML.length;
-  const nSH = dados.vendasShopee ? dados.vendasShopee.length : 0;
-  const nCP = dados.contasPagas.length;
+  const nVO = vendasOnlineF.length;
+  const nML = pedidosMLF.length;
+  const nSH = vendasShopeeF.length;
+  const nCP = contasPagasF.length;
 
   document.getElementById('subReceitas').textContent = `${nVO + nML + nSH} vendas registradas`;
   document.getElementById('subDespesas').textContent = `${nCP} conta(s) paga(s)`;
@@ -2099,10 +2147,10 @@ function renderChannels(rVO, rML, rSH, total) {
 function renderUltimas() {
   const el = document.getElementById('ultimasMovimentacoes');
   const todas = [
-    ...dados.vendasOnline.map(v => ({ data: v.data, tipo: 'Receita', desc: 'Venda: '+getVendaDesc(v), vendedora: v.vendedora||'', val: getVendaValor(v), cor: 'val-pos', canal: 'Online' })),
-    ...dados.pedidosML.map(v => ({ data: v.data, tipo: 'Receita', desc: `ML: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'ML' })),
-    ...(dados.vendasShopee || []).map(v => ({ data: v.data, tipo: 'Receita', desc: `Shopee: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'Shopee' })),
-    ...dados.contasPagas.map(v => ({ data: v.data, tipo: 'Despesa', desc: v.descricao, val: -v.valor, cor: 'val-neg', canal: v.categoria })),
+    ...dados.vendasOnline.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, tipo: 'Receita', desc: 'Venda: '+getVendaDesc(v), vendedora: v.vendedora||'', val: getVendaValor(v), cor: 'val-pos', canal: 'Online' })),
+    ...dados.pedidosML.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, tipo: 'Receita', desc: `ML: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'ML' })),
+    ...(dados.vendasShopee || []).filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, tipo: 'Receita', desc: `Shopee: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'Shopee' })),
+    ...dados.contasPagas.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, tipo: 'Despesa', desc: v.descricao, val: -v.valor, cor: 'val-neg', canal: v.categoria })),
   ].sort((a,b) => b.data.localeCompare(a.data)).slice(0, 8);
 
   if (!todas.length) {
@@ -2124,10 +2172,10 @@ function renderUltimas() {
 function renderGeral() {
   const body = document.getElementById('bodyGeral');
   const todas = [
-    ...dados.vendasOnline.map(v => ({ data: v.data, canal: 'Online', vendedora: v.vendedora||'—', desc: getVendaDesc(v), cat: v.canal, tipo: 'Receita', val: getVendaValor(v), id: v.id })),
-    ...dados.pedidosML.map(v => ({ data: v.data, canal: 'Mercado Livre', vendedora: '—', desc: v.produto, cat: 'ML', tipo: 'Receita', val: v.liquido, id: v.id })),
-    ...(dados.vendasShopee || []).map(v => ({ data: v.data, canal: 'Shopee', vendedora: '—', desc: v.produto, cat: 'Shopee', tipo: 'Receita', val: v.liquido, id: v.id })),
-    ...dados.contasPagas.map(v => ({ data: v.data, canal: 'Despesa', vendedora: '—', desc: v.descricao, cat: v.categoria, tipo: 'Despesa', val: -v.valor, id: v.id })),
+    ...dados.vendasOnline.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, canal: 'Online', vendedora: v.vendedora||'—', desc: getVendaDesc(v), cat: v.canal, tipo: 'Receita', val: getVendaValor(v), id: v.id })),
+    ...dados.pedidosML.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, canal: 'Mercado Livre', vendedora: '—', desc: v.produto, cat: 'ML', tipo: 'Receita', val: v.liquido, id: v.id })),
+    ...(dados.vendasShopee || []).filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, canal: 'Shopee', vendedora: '—', desc: v.produto, cat: 'Shopee', tipo: 'Receita', val: v.liquido, id: v.id })),
+    ...dados.contasPagas.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, canal: 'Despesa', vendedora: '—', desc: v.descricao, cat: v.categoria, tipo: 'Despesa', val: -v.valor, id: v.id })),
   ].sort((a,b) => b.data.localeCompare(a.data) || b.id - a.id);
 
   document.getElementById('totalMovimentacoes').textContent = `${todas.length} registros`;
