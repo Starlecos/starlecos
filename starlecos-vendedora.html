@@ -346,12 +346,16 @@
       <span id="historicoTitulo">📋 Seus pedidos</span>
       <span class="historico-total" id="historicoTotal">R$ 0,00</span>
     </div>
-    <div style="padding:10px 20px;border-bottom:1px solid var(--border);background:#FAFBFD">
+    <div style="padding:10px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;display:flex;flex-direction:column;gap:8px">
       <select id="filtroPeriodo" onchange="renderHistorico()" style="width:100%;font-family:'Inter',sans-serif;font-size:13px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;color:var(--text);background:white;outline:none">
         <option value="hoje">Hoje</option>
         <option value="semana">Esta semana</option>
         <option value="mes">Este mês</option>
         <option value="todos">Todos os períodos</option>
+      </select>
+      <select id="filtroVendedora" onchange="renderHistorico()" style="width:100%;font-family:'Inter',sans-serif;font-size:13px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;color:var(--text);background:white;outline:none">
+        <option value="minhas">Minhas vendas</option>
+        <option value="todas">Todas as vendedoras</option>
       </select>
     </div>
     <div id="historicoLista"></div>
@@ -689,9 +693,11 @@ function getDataLimitePeriodo(periodo) {
 var LABELS_PERIODO = { hoje: 'de hoje', semana: 'desta semana', mes: 'deste mês', todos: 'de todos os períodos' };
 
 async function renderHistorico() {
-  var nome     = document.getElementById('vo_vendedora').value || localStorage.getItem('starlecos_vendedora_nome') || '';
-  var periodo  = (document.getElementById('filtroPeriodo') || {}).value || 'hoje';
-  var limite   = getDataLimitePeriodo(periodo);
+  var nome          = document.getElementById('vo_vendedora').value || localStorage.getItem('starlecos_vendedora_nome') || '';
+  var periodo       = (document.getElementById('filtroPeriodo') || {}).value || 'hoje';
+  var filtroVend    = (document.getElementById('filtroVendedora') || {}).value || 'minhas';
+  var limite        = getDataLimitePeriodo(periodo);
+  var usarNome      = filtroVend === 'minhas' && nome;
 
   try {
     var filtroData = '';
@@ -700,7 +706,7 @@ async function renderHistorico() {
     } else if (limite) {
       filtroData = '&data=gte.' + limite;
     }
-    var params = 'select=*' + filtroData + (nome ? '&vendedora=eq.' + encodeURIComponent(nome) : '') + '&order=data.desc,id.desc';
+    var params = 'select=*' + filtroData + (usarNome ? '&vendedora=eq.' + encodeURIComponent(nome) : '') + '&order=data.desc,id.desc';
     var pedidos = await sbGet('vendas', params);
 
     var totalPeriodo = pedidos.filter(function(v){ return v.status!=='Cancelado'; }).reduce(function(a,v){ return a+(v.total||0); },0);
@@ -708,7 +714,8 @@ async function renderHistorico() {
     var ds = document.getElementById('daySummary');
     var hc = document.getElementById('historicoCard');
 
-    document.getElementById('historicoTitulo').textContent = '📋 Seus pedidos ' + (LABELS_PERIODO[periodo] || '');
+    var tituloVend = filtroVend === 'todas' ? 'Todos os pedidos ' : 'Seus pedidos ';
+    document.getElementById('historicoTitulo').textContent = '📋 ' + tituloVend + (LABELS_PERIODO[periodo] || '');
 
     if (pedidos.length) {
       ds.style.display='flex'; hc.style.display='block';
