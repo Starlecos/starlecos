@@ -1652,7 +1652,7 @@ function toggleMLAvancado() {
 }
 
 async function limparEReimportarML() {
-  if (!confirm('Isso vai apagar todos os pedidos ML e reimportar do zero. Continuar?')) return;
+  if (!confirm('⚠️ ATENÇÃO: Esta ação vai apagar TODO o histórico de pedidos do ML e reimportar apenas os últimos 50. Use apenas em caso de emergência. Continuar?')) return;
   try {
     await sbDelete('pedidos_ml', 'id=gte.0');
     notify('🗑 Pedidos ML limpos! Sincronizando...');
@@ -1695,12 +1695,13 @@ async function sincronizarPedidosML() {
     const resJson = await res.json();
     if (!resJson || !resJson.results) return;
 
-    // Buscar IDs já existentes no Supabase para evitar duplicatas
+    // Buscar TODOS os IDs já existentes no Supabase para nunca duplicar nem apagar histórico
     let pedidosExistentes = [];
     try {
-      pedidosExistentes = await sbGet('pedidos_ml', 'select=pedido');
+      pedidosExistentes = await sbGet('pedidos_ml', 'select=pedido&limit=10000');
     } catch(e) { pedidosExistentes = dados.pedidosML || []; }
     const jaExistentes = new Set(pedidosExistentes.map(p => String(p.pedido)));
+    console.log('Pedidos já no histórico:', jaExistentes.size);
     let novos = 0;
     const pedidosNovos = resJson.results.filter(o => !jaExistentes.has(String(o.id)));
 
