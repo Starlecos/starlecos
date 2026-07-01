@@ -1144,6 +1144,25 @@
       <div class="section-title">💻 Vendas Online — Vendedora <span class="section-badge">Registro manual</span></div>
     </div>
 
+    <!-- IMPORTAR HISTÓRICO -->
+    <div class="ml-sync-bar" style="background:linear-gradient(135deg,#1A3D72 0%,#2575BF 100%);margin-bottom:20px">
+      <div class="ml-info">
+        <div class="ml-logo">📥</div>
+        <div class="ml-text">
+          <h4 style="color:white">Importar Histórico de Vendas</h4>
+          <p style="color:#BDD4F0">Carregue um CSV com vendas antigas em massa</p>
+        </div>
+      </div>
+      <label class="btn-ml-sync" style="cursor:pointer;background:white;color:var(--navy)">
+        📂 Selecionar CSV
+        <input type="file" accept=".csv" style="display:none" onchange="importarHistoricoVendas(event)">
+      </label>
+    </div>
+
+    <div class="ml-manual-note" style="margin-bottom:20px">
+      📋 <span>O CSV deve ter as colunas: <code>Data, Vendedora, Cliente, Produto, Quantidade, Valor, Frete, Canal, Pagamento, Status</code>. Data no formato <code>DD/MM/AAAA</code> ou <code>AAAA-MM-DD</code>. Separador: vírgula ou ponto e vírgula.</span>
+    </div>
+
     <div class="form-card">
       <h3>📝 Registrar Venda Online</h3>
       <div class="form-row">
@@ -2035,6 +2054,102 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ====== VENDAS ONLINE ======
+async function importarHistoricoVendas(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const text  = e.target.result;
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length < 2) { notify('CSV sem dados válidos', 'err'); return; }
+
+    const sep     = lines[0].includes(';') ? ';' : ',';
+    const headers = lines[0].split(sep).map(h => h.trim().replace(/"/g,'').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+
+    function col(row, ...names) {
+      for (const n of names) {
+        const idx = headers.findIndex(h => h.includes(n));
+        if (idx >= 0 && row[idx]) return row[idx].replace(/^"|"$/g,'').trim();
+      }
+      return '';
+    }
+
+    function parseData(str) {
+      if (!str) return hoje();
+      str = str.trim();
+      if (str.includes('/')) {
+        const p = str.split('/');
+        if (p.length === 3) {
+          const dia = p[0].padStart(2,'0'), mes = p[1].padStart(2,'0'), ano = p[2].length === 2 ? '20'+p[2] : p[2];
+          return ano + '-' + mes + '-' + dia;
+        }
+      }
+      if (str.includes('-') && str.length === 10) return str;
+      return hoje();
+    }
+
+    const lote = [];
+    let importados = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = [];
+      let cur = '', inQ = false;
+      for (const c of lines[i]) {
+        if (c === '"') { inQ = !inQ; }
+        else if (c === sep && !inQ) { cols.push(cur.trim()); cur = ''; }
+        else { cur += c; }
+      }
+      cols.push(cur.trim());
+
+      const data      = parseData(col(cols, 'data', 'date'));
+      const vendedora = col(cols, 'vendedora', 'vendedor', 'seller');
+      const cliente   = col(cols, 'cliente', 'client', 'comprador');
+      const produto   = col(cols, 'produto', 'product', 'item');
+      const qtd       = parseInt(col(cols, 'quantidade', 'qtd', 'qty')) || 1;
+      const valor     = parseFloat((col(cols, 'valor', 'value', 'preco') || '0').replace(',','.')) || 0;
+      const frete     = parseFloat((col(cols, 'frete', 'shipping') || '0').replace(',','.')) || 0;
+      const canal     = col(cols, 'canal', 'channel') || 'Outro';
+      const pagamento = col(cols, 'pagamento', 'payment', 'forma') || 'PIX';
+      const status    = col(cols, 'status') || 'Pago';
+      const total     = valor + frete;
+
+      if (!produto || valor <= 0) continue;
+
+      lote.push({
+        id: Date.now() + i,
+        data, vendedora, cliente,
+        itens: [{ produto, qtd, valor, tamanho: '', estampa: '' }],
+        subtotal: valor, frete, total, canal, pagamento, status, obs: ''
+      });
+      importados++;
+    }
+
+    if (!lote.length) { notify('Nenhuma linha válida encontrada no CSV.', 'err'); return; }
+    notify('🔄 Importando ' + importados + ' venda(s)...');
+
+    // Salvar em lotes de 50 no Supabase
+    const LOTE = 50;
+    for (let j = 0; j < lote.length; j += LOTE) {
+      const parte = lote.slice(j, j + LOTE);
+      try {
+        const res = await fetch(SUPABASE_URL + '/rest/v1/vendas', {
+          method: 'POST',
+          headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=merge-duplicates' },
+          body: JSON.stringify(parte)
+        });
+        if (!res.ok) console.warn('Erro lote:', await res.text());
+      } catch(err) { console.warn('Erro importar lote:', err); }
+      notify('💾 Salvando... ' + Math.min(j + LOTE, lote.length) + '/' + lote.length);
+    }
+
+    await carregarVendasOnline();
+    notify('✅ ' + importados + ' venda(s) importada(s) com sucesso!');
+    event.target.value = '';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
 async function addVendaOnline() {
   const data = document.getElementById('vo_data').value;
   const vendedora = document.getElementById('vo_vendedora').value.trim();
