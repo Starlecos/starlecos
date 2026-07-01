@@ -973,10 +973,12 @@
   <div class="header-right">
     <span id="connStatusFin" style="font-size:12px;font-weight:600;color:#8AAFD4">🟡 Conectando...</span>
     <select class="period-selector" id="periodoGlobal" onchange="filtrarPeriodo()">
-      <option value="todos">Todos os períodos</option>
+      <option value="todos" selected>Todos os períodos</option>
       <option value="hoje">Hoje</option>
       <option value="semana">Esta semana</option>
-      <option value="mes" selected>Este mês</option>
+      <option value="mes">Este mês</option>
+      <option value="mes_anterior">Mês anterior</option>
+      <option value="30dias">Últimos 30 dias</option>
     </select>
     <button class="btn-export" onclick="exportarCSV()">⬇ Exportar CSV</button>
   </div>
@@ -2244,18 +2246,25 @@ function getDataLimite() {
   hojeDate.setHours(0,0,0,0);
 
   if (periodo === 'todos') return null;
-
-  if (periodo === 'hoje') {
-    return hoje();
-  }
+  if (periodo === 'hoje') return { de: hoje(), ate: hoje() };
   if (periodo === 'semana') {
     const inicio = new Date(hojeDate);
-    inicio.setDate(inicio.getDate() - inicio.getDay()); // domingo desta semana
-    return inicio.toISOString().split('T')[0];
+    inicio.setDate(inicio.getDate() - inicio.getDay());
+    return { de: inicio.toISOString().split('T')[0], ate: null };
   }
   if (periodo === 'mes') {
     const inicio = new Date(hojeDate.getFullYear(), hojeDate.getMonth(), 1);
-    return inicio.toISOString().split('T')[0];
+    return { de: inicio.toISOString().split('T')[0], ate: null };
+  }
+  if (periodo === 'mes_anterior') {
+    const inicio = new Date(hojeDate.getFullYear(), hojeDate.getMonth() - 1, 1);
+    const fim    = new Date(hojeDate.getFullYear(), hojeDate.getMonth(), 0);
+    return { de: inicio.toISOString().split('T')[0], ate: fim.toISOString().split('T')[0] };
+  }
+  if (periodo === '30dias') {
+    const inicio = new Date(hojeDate);
+    inicio.setDate(inicio.getDate() - 30);
+    return { de: inicio.toISOString().split('T')[0], ate: null };
   }
   return null;
 }
@@ -2265,10 +2274,8 @@ function dataNoFiltro(dataStr) {
   if (periodo === 'todos') return true;
   const limite = getDataLimite();
   if (!limite) return true;
-
-  if (periodo === 'hoje') return dataStr === limite;
-  // semana e mes: data >= limite
-  return dataStr >= limite;
+  if (limite.ate) return dataStr >= limite.de && dataStr <= limite.ate;
+  return dataStr >= limite.de;
 }
 
 function filtrarPeriodo() {
