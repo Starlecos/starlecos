@@ -1672,6 +1672,14 @@ async function buscarFreteML(shippingId) {
   } catch(e) { return 0; }
 }
 
+async function fetchMLOrders(offset) {
+  const res = await fetch('/.netlify/functions/ml-orders?user_id=' + mlUserId + '&limit=50&offset=' + offset, {
+    headers: { 'Authorization': 'Bearer ' + mlToken }
+  });
+  if (res.status === 401) return null;
+  return res.json();
+}
+
 async function sincronizarPedidosML() {
   if (!mlToken || !mlUserId) return;
   try {
