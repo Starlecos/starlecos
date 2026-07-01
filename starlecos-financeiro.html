@@ -1079,6 +1079,7 @@
     <button class="tab-btn" onclick="showTab('mercadoLivre')">🛒 Mercado Livre</button>
     <button class="tab-btn" onclick="showTab('shopee')">🛍️ Shopee</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
+    <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
     <button class="tab-btn" onclick="showTab('calendario')">📅 Calendário</button>
   </div>
 
@@ -1465,6 +1466,124 @@
           <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛍️</div><p>Nenhum pedido importado ainda</p></div></td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ====== CONFECÇÃO ====== -->
+  <div class="tab-panel" id="panel-confeccao">
+    <div class="section-header">
+      <div class="section-title">🧵 Pedido de Confecção <span class="section-badge">Grade de tamanhos</span></div>
+    </div>
+
+    <div class="form-card" style="margin-bottom:20px">
+      <h3>➕ Adicionar Produto ao Pedido</h3>
+      <div class="form-row">
+        <div class="field">
+          <label>Produto</label>
+          <select id="conf_produto">
+            <option value="">— Selecione —</option>
+            <optgroup label="🥼 Jalecos Femininos">
+              <option>Jaleco Estampado Feminino</option>
+              <option>Jaleco Liso Feminino</option>
+              <option>Jaleco Estampado Feminino Botões</option>
+              <option>Jaleco S/Manga Feminino</option>
+            </optgroup>
+            <optgroup label="🥼 Jalecos Masculinos">
+              <option>Jaleco Estampado Masculino</option>
+              <option>Jaleco Liso Masculino</option>
+            </optgroup>
+            <optgroup label="👖 Calças">
+              <option>Calça Feminino</option>
+              <option>Calça Masculino</option>
+            </optgroup>
+            <optgroup label="👕 Blusas">
+              <option>Blusa Feminino Liso</option>
+              <option>Blusa Feminino Estampado</option>
+              <option>Blusa Masculino Liso</option>
+              <option>Blusa Masculino Estampado</option>
+            </optgroup>
+            <optgroup label="✨ Acessórios">
+              <option>Faixa de Cabelo</option>
+              <option>Touca</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="field">
+          <label>Estampa / Cor</label>
+          <input type="text" id="conf_estampa" placeholder="Ex: Safari, Rosa Floral, Branco...">
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:8px">Grade de Tamanhos — Padrão</label>
+        <div id="conf_grade_inputs_a" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:8px">Grade de Tamanhos — Plus (G1 ao G4)</label>
+        <div id="conf_grade_inputs_b" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+      </div>
+      <button class="btn-add jade" onclick="addItemConfeccao()">＋ Adicionar à Grade</button>
+    </div>
+
+    <!-- GRADE ATUAL -->
+    <div class="table-card" style="margin-bottom:20px" id="confGradeCard">
+      <div class="table-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span class="table-header-title">📋 Itens do Pedido</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="confTotalPecas" class="conf-total-badge">0 peças</span>
+          <button onclick="limparConfeccao()" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">🗑 Limpar</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="conf-grade-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="text-align:left">Produto</th>
+              <th rowspan="2" style="text-align:left">Estampa</th>
+              <th colspan="5" style="background:#E8F2FB;color:var(--sky);border-bottom:1px solid var(--border)">Padrão</th>
+              <th colspan="4" style="background:#FEF6E4;color:var(--amber);border-bottom:1px solid var(--border)">Plus</th>
+              <th rowspan="2">Total</th>
+              <th rowspan="2"></th>
+            </tr>
+            <tr>
+              <th style="background:#E8F2FB">PP</th>
+              <th style="background:#E8F2FB">P</th>
+              <th style="background:#E8F2FB">M</th>
+              <th style="background:#E8F2FB">G</th>
+              <th style="background:#E8F2FB">GG</th>
+              <th style="background:#FEF6E4">G1</th>
+              <th style="background:#FEF6E4">G2</th>
+              <th style="background:#FEF6E4">G3</th>
+              <th style="background:#FEF6E4">G4</th>
+            </tr>
+          </thead>
+          <tbody id="confGradeBody">
+            <tr><td colspan="13" style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Nenhum item adicionado ainda.</td></tr>
+          </tbody>
+          <tfoot>
+            <tr class="total-row" id="confTotalRow" style="display:none">
+              <td colspan="2">TOTAL GERAL</td>
+              <td id="tPP">0</td><td id="tP">0</td><td id="tM">0</td>
+              <td id="tG">0</td><td id="tGG">0</td><td id="tG1">0</td>
+              <td id="tG2">0</td><td id="tG3">0</td><td id="tG4">0</td>
+              <td id="tTotal">0</td><td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- MENSAGEM -->
+    <div class="form-card">
+      <h3>📱 Mensagem para WhatsApp</h3>
+      <div class="field" style="margin-bottom:12px">
+        <label>Observação adicional (opcional)</label>
+        <input type="text" id="conf_obs" placeholder="Ex: Prazo: 15 dias, entregar na loja..." oninput="gerarMensagem()">
+      </div>
+      <div class="msg-preview" id="confMsgPreview">Monte o pedido acima para gerar a mensagem.</div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-copiar" id="btnCopiar" onclick="copiarMensagem()">📋 Copiar Mensagem</button>
+        <a id="btnWhatsapp" href="#" target="_blank" style="display:none;background:#25D366;color:white;border:none;padding:11px 24px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:8px">
+          💬 Abrir WhatsApp
+        </a>
+      </div>
     </div>
   </div>
 
