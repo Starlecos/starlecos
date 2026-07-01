@@ -1144,84 +1144,93 @@
       <div class="section-title">💻 Vendas Online — Vendedora <span class="section-badge">Registro manual</span></div>
     </div>
 
-    <!-- IMPORTAR HISTÓRICO -->
-    <div class="ml-sync-bar" style="background:linear-gradient(135deg,#1A3D72 0%,#2575BF 100%);margin-bottom:20px">
-      <div class="ml-info">
-        <div class="ml-logo">📥</div>
-        <div class="ml-text">
-          <h4 style="color:white">Importar Histórico de Vendas</h4>
-          <p style="color:#BDD4F0">Carregue um CSV com vendas antigas em massa</p>
-        </div>
+    <!-- GRÁFICO MENSAL VENDAS ONLINE -->
+    <div class="ml-chart-card">
+      <h3>📊 Vendas Online por Mês</h3>
+      <p class="ml-chart-subtitle">Comparativo de valor de venda vs frete mês a mês</p>
+      <div class="ml-chart-legend">
+        <div class="ml-legend-item"><div class="ml-legend-dot" style="background:#2575BF"></div>Venda</div>
+        <div class="ml-legend-item"><div class="ml-legend-dot" style="background:#D4870A"></div>Frete</div>
       </div>
-      <label class="btn-ml-sync" style="cursor:pointer;background:white;color:var(--navy)">
-        📂 Selecionar CSV
+      <div class="ml-chart-wrap" id="voChartWrap">
+        <div style="color:var(--muted);font-size:13px;text-align:center;width:100%;padding:40px 0">Carregando gráfico...</div>
+      </div>
+    </div>
+
+    <!-- AÇÕES -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+      <button class="btn-add jade" onclick="toggleVOForm()">＋ Registrar Venda</button>
+      <label class="btn-add" style="cursor:pointer;background:var(--sky)">
+        📥 Importar CSV
         <input type="file" accept=".csv" style="display:none" onchange="importarHistoricoVendas(event)">
       </label>
     </div>
 
-    <div class="ml-manual-note" style="margin-bottom:20px">
-      📋 <span>O CSV deve ter as colunas: <code>Data, Vendedora, Cliente, Produto, Estampa, Tamanho, Quantidade, Valor, Frete, Canal, Pagamento, Status</code>. Data no formato <code>DD/MM/AAAA</code> ou <code>AAAA-MM-DD</code>. Separador: vírgula ou ponto e vírgula. Estampa e Tamanho são opcionais.</span>
-    </div>
-
-    <div class="form-card">
-      <h3>📝 Registrar Venda Online</h3>
-      <div class="form-row">
-        <div class="field">
-          <label>Data da Venda</label>
-          <input type="date" id="vo_data">
+    <!-- FORMULÁRIO RECOLHIDO -->
+    <div id="voFormWrap" style="display:none">
+      <div class="form-card" style="margin-bottom:20px">
+        <h3>📝 Registrar Venda Online</h3>
+        <div class="form-row">
+          <div class="field">
+            <label>Data da Venda</label>
+            <input type="date" id="vo_data">
+          </div>
+          <div class="field">
+            <label>Vendedora</label>
+            <input type="text" id="vo_vendedora" placeholder="Nome da vendedora">
+          </div>
+          <div class="field">
+            <label>Produto Vendido</label>
+            <input type="text" id="vo_produto" placeholder="Ex: Jaleco M Branco">
+          </div>
+          <div class="field">
+            <label>Quantidade</label>
+            <input type="number" id="vo_qtd" min="1" value="1">
+          </div>
         </div>
-        <div class="field">
-          <label>Vendedora</label>
-          <input type="text" id="vo_vendedora" placeholder="Nome da vendedora">
+        <div class="form-row">
+          <div class="field">
+            <label>Valor Total (R$)</label>
+            <input type="number" id="vo_valor" placeholder="0,00" step="0.01" min="0">
+          </div>
+          <div class="field">
+            <label>Canal de Venda</label>
+            <select id="vo_canal">
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Instagram">Instagram</option>
+              <option value="Site">Site próprio</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Forma de Pagamento</label>
+            <select id="vo_pagamento">
+              <option value="PIX">PIX</option>
+              <option value="Transferência">Transferência</option>
+              <option value="Boleto">Boleto</option>
+              <option value="Crédito">Cartão de Crédito</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select id="vo_status">
+              <option value="Pago">Pago</option>
+              <option value="Pendente">Pendente</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
         </div>
-        <div class="field">
-          <label>Produto Vendido</label>
-          <input type="text" id="vo_produto" placeholder="Ex: Jaleco M Branco">
+        <div class="form-row">
+          <div class="field" style="grid-column: span 2">
+            <label>Observação (opcional)</label>
+            <input type="text" id="vo_obs" placeholder="Detalhes adicionais...">
+          </div>
         </div>
-        <div class="field">
-          <label>Quantidade</label>
-          <input type="number" id="vo_qtd" min="1" value="1">
+        <div style="display:flex;gap:8px">
+          <button class="btn-add jade" onclick="addVendaOnline()">＋ Registrar Venda</button>
+          <button class="btn-add" style="background:var(--muted)" onclick="toggleVOForm()">✕ Fechar</button>
         </div>
       </div>
-      <div class="form-row">
-        <div class="field">
-          <label>Valor Total (R$)</label>
-          <input type="number" id="vo_valor" placeholder="0,00" step="0.01" min="0">
-        </div>
-        <div class="field">
-          <label>Canal de Venda</label>
-          <select id="vo_canal">
-            <option value="WhatsApp">WhatsApp</option>
-            <option value="Instagram">Instagram</option>
-            <option value="Site">Site próprio</option>
-            <option value="Outro">Outro</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Forma de Pagamento</label>
-          <select id="vo_pagamento">
-            <option value="PIX">PIX</option>
-            <option value="Transferência">Transferência</option>
-            <option value="Boleto">Boleto</option>
-            <option value="Crédito">Cartão de Crédito</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Status</label>
-          <select id="vo_status">
-            <option value="Pago">Pago</option>
-            <option value="Pendente">Pendente</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field" style="grid-column: span 2">
-          <label>Observação (opcional)</label>
-          <input type="text" id="vo_obs" placeholder="Detalhes adicionais...">
-        </div>
-      </div>
-      <button class="btn-add jade" onclick="addVendaOnline()">＋ Registrar Venda</button>
     </div>
 
     <div class="table-card">
@@ -2152,6 +2161,18 @@ async function importarHistoricoVendas(event) {
   reader.readAsText(file, 'UTF-8');
 }
 
+function toggleVOForm() {
+  var el = document.getElementById('voFormWrap');
+  var btn = document.querySelector('[onclick="toggleVOForm()"]');
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    if (btn) btn.textContent = '✕ Fechar Formulário';
+  } else {
+    el.style.display = 'none';
+    if (btn) btn.textContent = '＋ Registrar Venda';
+  }
+}
+
 async function addVendaOnline() {
   const data = document.getElementById('vo_data').value;
   const vendedora = document.getElementById('vo_vendedora').value.trim();
@@ -2397,6 +2418,60 @@ function importarCSVShopee(event) {
     event.target.value = '';
   };
   reader.readAsText(file, 'UTF-8');
+}
+
+function renderGraficoVO() {
+  const wrap = document.getElementById('voChartWrap');
+  if (!wrap) return;
+
+  const lista = dados.vendasOnline.filter(v => v.status !== 'Cancelado');
+  if (!lista.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;width:100%;padding:40px 0">Nenhuma venda para exibir.</div>';
+    return;
+  }
+
+  // Agrupar por mês
+  const meses = {};
+  lista.forEach(function(v) {
+    if (!v.data) return;
+    const mes = v.data.substring(0, 7);
+    if (!meses[mes]) meses[mes] = { venda: 0, frete: 0 };
+    meses[mes].venda += getVendaValor(v) || 0;
+    meses[mes].frete += v.frete || 0;
+  });
+
+  // Últimos 12 meses fixos
+  const agora   = new Date();
+  const ultimos = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+    const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    ultimos.push(k);
+    if (!meses[k]) meses[k] = { venda: 0, frete: 0 };
+  }
+
+  const maxVal = Math.max(...ultimos.map(k => meses[k].venda), 1);
+  const ALTURA = 130;
+  const MESES_NOMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  wrap.innerHTML = ultimos.map(function(k) {
+    const m      = meses[k];
+    const hVenda = Math.max(Math.round((m.venda / maxVal) * ALTURA), 2);
+    const hFrete = Math.max(Math.round((m.frete / maxVal) * ALTURA), 2);
+    const partes = k.split('-');
+    const label  = MESES_NOMES[parseInt(partes[1]) - 1] + '/' + partes[0].substring(2);
+    return '<div class="ml-bar-group">' +
+      '<div class="ml-bar-pair">' +
+        '<div class="ml-bar" style="background:#2575BF;height:' + hVenda + 'px">' +
+          '<div class="ml-bar-tooltip">Venda: ' + fmt(m.venda) + '</div>' +
+        '</div>' +
+        '<div class="ml-bar" style="background:#D4870A;opacity:.85;height:' + hFrete + 'px">' +
+          '<div class="ml-bar-tooltip">Frete: ' + fmt(m.frete) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ml-bar-label">' + label + '</div>' +
+    '</div>';
+  }).join('');
 }
 
 function renderGraficoML() {
