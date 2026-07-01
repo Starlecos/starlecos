@@ -1188,64 +1188,67 @@
           <p>Conecte sua conta para buscar pedidos em tempo real</p>
         </div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button id="mlStatusBtn" class="btn-ml-sync" onclick="acaoML()" style="background:#C0392B">
           🔴 Conectar Mercado Livre
         </button>
-        <button class="btn-ml-sync" onclick="limparEReimportarML()" style="background:#555;cursor:pointer">
-          🔄 Limpar e Reimportar
+        <button class="btn-ml-sync" onclick="toggleMLAvancado()" style="background:rgba(0,0,0,0.2);cursor:pointer" title="Opções avançadas">
+          ⚙️ Avançado
         </button>
-        <label class="btn-ml-sync" style="cursor:pointer;background:#777">
+      </div>
+    </div>
+
+    <!-- MENU AVANÇADO ML (oculto por padrão) -->
+    <div id="mlAvancado" style="display:none;background:#F7FAFD;border:1.5px dashed var(--stitch);border-radius:10px;padding:18px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px">⚙️ Opções Avançadas</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="btn-add" onclick="limparEReimportarML()" style="background:#555">🔄 Limpar e Reimportar</button>
+        <label class="btn-add" style="cursor:pointer;background:#777">
           📂 Importar CSV
           <input type="file" accept=".csv" style="display:none" onchange="importarCSVML(event)">
         </label>
       </div>
-    </div>
-
-    <div class="ml-manual-note">
-      ⚠️ <span><strong>Como importar:</strong> No painel do Mercado Livre → Vendas → Exportar relatório (CSV). O arquivo deve conter colunas: <code>data, numero_pedido, produto, quantidade, valor_bruto, taxa_ml, status</code>. Ou use o formulário abaixo para registro manual.</span>
-    </div>
-
-    <div class="form-card">
-      <h3>➕ Adicionar Pedido Mercado Livre Manualmente</h3>
-      <div class="form-row">
-        <div class="field">
-          <label>Data do Pedido</label>
-          <input type="date" id="ml_data">
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:12px">➕ Adicionar Pedido Manualmente</div>
+        <div class="form-row">
+          <div class="field">
+            <label>Data do Pedido</label>
+            <input type="date" id="ml_data">
+          </div>
+          <div class="field">
+            <label>Nº do Pedido</label>
+            <input type="text" id="ml_pedido" placeholder="Ex: #123456789">
+          </div>
+          <div class="field">
+            <label>Produto</label>
+            <input type="text" id="ml_produto" placeholder="Nome do produto">
+          </div>
+          <div class="field">
+            <label>Quantidade</label>
+            <input type="number" id="ml_qtd" min="1" value="1">
+          </div>
         </div>
-        <div class="field">
-          <label>Nº do Pedido</label>
-          <input type="text" id="ml_pedido" placeholder="Ex: #123456789">
+        <div class="form-row">
+          <div class="field">
+            <label>Valor Bruto (R$)</label>
+            <input type="number" id="ml_bruto" placeholder="0,00" step="0.01" min="0">
+          </div>
+          <div class="field">
+            <label>Taxa ML (R$)</label>
+            <input type="number" id="ml_taxa" placeholder="0,00" step="0.01" min="0" value="0">
+          </div>
+          <div class="field">
+            <label>Status do Pedido</label>
+            <select id="ml_status">
+              <option value="Entregue">Entregue</option>
+              <option value="Enviado">Enviado</option>
+              <option value="Aguardando">Aguardando envio</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
         </div>
-        <div class="field">
-          <label>Produto</label>
-          <input type="text" id="ml_produto" placeholder="Nome do produto">
-        </div>
-        <div class="field">
-          <label>Quantidade</label>
-          <input type="number" id="ml_qtd" min="1" value="1">
-        </div>
+        <button class="btn-add amber" onclick="addPedidoML()">＋ Adicionar Pedido</button>
       </div>
-      <div class="form-row">
-        <div class="field">
-          <label>Valor Bruto (R$)</label>
-          <input type="number" id="ml_bruto" placeholder="0,00" step="0.01" min="0">
-        </div>
-        <div class="field">
-          <label>Taxa ML (R$)</label>
-          <input type="number" id="ml_taxa" placeholder="0,00" step="0.01" min="0" value="0">
-        </div>
-        <div class="field">
-          <label>Status do Pedido</label>
-          <select id="ml_status">
-            <option value="Entregue">Entregue</option>
-            <option value="Enviado">Enviado</option>
-            <option value="Aguardando">Aguardando envio</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
-        </div>
-      </div>
-      <button class="btn-add amber" onclick="addPedidoML()">＋ Adicionar Pedido</button>
     </div>
 
     <div class="table-card">
@@ -1643,6 +1646,11 @@ async function renovarTokenML() {
   } catch(e) { console.error('Erro renovar token ML:', e); }
 }
 
+function toggleMLAvancado() {
+  var el = document.getElementById('mlAvancado');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
 async function limparEReimportarML() {
   if (!confirm('Isso vai apagar todos os pedidos ML e reimportar do zero. Continuar?')) return;
   try {
@@ -1767,13 +1775,27 @@ function acaoML() {
   if (code && code.startsWith('TG-')) {
     trocarCodigoML(code);
   } else if (mlRefresh) {
-    // Tentar renovar token automaticamente ao abrir o painel
     await renovarTokenML();
-    if (mlToken) atualizarStatusML(true);
-    else atualizarStatusML(false);
+    if (mlToken) {
+      atualizarStatusML(true);
+      // Sincronizar ao abrir o painel
+      sincronizarPedidosML();
+    } else {
+      atualizarStatusML(false);
+    }
   } else if (mlToken) {
     atualizarStatusML(true);
+    sincronizarPedidosML();
   }
+
+  // Sincronização automática a cada 1 hora
+  setInterval(async function() {
+    if (mlToken || mlRefresh) {
+      console.log('🔄 Sincronização automática ML...');
+      if (mlRefresh) await renovarTokenML();
+      if (mlToken) await sincronizarPedidosML();
+    }
+  }, 60 * 60 * 1000); // 1 hora em ms
 })();
 
 // =============================================
