@@ -1730,7 +1730,8 @@ async function sincronizarPedidosML() {
     }
     notify('🔄 Salvando ' + pedidosNovos.length + ' pedido(s) novo(s)...');
 
-    // 5. Processar e salvar cada pedido novo
+    // 5. Processar todos os pedidos novos (sem buscar frete para acelerar)
+    const lote = [];
     for (let i = 0; i < pedidosNovos.length; i++) {
       const order     = pedidosNovos[i];
       const pedidoId  = String(order.id);
@@ -1739,34 +1740,37 @@ async function sincronizarPedidosML() {
       const qtd       = item ? item.quantity : 1;
       const bruto     = order.total_amount || 0;
       const taxaVenda = item ? (item.sale_fee || 0) : 0;
+      const taxaFrete = 0; // frete será 0 na importação em lote para não demorar
+      const taxa      = taxaVenda + taxaFrete;
+      const liquido   = bruto - taxa;
+      const data      = (order.date_created || '').split('T')[0] || hoje();
+      const status    = order.status === 'paid' ? 'Entregue' : order.status === 'cancelled' ? 'Cancelado' : 'Aguardando';
+      const mlId      = parseInt(pedidoId) || (Date.now() + i);
 
-      // Buscar frete real do envio
-      const shippingId = order.shipping ? order.shipping.id : null;
-      const taxaFrete  = shippingId ? await buscarFreteML(shippingId) : 0;
-
-      const taxa    = taxaVenda + taxaFrete;
-      const liquido = bruto - taxa;
-      const data    = (order.date_created || '').split('T')[0] || hoje();
-      const status  = order.status === 'paid' ? 'Entregue' : order.status === 'cancelled' ? 'Cancelado' : 'Aguardando';
-
-      const novoId     = Date.now() + i;
-      const novoPedido = { id: novoId, pedido: pedidoId, produto, qtd, bruto, taxaVenda, taxaFrete, taxa, liquido, data, status };
-
-      try {
-        // Usar o ID do pedido ML como chave única para evitar duplicatas
-        const mlId = parseInt(pedidoId) || novoId;
-        await sbUpsert('pedidos_ml', {
-          id: mlId, pedido: pedidoId, produto, qtd,
-          bruto, taxa_venda: taxaVenda, taxa_frete: taxaFrete, taxa, liquido, data, status
-        });
-      } catch(e) { console.warn('Erro salvar pedido ML no Supabase:', e); }
-
-      dados.pedidosML.push(novoPedido);
+      lote.push({ id: mlId, pedido: pedidoId, produto, qtd, bruto,
+        taxa_venda: taxaVenda, taxa_frete: taxaFrete, taxa, liquido, data, status });
+      dados.pedidosML.push({ id: mlId, pedido: pedidoId, produto, qtd, bruto,
+        taxaVenda, taxaFrete, taxa, liquido, data, status });
       novos++;
     }
 
+    // Salvar em lotes de 100 no Supabase
+    const LOTE = 100;
+    for (let j = 0; j < lote.length; j += LOTE) {
+      const parte = lote.slice(j, j + LOTE);
+      try {
+        const res = await fetch(SUPABASE_URL + '/rest/v1/pedidos_ml', {
+          method: 'POST',
+          headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=merge-duplicates' },
+          body: JSON.stringify(parte)
+        });
+        if (!res.ok) console.warn('Erro lote ML:', await res.text());
+      } catch(e) { console.warn('Erro salvar lote:', e); }
+      notify('💾 Salvando... ' + Math.min(j + LOTE, lote.length) + '/' + lote.length);
+    }
+
     salvar();
-    notify('✅ ' + novos + ' novo(s) pedido(s) do ML sincronizado(s)!');
+    notify('✅ ' + novos + ' pedido(s) do ML importado(s)!');
     atualizarStatusML(true);
     renderML();
   } catch(e) {
