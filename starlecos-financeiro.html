@@ -1160,7 +1160,7 @@
     </div>
 
     <div class="ml-manual-note" style="margin-bottom:20px">
-      📋 <span>O CSV deve ter as colunas: <code>Data, Vendedora, Cliente, Produto, Quantidade, Valor, Frete, Canal, Pagamento, Status</code>. Data no formato <code>DD/MM/AAAA</code> ou <code>AAAA-MM-DD</code>. Separador: vírgula ou ponto e vírgula.</span>
+      📋 <span>O CSV deve ter as colunas: <code>Data, Vendedora, Cliente, Produto, Estampa, Tamanho, Quantidade, Valor, Frete, Canal, Pagamento, Status</code>. Data no formato <code>DD/MM/AAAA</code> ou <code>AAAA-MM-DD</code>. Separador: vírgula ou ponto e vírgula. Estampa e Tamanho são opcionais.</span>
     </div>
 
     <div class="form-card">
@@ -2106,6 +2106,8 @@ async function importarHistoricoVendas(event) {
       const vendedora = col(cols, 'vendedora', 'vendedor', 'seller');
       const cliente   = col(cols, 'cliente', 'client', 'comprador');
       const produto   = col(cols, 'produto', 'product', 'item');
+      const estampa   = col(cols, 'estampa', 'estampado', 'print', 'desenho');
+      const tamanho   = col(cols, 'tamanho', 'tam', 'size');
       const qtd       = parseInt(col(cols, 'quantidade', 'qtd', 'qty')) || 1;
       const valor     = parseFloat((col(cols, 'valor', 'value', 'preco') || '0').replace(',','.')) || 0;
       const frete     = parseFloat((col(cols, 'frete', 'shipping') || '0').replace(',','.')) || 0;
@@ -2119,7 +2121,7 @@ async function importarHistoricoVendas(event) {
       lote.push({
         id: Date.now() + i,
         data, vendedora, cliente,
-        itens: [{ produto, qtd, valor, tamanho: '', estampa: '' }],
+        itens: [{ produto, estampa, tamanho, qtd, valor }],
         subtotal: valor, frete, total, canal, pagamento, status, obs: ''
       });
       importados++;
