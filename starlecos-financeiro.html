@@ -2219,6 +2219,9 @@ async function addVendaOnline() {
   function getVendaCliente(v) { return v.cliente || v.vendedora || '—'; }
 
   function renderVendasOnline() {
+  // Gráfico usa todos os dados (sem filtro de período)
+  renderGraficoVO();
+
   const body = document.getElementById('bodyVendasOnline');
   const lista = dados.vendasOnline.filter(v => dataNoFiltro(v.data));
   const total = lista.reduce((a,v) => a + (v.status !== 'Cancelado' ? getVendaValor(v) : 0), 0);
