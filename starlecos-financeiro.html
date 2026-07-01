@@ -2177,8 +2177,8 @@ function importarCSVML(event) {
 
 function renderML() {
   const body = document.getElementById('bodyML');
-  const lista = dados.pedidosML.filter(v => dataNoFiltro(v.data));
-  const total = lista.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
+  const lista = dados.pedidosML.filter(v => dataNoFiltro(v.data) && v.status !== 'Cancelado');
+  const total = lista.reduce((a,v) => a + v.liquido, 0);
   document.getElementById('totalML').textContent = fmt(total);
   renderGraficoML();
 
@@ -2302,8 +2302,15 @@ function renderGraficoML() {
     meses[mes].liquido += v.liquido || 0;
   });
 
-  const keys    = Object.keys(meses).sort();
-  const ultimos = keys.slice(-12); // últimos 12 meses
+  // Gerar os 12 meses do mês atual até o mesmo mês do ano anterior
+  const agora    = new Date();
+  const ultimos  = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+    const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    ultimos.push(k);
+    if (!meses[k]) meses[k] = { bruto: 0, liquido: 0 }; // mês sem dados mostra barra vazia
+  }
   const maxVal  = Math.max(...ultimos.map(k => meses[k].bruto), 1);
   const ALTURA  = 130;
 
