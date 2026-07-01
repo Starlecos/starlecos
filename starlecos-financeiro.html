@@ -3105,6 +3105,204 @@ async function excluirCompromisso(id) {
 document.getElementById('cal_data').value = calDiaSelecionado;
 carregarCompromissos().then(renderCalendario);
 
+// ====== CONFECÇÃO ======
+const TAMANHOS_A = ['PP','P','M','G','GG'];
+const TAMANHOS_B = ['G1','G2','G3','G4'];
+const TAMANHOS   = [...TAMANHOS_A, ...TAMANHOS_B];
+let itensConfeccao = [];
+
+// Gerar inputs ao carregar
+(function() {
+  function criarInput(t, wrap) {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px';
+    var extraAttr = '';
+    if (t === 'PP') extraAttr = ' oninput="espelharTamanho('PP','GG')"';
+    if (t === 'P')  extraAttr = ' oninput="espelharTamanho('P','G')"';
+    if (t === 'G1') extraAttr = ' oninput="espelharTamanho('G1','G3')"';
+    if (t === 'G2') extraAttr = ' oninput="espelharTamanho('G2','G4')"';
+    div.innerHTML = '<label style="font-size:10px;font-weight:700;color:var(--muted)">' + t + '</label>' +
+      '<input type="number" id="conf_tam_' + t + '" min="0" value="0"' + extraAttr +
+      ' style="width:48px;text-align:center;font-size:13px;padding:5px 4px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif">';
+    wrap.appendChild(div);
+  }
+  var wrapA = document.getElementById('conf_grade_inputs_a');
+  var wrapB = document.getElementById('conf_grade_inputs_b');
+  if (wrapA) TAMANHOS_A.forEach(function(t) { criarInput(t, wrapA); });
+  if (wrapB) TAMANHOS_B.forEach(function(t) { criarInput(t, wrapB); });
+})();
+
+function espelharTamanho(origem, destino) {
+  var val = parseInt(document.getElementById('conf_tam_' + origem).value) || 0;
+  var el  = document.getElementById('conf_tam_' + destino);
+  el.value = val;
+  el.style.background = val > 0 ? '#FFFBEA' : '';
+}
+
+function addItemConfeccao() {
+  var produto = document.getElementById('conf_produto').value;
+  var estampa = document.getElementById('conf_estampa').value.trim();
+  if (!produto) { notify('Selecione um produto.', 'err'); return; }
+
+  var grade = {};
+  var totalItem = 0;
+  TAMANHOS.forEach(function(t) {
+    var v = parseInt(document.getElementById('conf_tam_' + t).value) || 0;
+    grade[t] = v;
+    totalItem += v;
+  });
+
+  if (totalItem === 0) { notify('Informe ao menos um tamanho.', 'err'); return; }
+
+  itensConfeccao.push({ id: Date.now(), produto, estampa, grade, total: totalItem });
+
+  document.getElementById('conf_produto').value = '';
+  document.getElementById('conf_estampa').value = '';
+  TAMANHOS.forEach(function(t) {
+    var el = document.getElementById('conf_tam_' + t);
+    if (el) { el.value = '0'; el.style.background = ''; }
+  });
+
+  renderGradeConfeccao();
+  gerarMensagem();
+  notify('✅ Item adicionado ao pedido!');
+}
+
+function removerItemConf(id) {
+  itensConfeccao = itensConfeccao.filter(function(i) { return i.id !== id; });
+  renderGradeConfeccao();
+  gerarMensagem();
+}
+
+function limparConfeccao() {
+  if (!itensConfeccao.length) return;
+  if (!confirm('Limpar todo o pedido?')) return;
+  itensConfeccao = [];
+  renderGradeConfeccao();
+  gerarMensagem();
+}
+
+function renderGradeConfeccao() {
+  var body       = document.getElementById('confGradeBody');
+  var totalRow   = document.getElementById('confTotalRow');
+  var totalBadge = document.getElementById('confTotalPecas');
+  if (!body) return;
+
+  if (!itensConfeccao.length) {
+    body.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Nenhum item adicionado ainda.</td></tr>';
+    if (totalRow)   totalRow.style.display = 'none';
+    if (totalBadge) totalBadge.textContent = '0 peças';
+    return;
+  }
+
+  var totTam = {}; TAMANHOS.forEach(function(t){ totTam[t]=0; });
+  var totGeral = 0;
+
+  body.innerHTML = itensConfeccao.map(function(item) {
+    var cells = TAMANHOS.map(function(t) {
+      totTam[t] += item.grade[t] || 0;
+      return '<td style="text-align:center">' + (item.grade[t] > 0 ? item.grade[t] : '<span style="color:#CCC">—</span>') + '</td>';
+    }).join('');
+    totGeral += item.total;
+    return '<tr>' +
+      '<td>' + item.produto + '</td>' +
+      '<td><span style="background:var(--amber-light);color:var(--amber);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">' + (item.estampa||'—') + '</span></td>' +
+      cells +
+      '<td style="text-align:center;font-weight:700;color:var(--jade)">' + item.total + '</td>' +
+      '<td><button onclick="removerItemConf(' + item.id + ')" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:12px">✕</button></td>' +
+    '</tr>';
+  }).join('');
+
+  if (totalRow) {
+    totalRow.style.display = '';
+    TAMANHOS.forEach(function(t) {
+      var el = document.getElementById('t' + t);
+      if (el) el.textContent = totTam[t] > 0 ? totTam[t] : '—';
+    });
+    var elT = document.getElementById('tTotal');
+    if (elT) elT.textContent = totGeral;
+  }
+  if (totalBadge) totalBadge.textContent = totGeral + ' peças';
+}
+
+function gerarMensagem() {
+  var obs     = (document.getElementById('conf_obs')||{}).value || '';
+  var preview = document.getElementById('confMsgPreview');
+  var btnWa   = document.getElementById('btnWhatsapp');
+  if (!preview) return;
+
+  if (!itensConfeccao.length) {
+    preview.textContent = 'Monte o pedido acima para gerar a mensagem.';
+    if (btnWa) btnWa.style.display = 'none';
+    return;
+  }
+
+  var data = new Date().toLocaleDateString('pt-BR');
+  var msg  = '🥼 *PEDIDO DE CONFECÇÃO — STARLECOS*\n';
+  msg += '📅 Data: ' + data + '\n';
+  msg += '─────────────────────────\n\n';
+
+  itensConfeccao.forEach(function(item, idx) {
+    msg += (idx+1) + '. *' + item.produto.toUpperCase() + '*\n';
+    if (item.estampa) msg += '   Estampa/Cor: ' + item.estampa + '\n';
+    msg += '   Grade Padrão:\n';
+    var temPadrao = false;
+    TAMANHOS_A.forEach(function(t) { if (item.grade[t]>0) { msg += '   • ' + t + ': ' + item.grade[t] + ' un\n'; temPadrao = true; } });
+    if (!temPadrao) msg += '   (nenhum)\n';
+    var temPlus = TAMANHOS_B.some(function(t){ return item.grade[t]>0; });
+    if (temPlus) {
+      msg += '   Grade Plus:\n';
+      TAMANHOS_B.forEach(function(t) { if (item.grade[t]>0) msg += '   • ' + t + ': ' + item.grade[t] + ' un\n'; });
+    }
+    msg += '   *Total: ' + item.total + ' peças*\n\n';
+  });
+
+  var totTam = {}; TAMANHOS.forEach(function(t){ totTam[t]=0; });
+  var totGeral = 0;
+  itensConfeccao.forEach(function(item) {
+    TAMANHOS.forEach(function(t){ totTam[t] += item.grade[t]||0; });
+    totGeral += item.total;
+  });
+
+  msg += '─────────────────────────\n';
+  msg += '📦 *RESUMO GERAL*\n';
+  var temPadraoGeral = TAMANHOS_A.some(function(t){ return totTam[t]>0; });
+  if (temPadraoGeral) {
+    msg += 'Padrão:\n';
+    TAMANHOS_A.forEach(function(t){ if (totTam[t]>0) msg += '• ' + t + ': ' + totTam[t] + ' un\n'; });
+  }
+  var temPlusGeral = TAMANHOS_B.some(function(t){ return totTam[t]>0; });
+  if (temPlusGeral) {
+    msg += 'Plus:\n';
+    TAMANHOS_B.forEach(function(t){ if (totTam[t]>0) msg += '• ' + t + ': ' + totTam[t] + ' un\n'; });
+  }
+  msg += '*TOTAL GERAL: ' + totGeral + ' PEÇAS*\n';
+  if (obs) msg += '\n📝 Obs: ' + obs;
+
+  preview.textContent = msg;
+  if (btnWa) {
+    btnWa.style.display = 'inline-flex';
+    btnWa.href = 'https://wa.me/?text=' + encodeURIComponent(msg);
+  }
+}
+
+function copiarMensagem() {
+  var msg = (document.getElementById('confMsgPreview')||{}).textContent || '';
+  if (!msg || msg.includes('Monte o pedido')) { notify('Adicione itens ao pedido primeiro.', 'err'); return; }
+  navigator.clipboard.writeText(msg).then(function() {
+    var btn = document.getElementById('btnCopiar');
+    if (btn) { btn.textContent = '✅ Copiado!'; btn.classList.add('copied'); }
+    setTimeout(function() {
+      if (btn) { btn.textContent = '📋 Copiar Mensagem'; btn.classList.remove('copied'); }
+    }, 2000);
+  }).catch(function() {
+    var ta = document.createElement('textarea');
+    ta.value = msg; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    notify('✅ Mensagem copiada!');
+  });
+}
+
 </script>
 
   <!-- PWA Service Worker -->
