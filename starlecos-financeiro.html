@@ -1675,27 +1675,21 @@ async function buscarFreteML(shippingId) {
 async function sincronizarPedidosML() {
   if (!mlToken || !mlUserId) return;
   try {
-    let res = await fetch('/.netlify/functions/ml-orders?user_id=' + mlUserId, {
-      headers: { 'Authorization': 'Bearer ' + mlToken }
-    });
-    // Se token expirou, renovar e tentar novamente
-    if (res.status === 401) {
+    // 1. Testar token com primeira página
+    let primeiro = await fetchMLOrders(0);
+    if (!primeiro) {
       notify('🔄 Renovando token ML...');
       await renovarTokenML();
-      res = await fetch('/.netlify/functions/ml-orders?user_id=' + mlUserId, {
-        headers: { 'Authorization': 'Bearer ' + mlToken }
-      });
+      primeiro = await fetchMLOrders(0);
     }
-    // Se ainda 401 após renovar, pedir reconexão
-    if (res.status === 401) {
+    if (!primeiro) {
       notify('⚠️ Sessão ML expirada. Clique em Conectar ML.', 'err');
       atualizarStatusML(false);
       return;
     }
-    const resJson = await res.json();
-    if (!resJson || !resJson.results) return;
+    if (!primeiro.results) return;
 
-    // Buscar TODOS os IDs já existentes no Supabase para nunca duplicar nem apagar histórico
+    // 2. Buscar todos os IDs já existentes no Supabase
     let pedidosExistentes = [];
     try {
       pedidosExistentes = await sbGet('pedidos_ml', 'select=pedido&limit=10000');
@@ -1703,25 +1697,32 @@ async function sincronizarPedidosML() {
     const jaExistentes = new Set(pedidosExistentes.map(p => String(p.pedido)));
     console.log('Pedidos já no histórico:', jaExistentes.size);
 
-    // Paginar para buscar TODOS os pedidos do ML
-    const totalML = teste.paging ? teste.paging.total : teste.results.length;
-    const todasOrders = [...teste.results];
+    // 3. Paginar para buscar TODOS os pedidos do ML
+    const totalML = primeiro.paging ? primeiro.paging.total : primeiro.results.length;
+    const todasOrders = [...primeiro.results];
     let offsetPage = 50;
     while (offsetPage < totalML) {
       const pagina = await fetchMLOrders(offsetPage);
       if (!pagina || !pagina.results || !pagina.results.length) break;
       todasOrders.push(...pagina.results);
       offsetPage += 50;
-      notify('🔄 Carregando pedidos... ' + todasOrders.length + '/' + totalML);
+      notify('🔄 Carregando... ' + todasOrders.length + '/' + totalML);
     }
     console.log('Total pedidos no ML:', todasOrders.length);
 
+    // 4. Filtrar apenas pedidos novos
     const pedidosNovos = todasOrders.filter(o => !jaExistentes.has(String(o.id)));
     let novos = 0;
 
-    if (!pedidosNovos.length) { notify('ML atualizado — nenhum pedido novo.'); atualizarStatusML(true); renderML(); return; }
-    notify('🔄 Processando ' + pedidosNovos.length + ' pedido(s) novo(s)...');
+    if (!pedidosNovos.length) {
+      notify('ML atualizado — nenhum pedido novo.');
+      atualizarStatusML(true);
+      renderML();
+      return;
+    }
+    notify('🔄 Salvando ' + pedidosNovos.length + ' pedido(s) novo(s)...');
 
+    // 5. Processar e salvar cada pedido novo
     for (let i = 0; i < pedidosNovos.length; i++) {
       const order     = pedidosNovos[i];
       const pedidoId  = String(order.id);
@@ -1740,25 +1741,22 @@ async function sincronizarPedidosML() {
       const data    = (order.date_created || '').split('T')[0] || hoje();
       const status  = order.status === 'paid' ? 'Entregue' : order.status === 'cancelled' ? 'Cancelado' : 'Aguardando';
 
-      const novoId = Date.now() + i;
+      const novoId     = Date.now() + i;
       const novoPedido = { id: novoId, pedido: pedidoId, produto, qtd, bruto, taxaVenda, taxaFrete, taxa, liquido, data, status };
-      // Salvar no Supabase
+
       try {
         await sbInsert('pedidos_ml', {
           id: novoId, pedido: pedidoId, produto, qtd,
           bruto, taxa_venda: taxaVenda, taxa_frete: taxaFrete, taxa, liquido, data, status
         });
       } catch(e) { console.warn('Erro salvar pedido ML no Supabase:', e); }
+
       dados.pedidosML.push(novoPedido);
       novos++;
     }
 
-    if (novos > 0) {
-      salvar();
-      notify('✅ ' + novos + ' novo(s) pedido(s) do ML sincronizado(s)!');
-    } else {
-      notify('ML atualizado — nenhum pedido novo.');
-    }
+    salvar();
+    notify('✅ ' + novos + ' novo(s) pedido(s) do ML sincronizado(s)!');
     atualizarStatusML(true);
     renderML();
   } catch(e) {
