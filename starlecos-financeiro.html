@@ -1702,10 +1702,25 @@ async function sincronizarPedidosML() {
     } catch(e) { pedidosExistentes = dados.pedidosML || []; }
     const jaExistentes = new Set(pedidosExistentes.map(p => String(p.pedido)));
     console.log('Pedidos já no histórico:', jaExistentes.size);
-    let novos = 0;
-    const pedidosNovos = resJson.results.filter(o => !jaExistentes.has(String(o.id)));
 
-    notify('🔄 Buscando ' + pedidosNovos.length + ' pedido(s)...');
+    // Paginar para buscar TODOS os pedidos do ML
+    const totalML = teste.paging ? teste.paging.total : teste.results.length;
+    const todasOrders = [...teste.results];
+    let offsetPage = 50;
+    while (offsetPage < totalML) {
+      const pagina = await fetchMLOrders(offsetPage);
+      if (!pagina || !pagina.results || !pagina.results.length) break;
+      todasOrders.push(...pagina.results);
+      offsetPage += 50;
+      notify('🔄 Carregando pedidos... ' + todasOrders.length + '/' + totalML);
+    }
+    console.log('Total pedidos no ML:', todasOrders.length);
+
+    const pedidosNovos = todasOrders.filter(o => !jaExistentes.has(String(o.id)));
+    let novos = 0;
+
+    if (!pedidosNovos.length) { notify('ML atualizado — nenhum pedido novo.'); atualizarStatusML(true); renderML(); return; }
+    notify('🔄 Processando ' + pedidosNovos.length + ' pedido(s) novo(s)...');
 
     for (let i = 0; i < pedidosNovos.length; i++) {
       const order     = pedidosNovos[i];
