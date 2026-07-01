@@ -12,9 +12,15 @@ exports.handler = async function(event) {
   try {
     const token  = (event.headers.authorization || '').replace('Bearer ', '');
     const userId = event.queryStringParameters && event.queryStringParameters.user_id;
-    if (!token || !userId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'token e user_id obrigatórios' }) };
+    const offset = event.queryStringParameters && event.queryStringParameters.offset || '0';
+    const limit  = event.queryStringParameters && event.queryStringParameters.limit  || '50';
 
-    const res  = await fetch('https://api.mercadolibre.com/orders/search?seller=' + userId + '&sort=date_desc&limit=50', {
+    if (!token || !userId) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'token e user_id obrigatórios' }) };
+    }
+
+    const url = `https://api.mercadolibre.com/orders/search?seller=${userId}&sort=date_desc&limit=${limit}&offset=${offset}`;
+    const res  = await fetch(url, {
       headers: { 'Authorization': 'Bearer ' + token }
     });
     const data = await res.json();
