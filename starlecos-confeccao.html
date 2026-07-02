@@ -365,25 +365,65 @@ async function carregarEstoque() {
       sbGet('estoque_tecidos',  'select=*&order=nome.asc'),
       sbGet('estoque_ziperes',  'select=*&order=tamanho.asc,cor.asc')
     ]);
-    renderTecidos(tecidos);
+    await renderTecidos(tecidos); // async por causa das estampas
     renderZiperes(ziperes);
   } catch(e) { console.warn('Erro carregar estoque:', e); }
 }
 
-function renderTecidos(lista) {
+async function renderTecidos(lista) {
   const body  = document.getElementById('bodyTecidos');
   const total = lista.reduce((a,v) => a+(v.metragem||0), 0);
   document.getElementById('totalTecidos').textContent = total.toFixed(1)+' m';
-  if (!lista.length) { body.innerHTML='<tr><td colspan="6" class="est-empty">Nenhum tecido cadastrado.</td></tr>'; return; }
-  body.innerHTML = lista.map(v => `
-    <tr>
-      <td style="font-weight:600">${v.nome}</td>
-      <td>${v.cor||'—'}</td>
-      <td><input type="number" id="tec_m_${v.id}" value="${v.metragem||0}" step="0.01" min="0"> m</td>
-      <td style="font-size:12px;color:var(--muted)">${v.obs||'—'}</td>
-      <td><button class="btn-save-est" onclick="atualizarTecido(${v.id})">💾 Salvar</button></td>
-      <td><button class="btn-del-est" onclick="deletarTecido(${v.id})">✕</button></td>
-    </tr>`).join('');
+
+  // Buscar estampas cadastradas no módulo de vendas
+  let estampas = [];
+  try { estampas = await sbGet('estampas', 'select=*&order=produto.asc,estampa.asc'); } catch(e) {}
+
+  // Agrupar estampas por produto
+  const estPorProd = {};
+  estampas.forEach(function(e) {
+    if (!estPorProd[e.produto]) estPorProd[e.produto] = [];
+    estPorProd[e.produto].push(e.estampa);
+  });
+
+  if (!lista.length && !estampas.length) {
+    body.innerHTML='<tr><td colspan="6" class="est-empty">Nenhum tecido ou estampa cadastrada.</td></tr>';
+    return;
+  }
+
+  let html = '';
+
+  // 1. Tecidos do estoque
+  if (lista.length) {
+    html += lista.map(v => `
+      <tr>
+        <td style="font-weight:600">${v.nome}</td>
+        <td>${v.cor||'—'}</td>
+        <td><input type="number" id="tec_m_${v.id}" value="${v.metragem||0}" step="0.01" min="0"> m</td>
+        <td style="font-size:12px;color:var(--muted)">${v.obs||'—'}</td>
+        <td><button class="btn-save-est" onclick="atualizarTecido(${v.id})">💾 Salvar</button></td>
+        <td><button class="btn-del-est" onclick="deletarTecido(${v.id})">✕</button></td>
+      </tr>`).join('');
+  }
+
+  // 2. Estampas por produto (do módulo de vendas)
+  if (Object.keys(estPorProd).length) {
+    html += `<tr><td colspan="6" style="background:#F7FAFD;padding:10px 14px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;border-top:2px solid var(--border)">
+      🎨 Estampas Cadastradas no Módulo de Vendas
+    </td></tr>`;
+    Object.keys(estPorProd).sort().forEach(function(produto) {
+      const ests = estPorProd[produto];
+      html += `<tr style="background:#FFFBEA">
+        <td style="font-weight:600;font-size:12px">${produto}</td>
+        <td colspan="4" style="font-size:12px">
+          ${ests.map(e => `<span style="display:inline-block;background:var(--amber-light);color:var(--amber);border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;margin:2px">${e}</span>`).join('')}
+        </td>
+        <td style="font-size:11px;color:var(--muted)">${ests.length} estampa(s)</td>
+      </tr>`;
+    });
+  }
+
+  body.innerHTML = html || '<tr><td colspan="6" class="est-empty">Nenhum item cadastrado.</td></tr>';
 }
 
 function renderZiperes(lista) {
@@ -427,7 +467,7 @@ async function addTecido() {
   if (!nome) { notify('Informe o nome do tecido.','err'); return; }
   try {
     await sbPost('estoque_tecidos', {nome,cor,metragem:metro,obs});
-    ['tec_nome','tec_cor','tec_metro','tec_obs'].forEach(id => document.getElementById(id).value='');
+    ['tec_nome','tec_cor','tec_metro','tec_obs'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
     await carregarEstoque();
     notify('✅ Tecido adicionado!');
   } catch(e) { notify('Erro ao adicionar','err'); }
