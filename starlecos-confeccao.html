@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Starlecos — Confecção</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:#0F2D5C; --jade:#1A7A4A; --jade-light:#E8F5EE;
+    --rose:#C0392B; --rose-light:#FDECEA; --amber:#D4870A;
+    --amber-light:#FEF6E4; --sky:#2575BF; --sky-light:#E8F2FB;
+    --purple:#6B21A8; --purple-light:#F3E8FF;
+    --border:#D8E2EE; --bg:#F0F4F8; --card:#FFFFFF;
+    --text:#1A2C42; --muted:#6B7D93; --stitch:#B8CCDE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+
+  header{background:var(--purple);padding:0 24px;height:62px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 10px rgba(107,33,168,.3);}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo-icon{width:34px;height:34px;background:white;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .logo-text span:first-child{display:block;font-size:18px;font-weight:800;color:white;letter-spacing:-.5px;line-height:1;}
+  .logo-text span:last-child{display:block;font-size:10px;color:#D8B4FE;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;margin-top:1px;}
+  .conn-status{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.15);color:white;}
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:#86EFAC;}
+
+  main{flex:1;padding:24px 16px 48px;max-width:900px;margin:0 auto;width:100%;}
+
+  .section-title{font-size:16px;font-weight:800;color:var(--text);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+
+  .pedido-card{background:var(--card);border-radius:14px;border:1.5px solid var(--border);padding:20px;margin-bottom:16px;transition:box-shadow .2s;}
+  .pedido-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);}
+  .pedido-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:12px;}
+  .pedido-titulo{font-size:15px;font-weight:700;color:var(--navy);}
+  .pedido-data{font-size:12px;color:var(--muted);margin-top:2px;}
+  .pedido-obs{font-size:12px;color:var(--muted);font-style:italic;margin-top:4px;}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+  .badge-amber{background:var(--amber-light);color:var(--amber);}
+  .badge-sky{background:var(--sky-light);color:var(--sky);}
+  .badge-jade{background:var(--jade-light);color:var(--jade);}
+  .badge-purple{background:var(--purple-light);color:var(--purple);}
+
+  .grade-wrap{overflow-x:auto;margin:12px 0;}
+  .grade-table{width:100%;border-collapse:collapse;font-size:12px;min-width:500px;}
+  .grade-table th{background:#F7FAFD;padding:7px 10px;text-align:center;font-size:10px;font-weight:700;color:var(--muted);border-bottom:2px solid var(--border);}
+  .grade-table th.left{text-align:left;}
+  .grade-table td{padding:7px 10px;border-bottom:1px solid #F0F4F8;text-align:center;vertical-align:middle;}
+  .grade-table td.left{text-align:left;font-weight:600;}
+  .grade-table .head-pad{background:#E8F2FB;color:var(--sky);}
+  .grade-table .head-plus{background:#FEF6E4;color:var(--amber);}
+  .grade-table input[type=number]{width:50px;text-align:center;font-family:'Inter',sans-serif;font-size:12px;padding:4px;border:1.5px solid var(--border);border-radius:5px;background:#FAFBFD;outline:none;}
+  .grade-table input[type=number]:focus{border-color:var(--sky);}
+  .grade-table .prod-row td{font-weight:600;color:var(--text);}
+  .grade-table .prod-row td.estampa span{background:var(--amber-light);color:var(--amber);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;}
+  .grade-table .total-cell{font-weight:700;color:var(--jade);}
+  .grade-table .prod-cell{font-size:12px;font-weight:600;color:var(--text);}
+
+  .prod-row{border-top:2px solid var(--border);}
+
+  .btn-salvar{background:var(--jade);color:white;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:background .2s;display:inline-flex;align-items:center;gap:6px;margin-top:12px;}
+  .btn-salvar:hover{background:#15643D;}
+  .btn-salvar:disabled{background:var(--muted);cursor:not-allowed;}
+
+  .progress-bar-wrap{background:#F0F4F8;border-radius:20px;height:8px;margin-top:8px;overflow:hidden;}
+  .progress-bar-fill{height:100%;border-radius:20px;background:var(--jade);transition:width .4s;}
+
+  .empty-state{text-align:center;padding:48px 24px;color:var(--muted);}
+  .empty-state .icon{font-size:40px;margin-bottom:12px;}
+  .empty-state p{font-size:14px;}
+
+  #notification{position:fixed;bottom:24px;right:24px;background:var(--jade);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.2);transform:translateY(60px);opacity:0;transition:all .3s;z-index:999;}
+  #notification.show{transform:translateY(0);opacity:1;}
+
+  @media(max-width:600px){main{padding:16px 10px 40px;}.pedido-header{flex-direction:column;gap:6px;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🧵</div>
+    <div class="logo-text">
+      <span>Starlecos</span>
+      <span>Módulo Confecção</span>
+    </div>
+  </div>
+  <div class="conn-status"><div class="conn-dot"></div><span id="connStatus">Conectando...</span></div>
+</header>
+
+<main>
+  <div class="section-title">🧵 Pedidos de Confecção</div>
+  <div id="listaPedidos">
+    <div class="empty-state"><div class="icon">⏳</div><p>Carregando pedidos...</p></div>
+  </div>
+</main>
+
+<div id="notification"></div>
+
+<script>
+const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
+const SB_HEADERS = {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY};
+
+const TAMANHOS_A = ['PP','P','M','G','GG'];
+const TAMANHOS_B = ['G1','G2','G3','G4'];
+const TAMANHOS   = [...TAMANHOS_A,...TAMANHOS_B];
+
+async function sbGet(table, params) {
+  const res = await fetch(SUPABASE_URL+'/rest/v1/'+table+'?'+(params||'select=*'), {headers:SB_HEADERS});
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+async function sbUpdate(table, filter, data) {
+  const res = await fetch(SUPABASE_URL+'/rest/v1/'+table+'?'+filter, {
+    method:'PATCH', headers:{...SB_HEADERS,'Prefer':'return=minimal'}, body:JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+function fmt(d) { if(!d) return ''; const p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function notify(msg, tipo) {
+  const n = document.getElementById('notification');
+  n.textContent = msg;
+  n.style.background = tipo==='err' ? 'var(--rose)' : 'var(--jade)';
+  n.classList.add('show');
+  setTimeout(()=>n.classList.remove('show'), 2800);
+}
+
+function badgeStatus(s) {
+  if (s==='Concluído')  return '<span class="badge badge-jade">✅ Concluído</span>';
+  if (s==='Em produção') return '<span class="badge badge-sky">🔧 Em produção</span>';
+  if (s==='Aguardando') return '<span class="badge badge-amber">⏳ Aguardando</span>';
+  return '<span class="badge badge-purple">'+s+'</span>';
+}
+
+function calcProgresso(itens, produzido) {
+  if (!itens || !itens.length) return 0;
+  var totalPedido = 0, totalProd = 0;
+  itens.forEach(function(item) {
+    TAMANHOS.forEach(function(t) { totalPedido += item.grade[t]||0; });
+  });
+  if (!produzido) return 0;
+  Object.values(produzido).forEach(function(p) {
+    TAMANHOS.forEach(function(t) { totalProd += (p[t]||0); });
+  });
+  return totalPedido > 0 ? Math.round((totalProd/totalPedido)*100) : 0;
+}
+
+function renderPedido(p) {
+  const produzido = p.produzido || {};
+  const progresso = calcProgresso(p.itens, produzido);
+  const statusBadge = badgeStatus(p.status);
+
+  var rows = '';
+  (p.itens||[]).forEach(function(item, idx) {
+    const key = idx + '_' + (item.produto||'').replace(/\s/g,'_');
+    const prodItem = produzido[key] || {};
+    // Linha do produto (pedido)
+    rows += '<tr class="prod-row">' +
+      '<td class="left prod-cell">' + item.produto + '</td>' +
+      '<td class="estampa left"><span>' + (item.estampa||'—') + '</span></td>';
+    var totalPed = 0;
+    TAMANHOS.forEach(function(t) {
+      var v = item.grade[t]||0;
+      totalPed += v;
+      rows += '<td style="color:var(--muted)">' + (v||'—') + '</td>';
+    });
+    rows += '<td class="total-cell">' + totalPed + '</td></tr>';
+
+    // Linha de produzido (inputs)
+    rows += '<tr style="background:#F7FFF9">' +
+      '<td class="left" style="font-size:11px;color:var(--jade);font-weight:600" colspan="2">↳ Produzido</td>';
+    TAMANHOS.forEach(function(t) {
+      var max = item.grade[t]||0;
+      rows += '<td><input type="number" id="prod_'+key+'_'+t+'" min="0" max="'+max+'" value="'+(prodItem[t]||0)+'" '+(max===0?'disabled style="opacity:.3"':'')+' oninput="atualizarProgresso(\''+p.id+'\')" ></td>';
+    });
+    var totalProdItem = TAMANHOS.reduce(function(a,t){ return a+(prodItem[t]||0); },0);
+    rows += '<td id="totprod_'+key+'" class="total-cell" style="color:var(--sky)">'+totalProdItem+'</td></tr>';
+  });
+
+  return '<div class="pedido-card" id="card_'+p.id+'">' +
+    '<div class="pedido-header">' +
+      '<div>' +
+        '<div class="pedido-titulo">📋 ' + (p.titulo||'Pedido #'+p.id) + '</div>' +
+        '<div class="pedido-data">📅 ' + fmt(p.data) + '</div>' +
+        (p.obs ? '<div class="pedido-obs">📝 '+p.obs+'</div>' : '') +
+      '</div>' +
+      '<div style="text-align:right">' +
+        statusBadge +
+        '<div style="font-size:12px;color:var(--muted);margin-top:6px">'+progresso+'% produzido</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog_'+p.id+'" style="width:'+progresso+'%"></div></div>' +
+    '<div class="grade-wrap">' +
+      '<table class="grade-table">' +
+        '<thead><tr>' +
+          '<th class="left">Produto</th><th class="left">Estampa</th>' +
+          '<th class="head-pad" colspan="5">Padrão</th>' +
+          '<th class="head-plus" colspan="4">Plus</th>' +
+          '<th>Total</th>' +
+        '</tr><tr>' +
+          '<th></th><th></th>' +
+          TAMANHOS_A.map(function(t){return '<th class="head-pad">'+t+'</th>';}).join('') +
+          TAMANHOS_B.map(function(t){return '<th class="head-plus">'+t+'</th>';}).join('') +
+          '<th></th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>' +
+    '<button class="btn-salvar" onclick="salvarProduzido('+p.id+')">💾 Salvar Produção</button>' +
+  '</div>';
+}
+
+function atualizarProgresso(pedidoId) {
+  // Atualizar barra de progresso em tempo real
+  var card = document.getElementById('card_'+pedidoId);
+  if (!card) return;
+  var allInputs = card.querySelectorAll('input[type=number]');
+  var totalMax  = 0, totalProd = 0;
+  allInputs.forEach(function(inp) {
+    var max = parseInt(inp.max)||0;
+    var val = parseInt(inp.value)||0;
+    if (max > 0) { totalMax += max; totalProd += Math.min(val,max); }
+  });
+  var pct = totalMax > 0 ? Math.round((totalProd/totalMax)*100) : 0;
+  var bar = document.getElementById('prog_'+pedidoId);
+  if (bar) bar.style.width = pct+'%';
+}
+
+async function salvarProduzido(pedidoId) {
+  var card = document.getElementById('card_'+pedidoId);
+  if (!card) return;
+  var btn = card.querySelector('.btn-salvar');
+  btn.disabled = true; btn.textContent = '💾 Salvando...';
+
+  // Reconstruir produzido a partir dos inputs
+  var pedido = _pedidos.find(function(p){ return p.id===pedidoId; });
+  if (!pedido) return;
+
+  var produzido = {};
+  (pedido.itens||[]).forEach(function(item, idx) {
+    var key = idx+'_'+(item.produto||'').replace(/\s/g,'_');
+    produzido[key] = {};
+    TAMANHOS.forEach(function(t) {
+      var el = document.getElementById('prod_'+key+'_'+t);
+      if (el) produzido[key][t] = parseInt(el.value)||0;
+    });
+  });
+
+  // Calcular status
+  var totalPed = 0, totalProd = 0;
+  (pedido.itens||[]).forEach(function(item) {
+    TAMANHOS.forEach(function(t){ totalPed += item.grade[t]||0; });
+  });
+  Object.values(produzido).forEach(function(p) {
+    TAMANHOS.forEach(function(t){ totalProd += p[t]||0; });
+  });
+  var novoStatus = totalProd === 0 ? 'Aguardando' : totalProd >= totalPed ? 'Concluído' : 'Em produção';
+
+  try {
+    await sbUpdate('pedidos_confeccao', 'id=eq.'+pedidoId, { produzido: produzido, status: novoStatus });
+    pedido.produzido = produzido;
+    pedido.status    = novoStatus;
+    notify('✅ Produção salva!');
+    // Atualizar badge de status
+    var badge = card.querySelector('.pedido-header .badge');
+    if (badge) badge.outerHTML = badgeStatus(novoStatus);
+  } catch(e) {
+    notify('Erro ao salvar','err');
+    console.error(e);
+  }
+  btn.disabled = false; btn.textContent = '💾 Salvar Produção';
+}
+
+var _pedidos = [];
+
+async function carregarPedidos() {
+  try {
+    _pedidos = await sbGet('pedidos_confeccao', 'select=*&order=created_at.desc');
+    const lista = document.getElementById('listaPedidos');
+    if (!_pedidos.length) {
+      lista.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Nenhum pedido de confecção enviado ainda.</p></div>';
+      document.getElementById('connStatus').textContent = 'Online';
+      return;
+    }
+    lista.innerHTML = _pedidos.map(renderPedido).join('');
+    document.getElementById('connStatus').textContent = 'Online — '+_pedidos.length+' pedido(s)';
+  } catch(e) {
+    console.error(e);
+    document.getElementById('connStatus').textContent = 'Sem conexão';
+    document.getElementById('connStatus').style.color = '#FCA5A5';
+    document.getElementById('listaPedidos').innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Erro ao conectar. Verifique sua conexão.</p></div>';
+  }
+}
+
+carregarPedidos();
+// Atualizar a cada 2 minutos
+setInterval(carregarPedidos, 2*60*1000);
+</script>
+</body>
+</html>
