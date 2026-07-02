@@ -1080,6 +1080,7 @@
     <button class="tab-btn" onclick="showTab('shopee')">🛍️ Shopee</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
     <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
+    <button class="tab-btn" onclick="showTab('estoque')">📦 Estoque</button>
     <button class="tab-btn" onclick="showTab('calendario')">📅 Calendário</button>
   </div>
 
@@ -1580,10 +1581,64 @@
       <div class="msg-preview" id="confMsgPreview">Monte o pedido acima para gerar a mensagem.</div>
       <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn-copiar" id="btnCopiar" onclick="copiarMensagem()">📋 Copiar Mensagem</button>
+        <button class="btn-copiar" style="background:var(--purple)" onclick="enviarConfeccao()">🧵 Enviar à Confecção</button>
         <a id="btnWhatsapp" href="#" target="_blank" style="display:none;background:#25D366;color:white;border:none;padding:11px 24px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:8px">
           💬 Abrir WhatsApp
         </a>
       </div>
+    </div>
+  </div>
+
+  <!-- ====== ESTOQUE ====== -->
+  <div class="tab-panel" id="panel-estoque">
+    <div class="section-header">
+      <div class="section-title">📦 Estoque de Insumos</div>
+    </div>
+
+    <!-- TECIDOS -->
+    <div class="form-card" style="margin-bottom:20px">
+      <h3>🧶 Adicionar Tecido</h3>
+      <div class="form-row">
+        <div class="field"><label>Nome do Tecido</label><input type="text" id="tec_nome" placeholder="Ex: Gabardine Branco"></div>
+        <div class="field"><label>Cor / Referência</label><input type="text" id="tec_cor" placeholder="Ex: Branco, Azul Royal..."></div>
+        <div class="field"><label>Metragem (m)</label><input type="number" id="tec_metro" placeholder="0,00" step="0.01" min="0"></div>
+        <div class="field"><label>Observação</label><input type="text" id="tec_obs" placeholder="Opcional"></div>
+      </div>
+      <button class="btn-add jade" onclick="addTecido()">＋ Adicionar Tecido</button>
+    </div>
+
+    <div class="table-card" style="margin-bottom:28px">
+      <div class="table-header">
+        <span class="table-header-title">🧶 Tecidos em Estoque</span>
+        <span class="table-total val-pos" id="totalTecidos">0 m</span>
+      </div>
+      <table>
+        <thead><tr><th>Tecido</th><th>Cor</th><th>Metragem</th><th>Observação</th><th>Atualizar</th><th></th></tr></thead>
+        <tbody id="bodyTecidos"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🧶</div><p>Nenhum tecido cadastrado</p></div></td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- ZIPERES -->
+    <div class="form-card" style="margin-bottom:20px">
+      <h3>🔗 Adicionar Zíper</h3>
+      <div class="form-row">
+        <div class="field"><label>Tamanho do Zíper</label><input type="text" id="zip_tam" placeholder="Ex: 60cm, 70cm..."></div>
+        <div class="field"><label>Cor</label><input type="text" id="zip_cor" placeholder="Ex: Branco, Preto..."></div>
+        <div class="field"><label>Quantidade (un)</label><input type="number" id="zip_qtd" placeholder="0" min="0"></div>
+        <div class="field"><label>Observação</label><input type="text" id="zip_obs" placeholder="Opcional"></div>
+      </div>
+      <button class="btn-add" onclick="addZiper()">＋ Adicionar Zíper</button>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">🔗 Zíperes em Estoque</span>
+        <span class="table-total val-pos" id="totalZiperes">0 un</span>
+      </div>
+      <table>
+        <thead><tr><th>Tamanho</th><th>Cor</th><th>Quantidade</th><th>Observação</th><th>Atualizar</th><th></th></tr></thead>
+        <tbody id="bodyZiperes"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🔗</div><p>Nenhum zíper cadastrado</p></div></td></tr></tbody>
+      </table>
     </div>
   </div>
 
@@ -3104,6 +3159,157 @@ async function excluirCompromisso(id) {
 // Inicializar calendário ao carregar
 document.getElementById('cal_data').value = calDiaSelecionado;
 carregarCompromissos().then(renderCalendario);
+
+// ====== ESTOQUE ======
+async function carregarEstoque() {
+  try {
+    const [tecidos, ziperes] = await Promise.all([
+      sbGet('estoque_tecidos',  'select=*&order=nome.asc'),
+      sbGet('estoque_ziperes',  'select=*&order=tamanho.asc,cor.asc')
+    ]);
+    renderTecidos(tecidos);
+    renderZiperes(ziperes);
+  } catch(e) { console.warn('Erro carregar estoque:', e); }
+}
+
+function renderTecidos(lista) {
+  const body = document.getElementById('bodyTecidos');
+  const total = lista.reduce((a,v) => a + (v.metragem||0), 0);
+  document.getElementById('totalTecidos').textContent = total.toFixed(1) + ' m';
+  if (!lista.length) { body.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🧶</div><p>Nenhum tecido cadastrado</p></div></td></tr>'; return; }
+  body.innerHTML = lista.map(v => `
+    <tr>
+      <td style="font-weight:600">${v.nome}</td>
+      <td>${v.cor||'—'}</td>
+      <td><input type="number" id="tec_m_${v.id}" value="${v.metragem||0}" step="0.01" min="0" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px"> m</td>
+      <td style="font-size:12px;color:var(--muted)">${v.obs||'—'}</td>
+      <td><button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="atualizarTecido(${v.id})">💾 Salvar</button></td>
+      <td><button class="btn-del" onclick="deletarTecido(${v.id})">✕</button></td>
+    </tr>`).join('');
+}
+
+function renderZiperes(lista) {
+  const body = document.getElementById('bodyZiperes');
+  const total = lista.reduce((a,v) => a + (v.quantidade||0), 0);
+  document.getElementById('totalZiperes').textContent = total + ' un';
+  if (!lista.length) { body.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🔗</div><p>Nenhum zíper cadastrado</p></div></td></tr>'; return; }
+  body.innerHTML = lista.map(v => `
+    <tr>
+      <td style="font-weight:600">${v.tamanho||'—'}</td>
+      <td>${v.cor||'—'}</td>
+      <td><input type="number" id="zip_q_${v.id}" value="${v.quantidade||0}" min="0" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px"> un</td>
+      <td style="font-size:12px;color:var(--muted)">${v.obs||'—'}</td>
+      <td><button class="btn-add" style="padding:5px 12px;font-size:12px" onclick="atualizarZiper(${v.id})">💾 Salvar</button></td>
+      <td><button class="btn-del" onclick="deletarZiper(${v.id})">✕</button></td>
+    </tr>`).join('');
+}
+
+async function addTecido() {
+  const nome  = document.getElementById('tec_nome').value.trim();
+  const cor   = document.getElementById('tec_cor').value.trim();
+  const metro = parseFloat(document.getElementById('tec_metro').value)||0;
+  const obs   = document.getElementById('tec_obs').value.trim();
+  if (!nome) { notify('Informe o nome do tecido.','err'); return; }
+  try {
+    const res = await fetch(SUPABASE_URL+'/rest/v1/estoque_tecidos', {
+      method:'POST', headers:{...SB_HEADERS,'Prefer':'return=minimal'}, body:JSON.stringify({nome,cor,metragem:metro,obs})
+    });
+    if (!res.ok) throw new Error(await res.text());
+    ['tec_nome','tec_cor','tec_metro','tec_obs'].forEach(id => document.getElementById(id).value='');
+    await carregarEstoque();
+    notify('✅ Tecido adicionado!');
+  } catch(e) { notify('Erro ao adicionar','err'); }
+}
+
+async function atualizarTecido(id) {
+  const val = parseFloat(document.getElementById('tec_m_'+id).value)||0;
+  try {
+    const res = await fetch(SUPABASE_URL+'/rest/v1/estoque_tecidos?id=eq.'+id, {
+      method:'PATCH', headers:{...SB_HEADERS,'Prefer':'return=minimal'}, body:JSON.stringify({metragem:val,updated_at:new Date().toISOString()})
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await carregarEstoque();
+    notify('✅ Tecido atualizado!');
+  } catch(e) { notify('Erro ao atualizar','err'); }
+}
+
+async function deletarTecido(id) {
+  if (!confirm('Remover este tecido?')) return;
+  try {
+    await fetch(SUPABASE_URL+'/rest/v1/estoque_tecidos?id=eq.'+id, {method:'DELETE',headers:SB_HEADERS});
+    await carregarEstoque();
+    notify('Tecido removido.');
+  } catch(e) { notify('Erro','err'); }
+}
+
+async function addZiper() {
+  const tam = document.getElementById('zip_tam').value.trim();
+  const cor = document.getElementById('zip_cor').value.trim();
+  const qtd = parseInt(document.getElementById('zip_qtd').value)||0;
+  const obs = document.getElementById('zip_obs').value.trim();
+  if (!tam) { notify('Informe o tamanho do zíper.','err'); return; }
+  try {
+    const res = await fetch(SUPABASE_URL+'/rest/v1/estoque_ziperes', {
+      method:'POST', headers:{...SB_HEADERS,'Prefer':'return=minimal'}, body:JSON.stringify({tamanho:tam,cor,quantidade:qtd,obs})
+    });
+    if (!res.ok) throw new Error(await res.text());
+    ['zip_tam','zip_cor','zip_qtd','zip_obs'].forEach(id => document.getElementById(id).value='');
+    await carregarEstoque();
+    notify('✅ Zíper adicionado!');
+  } catch(e) { notify('Erro ao adicionar','err'); }
+}
+
+async function atualizarZiper(id) {
+  const val = parseInt(document.getElementById('zip_q_'+id).value)||0;
+  try {
+    const res = await fetch(SUPABASE_URL+'/rest/v1/estoque_ziperes?id=eq.'+id, {
+      method:'PATCH', headers:{...SB_HEADERS,'Prefer':'return=minimal'}, body:JSON.stringify({quantidade:val,updated_at:new Date().toISOString()})
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await carregarEstoque();
+    notify('✅ Zíper atualizado!');
+  } catch(e) { notify('Erro ao atualizar','err'); }
+}
+
+async function deletarZiper(id) {
+  if (!confirm('Remover este zíper?')) return;
+  try {
+    await fetch(SUPABASE_URL+'/rest/v1/estoque_ziperes?id=eq.'+id, {method:'DELETE',headers:SB_HEADERS});
+    await carregarEstoque();
+    notify('Zíper removido.');
+  } catch(e) { notify('Erro','err'); }
+}
+
+// Carregar estoque ao abrir aba
+document.querySelector('[onclick*="estoque"]').addEventListener('click', carregarEstoque);
+
+// ====== ENVIAR À CONFECÇÃO ======
+async function enviarConfeccao() {
+  if (!itensConfeccao.length) { notify('Adicione itens ao pedido primeiro.','err'); return; }
+  const titulo = prompt('Nome do pedido para a confecção:', 'Pedido ' + new Date().toLocaleDateString('pt-BR'));
+  if (!titulo) return;
+  const obs = (document.getElementById('conf_obs')||{}).value || '';
+  try {
+    const res = await fetch(SUPABASE_URL+'/rest/v1/pedidos_confeccao', {
+      method:'POST',
+      headers:{...SB_HEADERS,'Prefer':'return=minimal'},
+      body: JSON.stringify({
+        id: Date.now(),
+        data: hoje(),
+        titulo,
+        obs,
+        itens: itensConfeccao,
+        status: 'Aguardando',
+        produzido: {}
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    notify('✅ Pedido enviado à confecção!');
+    itensConfeccao = [];
+    renderGradeConfeccao();
+    gerarMensagem();
+  } catch(e) { notify('Erro ao enviar','err'); console.error(e); }
+}
 
 // ====== CONFECÇÃO ======
 const TAMANHOS_A = ['PP','P','M','G','GG'];
