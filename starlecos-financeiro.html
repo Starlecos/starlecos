@@ -1595,16 +1595,8 @@
       <div class="section-title">📦 Estoque de Insumos</div>
     </div>
 
-    <!-- TECIDOS -->
-    <div class="form-card" style="margin-bottom:20px">
-      <h3>🧶 Adicionar Tecido</h3>
-      <div class="form-row">
-        <div class="field"><label>Nome do Tecido</label><input type="text" id="tec_nome" placeholder="Ex: Gabardine Branco"></div>
-        <div class="field"><label>Cor / Referência</label><input type="text" id="tec_cor" placeholder="Ex: Branco, Azul Royal..."></div>
-        <div class="field"><label>Metragem (m)</label><input type="number" id="tec_metro" placeholder="0,00" step="0.01" min="0"></div>
-        <div class="field"><label>Observação</label><input type="text" id="tec_obs" placeholder="Opcional"></div>
-      </div>
-      <button class="btn-add jade" onclick="addTecido()">＋ Adicionar Tecido</button>
+    <div style="background:var(--amber-light);border:1px solid #F0C060;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#7A5200">
+      🧵 O estoque é preenchido pela confecção. Aqui você pode visualizar e editar os valores.
     </div>
 
     <div class="table-card" style="margin-bottom:28px">
@@ -1613,21 +1605,9 @@
         <span class="table-total val-pos" id="totalTecidos">0 m</span>
       </div>
       <table>
-        <thead><tr><th>Tecido</th><th>Cor</th><th>Metragem</th><th>Observação</th><th>Atualizar</th><th></th></tr></thead>
-        <tbody id="bodyTecidos"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🧶</div><p>Nenhum tecido cadastrado</p></div></td></tr></tbody>
+        <thead><tr><th>Tecido</th><th>Cor</th><th>Metragem</th><th>Observação</th><th></th></tr></thead>
+        <tbody id="bodyTecidos"><tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🧶</div><p>Nenhum tecido cadastrado</p></div></td></tr></tbody>
       </table>
-    </div>
-
-    <!-- ZIPERES -->
-    <div class="form-card" style="margin-bottom:20px">
-      <h3>🔗 Adicionar Zíper</h3>
-      <div class="form-row">
-        <div class="field"><label>Tamanho do Zíper</label><input type="text" id="zip_tam" placeholder="Ex: 60cm, 70cm..."></div>
-        <div class="field"><label>Cor</label><input type="text" id="zip_cor" placeholder="Ex: Branco, Preto..."></div>
-        <div class="field"><label>Quantidade (un)</label><input type="number" id="zip_qtd" placeholder="0" min="0"></div>
-        <div class="field"><label>Observação</label><input type="text" id="zip_obs" placeholder="Opcional"></div>
-      </div>
-      <button class="btn-add" onclick="addZiper()">＋ Adicionar Zíper</button>
     </div>
 
     <div class="table-card">
@@ -1636,8 +1616,8 @@
         <span class="table-total val-pos" id="totalZiperes">0 un</span>
       </div>
       <table>
-        <thead><tr><th>Tamanho</th><th>Cor</th><th>Quantidade</th><th>Observação</th><th>Atualizar</th><th></th></tr></thead>
-        <tbody id="bodyZiperes"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🔗</div><p>Nenhum zíper cadastrado</p></div></td></tr></tbody>
+        <thead><tr><th>Tamanho</th><th>Cor</th><th>Quantidade</th><th>Observação</th><th></th></tr></thead>
+        <tbody id="bodyZiperes"><tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🔗</div><p>Nenhum zíper cadastrado</p></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -3174,33 +3154,31 @@ async function carregarEstoque() {
 
 function renderTecidos(lista) {
   const body = document.getElementById('bodyTecidos');
-  const total = lista.reduce((a,v) => a + (v.metragem||0), 0);
-  document.getElementById('totalTecidos').textContent = total.toFixed(1) + ' m';
-  if (!lista.length) { body.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🧶</div><p>Nenhum tecido cadastrado</p></div></td></tr>'; return; }
+  const total = lista.reduce((a,v) => a+(v.metragem||0), 0);
+  document.getElementById('totalTecidos').textContent = total.toFixed(1)+' m';
+  if (!lista.length) { body.innerHTML='<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🧶</div><p>Nenhum tecido cadastrado</p></div></td></tr>'; return; }
   body.innerHTML = lista.map(v => `
     <tr>
       <td style="font-weight:600">${v.nome}</td>
       <td>${v.cor||'—'}</td>
       <td><input type="number" id="tec_m_${v.id}" value="${v.metragem||0}" step="0.01" min="0" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px"> m</td>
       <td style="font-size:12px;color:var(--muted)">${v.obs||'—'}</td>
-      <td><button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="atualizarTecido(${v.id})">💾 Salvar</button></td>
-      <td><button class="btn-del" onclick="deletarTecido(${v.id})">✕</button></td>
+      <td><button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="atualizarTecido(${v.id})">💾</button></td>
     </tr>`).join('');
 }
 
 function renderZiperes(lista) {
   const body = document.getElementById('bodyZiperes');
-  const total = lista.reduce((a,v) => a + (v.quantidade||0), 0);
-  document.getElementById('totalZiperes').textContent = total + ' un';
-  if (!lista.length) { body.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🔗</div><p>Nenhum zíper cadastrado</p></div></td></tr>'; return; }
+  const total = lista.reduce((a,v) => a+(v.quantidade||0), 0);
+  document.getElementById('totalZiperes').textContent = total+' un';
+  if (!lista.length) { body.innerHTML='<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🔗</div><p>Nenhum zíper cadastrado</p></div></td></tr>'; return; }
   body.innerHTML = lista.map(v => `
     <tr>
       <td style="font-weight:600">${v.tamanho||'—'}</td>
       <td>${v.cor||'—'}</td>
       <td><input type="number" id="zip_q_${v.id}" value="${v.quantidade||0}" min="0" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px"> un</td>
       <td style="font-size:12px;color:var(--muted)">${v.obs||'—'}</td>
-      <td><button class="btn-add" style="padding:5px 12px;font-size:12px" onclick="atualizarZiper(${v.id})">💾 Salvar</button></td>
-      <td><button class="btn-del" onclick="deletarZiper(${v.id})">✕</button></td>
+      <td><button class="btn-add" style="padding:5px 12px;font-size:12px" onclick="atualizarZiper(${v.id})">💾</button></td>
     </tr>`).join('');
 }
 
