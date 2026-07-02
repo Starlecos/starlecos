@@ -2324,15 +2324,23 @@ async function carregarEstampasConfeccao() {
   sel.innerHTML = '<option value="">— Selecione —</option>';
   if (!produto) return;
   try {
-    var dados = await sbGet('estampas', 'select=estampa&produto=eq.' + encodeURIComponent(produto) + '&order=estampa.asc');
-    dados.forEach(function(e) {
+    // Buscar todas e filtrar no JS para evitar problema de encoding
+    var todas = await sbGet('estampas', 'select=produto,estampa&order=estampa.asc');
+    var lista = todas.filter(function(e) { return e.produto === produto; });
+    if (!lista.length) {
       var opt = document.createElement('option');
-      opt.value = e.estampa; opt.textContent = e.estampa;
+      opt.value = ''; opt.textContent = 'Nenhuma estampa cadastrada para este produto';
       sel.appendChild(opt);
-    });
+    } else {
+      lista.forEach(function(e) {
+        var opt = document.createElement('option');
+        opt.value = e.estampa; opt.textContent = e.estampa;
+        sel.appendChild(opt);
+      });
+    }
     // Opção para digitar manualmente
     var outro = document.createElement('option');
-    outro.value = '__outro__'; outro.textContent = 'Outra (digitar)';
+    outro.value = '__outro__'; outro.textContent = '✏️ Outra (digitar)';
     sel.appendChild(outro);
   } catch(e) { console.warn('Erro carregar estampas confecção:', e); }
 }
