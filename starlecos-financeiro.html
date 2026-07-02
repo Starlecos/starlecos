@@ -1481,7 +1481,7 @@
       <div class="form-row">
         <div class="field">
           <label>Produto</label>
-          <select id="conf_produto">
+          <select id="conf_produto" onchange="carregarEstampasConfeccao()">
             <option value="">— Selecione —</option>
             <optgroup label="🥼 Jalecos Femininos">
               <option>Jaleco Estampado Feminino</option>
@@ -1511,7 +1511,9 @@
         </div>
         <div class="field">
           <label>Estampa / Cor</label>
-          <input type="text" id="conf_estampa" placeholder="Ex: Safari, Rosa Floral, Branco...">
+          <select id="conf_estampa" onchange="if(this.value==='__outro__'){var n=prompt('Digite a estampa/cor:');if(n){var o=document.createElement('option');o.value=n;o.textContent=n;o.selected=true;this.appendChild(o);this.value=n;}else{this.value='';}}">
+            <option value="">— Selecione —</option>
+          </select>
         </div>
       </div>
       <div style="margin-bottom:14px">
@@ -2314,6 +2316,32 @@ async function importarHistoricoVendas(event) {
   };
   reader.readAsText(file, 'UTF-8');
 }
+
+async function carregarEstampasConfeccao() {
+  var produto = document.getElementById('conf_produto').value;
+  var sel     = document.getElementById('conf_estampa');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Selecione —</option>';
+  if (!produto) return;
+  try {
+    var dados = await sbGet('estampas', 'select=estampa&produto=eq.' + encodeURIComponent(produto) + '&order=estampa.asc');
+    dados.forEach(function(e) {
+      var opt = document.createElement('option');
+      opt.value = e.estampa; opt.textContent = e.estampa;
+      sel.appendChild(opt);
+    });
+    // Opção para digitar manualmente
+    var outro = document.createElement('option');
+    outro.value = '__outro__'; outro.textContent = 'Outra (digitar)';
+    sel.appendChild(outro);
+  } catch(e) { console.warn('Erro carregar estampas confecção:', e); }
+}
+
+// Carregar estampas ao iniciar se produto já selecionado
+document.addEventListener('DOMContentLoaded', function() {
+  var prod = document.getElementById('conf_produto');
+  if (prod && prod.value) carregarEstampasConfeccao();
+});
 
 function toggleVOForm() {
   var el = document.getElementById('voFormWrap');
@@ -3325,7 +3353,8 @@ function espelharTamanho(origem, destino) {
 
 function addItemConfeccao() {
   var produto = document.getElementById('conf_produto').value;
-  var estampa = document.getElementById('conf_estampa').value.trim();
+  var estSel  = document.getElementById('conf_estampa');
+  var estampa = estSel ? (estSel.value === '__outro__' ? '' : estSel.value.trim()) : '';
   if (!produto) { notify('Selecione um produto.', 'err'); return; }
 
   var grade = {};
@@ -3340,8 +3369,8 @@ function addItemConfeccao() {
 
   itensConfeccao.push({ id: Date.now(), produto, estampa, grade, total: totalItem });
 
-  document.getElementById('conf_produto').value = '';
-  document.getElementById('conf_estampa').value = '';
+  document.getElementById('conf_produto').value  = '';
+  document.getElementById('conf_estampa').innerHTML = '<option value="">— Selecione —</option>';
   TAMANHOS.forEach(function(t) {
     var el = document.getElementById('conf_tam_' + t);
     if (el) { el.value = '0'; el.style.background = ''; }
