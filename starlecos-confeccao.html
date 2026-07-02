@@ -164,19 +164,36 @@
 
     <!-- ZIPERES -->
     <div class="estoque-card">
-      <h3>🔗 Zíperes <span class="est-total" id="totalZiperes">0 un</span></h3>
-      <div class="est-form-row">
-        <div class="est-field"><label>Tamanho</label><input type="text" id="zip_tam" placeholder="Ex: 60cm"></div>
-        <div class="est-field"><label>Cor</label><input type="text" id="zip_cor" placeholder="Ex: Branco"></div>
-        <div class="est-field"><label>Quantidade</label><input type="number" id="zip_qtd" placeholder="0" min="0"></div>
+      <h3>🔗 Zíperes <span class="est-total" id="totalZiperes">0 un</span>
+        <button onclick="abrirGerenciarCoresZiper()" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:Inter,sans-serif;margin-left:8px;font-weight:600">⚙️ Gerenciar Cores</button>
+      </h3>
+
+      <!-- MODAL GERENCIAR CORES ZÍPER -->
+      <div id="modalCoresZiper" style="display:none;background:#F7FAFD;border:1.5px dashed var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px">⚙️ Cores de Zíper Cadastradas</div>
+        <div id="coresZiperList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:30px"></div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="novaCorZiperInput" placeholder="Ex: Branco, Preto, Azul Royal..." style="flex:1;font-family:Inter,sans-serif;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;outline:none">
+          <button class="btn-est" onclick="adicionarCorZiper()">＋ Adicionar</button>
+        </div>
       </div>
-      <div class="est-form-row" style="grid-template-columns:1fr auto">
+
+      <div class="est-form-row" style="grid-template-columns:1fr 1fr auto">
+        <div class="est-field">
+          <label>Cor do Zíper</label>
+          <select id="zip_cor" style="font-family:Inter,sans-serif;font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;outline:none;background:#FAFBFD">
+            <option value="">— Selecione a cor —</option>
+          </select>
+        </div>
+        <div class="est-field"><label>Quantidade (un)</label><input type="number" id="zip_qtd" placeholder="0" min="0"></div>
+        <div class="est-field" style="align-self:end"><button class="btn-est" onclick="addZiper()">＋ Adicionar</button></div>
+      </div>
+      <div class="est-form-row" style="grid-template-columns:1fr">
         <div class="est-field"><label>Observação (opcional)</label><input type="text" id="zip_obs" placeholder=""></div>
-        <button class="btn-est" onclick="addZiper()" style="align-self:end">＋ Adicionar</button>
       </div>
       <table class="est-table">
-        <thead><tr><th>Tamanho</th><th>Cor</th><th>Quantidade</th><th>Observação</th><th></th><th></th></tr></thead>
-        <tbody id="bodyZiperes"><tr><td colspan="6" class="est-empty">Nenhum zíper cadastrado.</td></tr></tbody>
+        <thead><tr><th>Cor</th><th>Quantidade</th><th>Observação</th><th></th><th></th></tr></thead>
+        <tbody id="bodyZiperes"><tr><td colspan="5" class="est-empty">Nenhum zíper cadastrado.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -382,7 +399,61 @@ async function carregarPedidos() {
 }
 
 // ====== ESTOQUE ======
-const TIPOS_KEY = 'starlecos_tipos_tecido';
+const TIPOS_KEY     = 'starlecos_tipos_tecido';
+const CORES_ZIP_KEY = 'starlecos_cores_ziper';
+
+// ===== CORES ZÍPER =====
+function getCoresZiper() {
+  try { return JSON.parse(localStorage.getItem(CORES_ZIP_KEY) || '[]'); } catch(e) { return []; }
+}
+function salvarCoresZiper(lista) { localStorage.setItem(CORES_ZIP_KEY, JSON.stringify(lista)); }
+
+function abrirGerenciarCoresZiper() {
+  const modal = document.getElementById('modalCoresZiper');
+  modal.style.display = modal.style.display === 'none' ? 'block' : 'none';
+  renderCoresZiperList();
+}
+
+function renderCoresZiperList() {
+  const lista = getCoresZiper();
+  const el    = document.getElementById('coresZiperList');
+  if (!lista.length) { el.innerHTML = '<span style="color:var(--muted);font-size:12px">Nenhuma cor cadastrada ainda.</span>'; return; }
+  el.innerHTML = lista.map(function(c, i) {
+    return '<span style="display:inline-flex;align-items:center;gap:6px;background:#E8EEF7;border:1px solid #C0CCDE;color:var(--navy);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600">' +
+      c + '<button onclick="removerCorZiper(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;padding:0;line-height:1">✕</button></span>';
+  }).join('');
+  atualizarSelectCoresZiper();
+}
+
+function adicionarCorZiper() {
+  const input = document.getElementById('novaCorZiperInput');
+  const cor   = input.value.trim();
+  if (!cor) return;
+  const lista = getCoresZiper();
+  if (!lista.includes(cor)) {
+    lista.push(cor);
+    lista.sort(function(a,b){ return a.localeCompare(b,'pt-BR',{sensitivity:'base'}); });
+    salvarCoresZiper(lista);
+  }
+  input.value = '';
+  renderCoresZiperList();
+}
+
+function removerCorZiper(idx) {
+  const lista = getCoresZiper();
+  lista.splice(idx, 1);
+  salvarCoresZiper(lista);
+  renderCoresZiperList();
+}
+
+function atualizarSelectCoresZiper() {
+  const sel   = document.getElementById('zip_cor');
+  if (!sel) return;
+  const atual = sel.value;
+  const lista = getCoresZiper();
+  sel.innerHTML = '<option value="">— Selecione a cor —</option>' +
+    lista.map(function(c){ return '<option value="'+c+'"'+(c===atual?' selected':'')+'>'+c+'</option>'; }).join('');
+}
 
 function getTiposTecido() {
   try { return JSON.parse(localStorage.getItem(TIPOS_KEY) || '[]'); } catch(e) { return []; }
@@ -472,6 +543,7 @@ async function carregarEstoque() {
     renderZiperes(ziperes);
     atualizarSelectTipos();
     await atualizarSelectCores();
+    atualizarSelectCoresZiper();
   } catch(e) { console.warn('Erro carregar estoque:', e); }
 }
 
@@ -535,11 +607,10 @@ function renderZiperes(lista) {
   const body  = document.getElementById('bodyZiperes');
   const total = lista.reduce((a,v) => a+(v.quantidade||0), 0);
   document.getElementById('totalZiperes').textContent = total+' un';
-  if (!lista.length) { body.innerHTML='<tr><td colspan="6" class="est-empty">Nenhum zíper cadastrado.</td></tr>'; return; }
+  if (!lista.length) { body.innerHTML='<tr><td colspan="5" class="est-empty">Nenhum zíper cadastrado.</td></tr>'; return; }
   body.innerHTML = lista.map(v => `
     <tr>
-      <td style="font-weight:600">${v.tamanho||'—'}</td>
-      <td>${v.cor||'—'}</td>
+      <td style="font-weight:600">${v.cor||'—'}</td>
       <td><input type="number" id="zip_q_${v.id}" value="${v.quantidade||0}" min="0"> un</td>
       <td style="font-size:12px;color:var(--muted)">${v.obs||'—'}</td>
       <td><button class="btn-save-est" onclick="atualizarZiper(${v.id})">💾 Salvar</button></td>
@@ -627,7 +698,7 @@ async function deletarZiper(id) {
 carregarPedidos();
 carregarEstoque();
 // Inicializar select de tipos
-setTimeout(function() { atualizarSelectTipos(); atualizarSelectCores(); }, 500);
+setTimeout(function() { atualizarSelectTipos(); atualizarSelectCores(); atualizarSelectCoresZiper(); renderCoresZiperList(); }, 500);
 setInterval(carregarPedidos, 2*60*1000);
 </script>
 </body>
