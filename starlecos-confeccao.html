@@ -123,10 +123,33 @@
 
     <!-- TECIDOS -->
     <div class="estoque-card">
-      <h3>🧶 Tecidos <span class="est-total" id="totalTecidos">0 m</span></h3>
+      <h3>🧶 Tecidos <span class="est-total" id="totalTecidos">0 m</span>
+        <button onclick="abrirGerenciarTipos()" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:Inter,sans-serif;margin-left:8px;font-weight:600">⚙️ Gerenciar Tipos</button>
+      </h3>
+
+      <!-- MODAL GERENCIAR TIPOS DE TECIDO -->
+      <div id="modalTipos" style="display:none;background:#F7FAFD;border:1.5px dashed var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px">⚙️ Tipos de Tecido Cadastrados</div>
+        <div id="tiposList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:30px"></div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="novoTipoInput" placeholder="Ex: Gabardine, Oxford, Malha..." style="flex:1;font-family:Inter,sans-serif;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;outline:none">
+          <button class="btn-est" onclick="adicionarTipoTecido()">＋ Adicionar</button>
+        </div>
+      </div>
+
       <div class="est-form-row">
-        <div class="est-field"><label>Nome do Tecido</label><input type="text" id="tec_nome" placeholder="Ex: Gabardine Branco"></div>
-        <div class="est-field"><label>Cor / Referência</label><input type="text" id="tec_cor" placeholder="Ex: Branco"></div>
+        <div class="est-field">
+          <label>Tipo de Tecido</label>
+          <select id="tec_nome" style="font-family:Inter,sans-serif;font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;outline:none;background:#FAFBFD">
+            <option value="">— Selecione o tipo —</option>
+          </select>
+        </div>
+        <div class="est-field">
+          <label>Cor / Estampa</label>
+          <select id="tec_cor" style="font-family:Inter,sans-serif;font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;outline:none;background:#FAFBFD">
+            <option value="">— Selecione —</option>
+          </select>
+        </div>
         <div class="est-field"><label>Metragem (m)</label><input type="number" id="tec_metro" placeholder="0" step="0.01" min="0"></div>
       </div>
       <div class="est-form-row" style="grid-template-columns:1fr auto">
@@ -134,7 +157,7 @@
         <button class="btn-est" onclick="addTecido()" style="align-self:end">＋ Adicionar</button>
       </div>
       <table class="est-table">
-        <thead><tr><th>Tecido</th><th>Cor</th><th>Metragem (m)</th><th>Observação</th><th></th><th></th></tr></thead>
+        <thead><tr><th>Tecido</th><th>Cor / Estampa</th><th>Metragem (m)</th><th>Observação</th><th></th><th></th></tr></thead>
         <tbody id="bodyTecidos"><tr><td colspan="6" class="est-empty">Nenhum tecido cadastrado.</td></tr></tbody>
       </table>
     </div>
@@ -359,14 +382,96 @@ async function carregarPedidos() {
 }
 
 // ====== ESTOQUE ======
+const TIPOS_KEY = 'starlecos_tipos_tecido';
+
+function getTiposTecido() {
+  try { return JSON.parse(localStorage.getItem(TIPOS_KEY) || '[]'); } catch(e) { return []; }
+}
+function salvarTiposTecido(lista) {
+  localStorage.setItem(TIPOS_KEY, JSON.stringify(lista));
+}
+
+function abrirGerenciarTipos() {
+  const modal = document.getElementById('modalTipos');
+  modal.style.display = modal.style.display === 'none' ? 'block' : 'none';
+  renderTiposList();
+}
+
+function renderTiposList() {
+  const lista = getTiposTecido();
+  const el    = document.getElementById('tiposList');
+  if (!lista.length) { el.innerHTML = '<span style="color:var(--muted);font-size:12px">Nenhum tipo cadastrado ainda.</span>'; return; }
+  el.innerHTML = lista.map(function(t, i) {
+    return '<span style="display:inline-flex;align-items:center;gap:6px;background:#E8EEF7;border:1px solid #C0CCDE;color:var(--navy);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600">' +
+      t + '<button onclick="removerTipoTecido(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;padding:0;line-height:1">✕</button></span>';
+  }).join('');
+  atualizarSelectTipos();
+}
+
+function adicionarTipoTecido() {
+  const input = document.getElementById('novoTipoInput');
+  const nome  = input.value.trim();
+  if (!nome) return;
+  const lista = getTiposTecido();
+  if (!lista.includes(nome)) {
+    lista.push(nome);
+    lista.sort(function(a,b){ return a.localeCompare(b,'pt-BR',{sensitivity:'base'}); });
+    salvarTiposTecido(lista);
+  }
+  input.value = '';
+  renderTiposList();
+}
+
+function removerTipoTecido(idx) {
+  const lista = getTiposTecido();
+  lista.splice(idx, 1);
+  salvarTiposTecido(lista);
+  renderTiposList();
+}
+
+function atualizarSelectTipos() {
+  const sel  = document.getElementById('tec_nome');
+  const atual = sel ? sel.value : '';
+  const lista = getTiposTecido();
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Selecione o tipo —</option>' +
+    lista.map(function(t){ return '<option value="'+t+'"'+(t===atual?' selected':'')+'>'+t+'</option>'; }).join('');
+}
+
+async function atualizarSelectCores() {
+  const sel = document.getElementById('tec_cor');
+  if (!sel) return;
+  const atual = sel.value;
+  // Buscar estampas do módulo de vendas
+  let estampas = [];
+  try { estampas = await sbGet('estampas', 'select=estampa&order=estampa.asc'); } catch(e) {}
+  const lista = [...new Set(estampas.map(function(e){ return e.estampa; }))].sort(function(a,b){ return a.localeCompare(b,'pt-BR',{sensitivity:'base'}); });
+  sel.innerHTML = '<option value="">— Selecione —</option>' +
+    lista.map(function(e){ return '<option value="'+e+'"'+(e===atual?' selected':'')+'>'+e+'</option>'; }).join('') +
+    '<option value="__outro__">Outra (digitar)</option>';
+  sel.onchange = function() {
+    if (sel.value === '__outro__') {
+      var novo = prompt('Digite a cor/estampa:');
+      if (novo) {
+        var opt = document.createElement('option');
+        opt.value = novo; opt.textContent = novo; opt.selected = true;
+        sel.appendChild(opt);
+        sel.value = novo;
+      } else { sel.value = ''; }
+    }
+  };
+}
+
 async function carregarEstoque() {
   try {
     const [tecidos, ziperes] = await Promise.all([
       sbGet('estoque_tecidos',  'select=*&order=nome.asc'),
       sbGet('estoque_ziperes',  'select=*&order=tamanho.asc,cor.asc')
     ]);
-    await renderTecidos(tecidos); // async por causa das estampas
+    await renderTecidos(tecidos);
     renderZiperes(ziperes);
+    atualizarSelectTipos();
+    await atualizarSelectCores();
   } catch(e) { console.warn('Erro carregar estoque:', e); }
 }
 
@@ -460,14 +565,19 @@ async function sbDelete(table, filter) {
 }
 
 async function addTecido() {
-  const nome  = document.getElementById('tec_nome').value.trim();
-  const cor   = document.getElementById('tec_cor').value.trim();
+  const nomeEl = document.getElementById('tec_nome');
+  const corEl  = document.getElementById('tec_cor');
+  const nome   = nomeEl ? nomeEl.value.trim() : '';
+  const cor    = corEl  ? corEl.value.trim()  : '';
   const metro = parseFloat(document.getElementById('tec_metro').value)||0;
   const obs   = document.getElementById('tec_obs').value.trim();
   if (!nome) { notify('Informe o nome do tecido.','err'); return; }
   try {
     await sbPost('estoque_tecidos', {nome,cor,metragem:metro,obs});
-    ['tec_nome','tec_cor','tec_metro','tec_obs'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    document.getElementById('tec_metro').value = '';
+    document.getElementById('tec_obs').value   = '';
+    document.getElementById('tec_nome').value  = '';
+    document.getElementById('tec_cor').value   = '';
     await carregarEstoque();
     notify('✅ Tecido adicionado!');
   } catch(e) { notify('Erro ao adicionar','err'); }
@@ -516,6 +626,8 @@ async function deletarZiper(id) {
 
 carregarPedidos();
 carregarEstoque();
+// Inicializar select de tipos
+setTimeout(function() { atualizarSelectTipos(); atualizarSelectCores(); }, 500);
 setInterval(carregarPedidos, 2*60*1000);
 </script>
 </body>
