@@ -1526,47 +1526,68 @@
     </div>
 
     <!-- GRADE ATUAL -->
-    <div class="table-card" style="margin-bottom:20px" id="confGradeCard">
-      <div class="table-header" style="display:flex;justify-content:space-between;align-items:center">
-        <span class="table-header-title">📋 Itens do Pedido</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span id="confTotalPecas" class="conf-total-badge">0 peças</span>
-          <button onclick="limparConfeccao()" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">🗑 Limpar</button>
+    <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;margin-bottom:20px;align-items:start" id="confGradeCard">
+      <!-- GRADE PRINCIPAL -->
+      <div class="table-card">
+        <div class="table-header" style="display:flex;justify-content:space-between;align-items:center">
+          <span class="table-header-title">📋 Itens do Pedido</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="confTotalPecas" class="conf-total-badge">0 peças</span>
+            <button onclick="limparConfeccao()" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer">🗑 Limpar</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="conf-grade-table">
+            <thead>
+              <tr>
+                <th rowspan="2" style="text-align:left">Produto</th>
+                <th rowspan="2" style="text-align:left">Estampa</th>
+                <th colspan="5" style="background:#E8F2FB;color:var(--sky);border-bottom:1px solid var(--border)">Padrão</th>
+                <th colspan="4" style="background:#FEF6E4;color:var(--amber);border-bottom:1px solid var(--border)">Plus</th>
+                <th rowspan="2">Total</th>
+                <th rowspan="2"></th>
+              </tr>
+              <tr>
+                <th style="background:#E8F2FB">PP</th><th style="background:#E8F2FB">P</th>
+                <th style="background:#E8F2FB">M</th><th style="background:#E8F2FB">G</th>
+                <th style="background:#E8F2FB">GG</th>
+                <th style="background:#FEF6E4">G1</th><th style="background:#FEF6E4">G2</th>
+                <th style="background:#FEF6E4">G3</th><th style="background:#FEF6E4">G4</th>
+              </tr>
+            </thead>
+            <tbody id="confGradeBody">
+              <tr><td colspan="13" style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Nenhum item adicionado ainda.</td></tr>
+            </tbody>
+            <tfoot>
+              <tr class="total-row" id="confTotalRow" style="display:none">
+                <td colspan="2">TOTAL GERAL</td>
+                <td id="tPP">0</td><td id="tP">0</td><td id="tM">0</td>
+                <td id="tG">0</td><td id="tGG">0</td><td id="tG1">0</td>
+                <td id="tG2">0</td><td id="tG3">0</td><td id="tG4">0</td>
+                <td id="tTotal">0</td><td></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
-      <div style="overflow-x:auto">
-        <table class="conf-grade-table">
+
+      <!-- RESUMO POR ESTAMPA -->
+      <div class="table-card" id="confResumoCard" style="display:none">
+        <div class="table-header">
+          <span class="table-header-title">📊 Resumo por Estampa</span>
+        </div>
+        <table class="conf-grade-table" style="min-width:unset">
           <thead>
             <tr>
-              <th rowspan="2" style="text-align:left">Produto</th>
-              <th rowspan="2" style="text-align:left">Estampa</th>
-              <th colspan="5" style="background:#E8F2FB;color:var(--sky);border-bottom:1px solid var(--border)">Padrão</th>
-              <th colspan="4" style="background:#FEF6E4;color:var(--amber);border-bottom:1px solid var(--border)">Plus</th>
-              <th rowspan="2">Total</th>
-              <th rowspan="2"></th>
-            </tr>
-            <tr>
-              <th style="background:#E8F2FB">PP</th>
-              <th style="background:#E8F2FB">P</th>
-              <th style="background:#E8F2FB">M</th>
-              <th style="background:#E8F2FB">G</th>
-              <th style="background:#E8F2FB">GG</th>
-              <th style="background:#FEF6E4">G1</th>
-              <th style="background:#FEF6E4">G2</th>
-              <th style="background:#FEF6E4">G3</th>
-              <th style="background:#FEF6E4">G4</th>
+              <th style="text-align:left">Estampa</th>
+              <th>Total</th>
             </tr>
           </thead>
-          <tbody id="confGradeBody">
-            <tr><td colspan="13" style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Nenhum item adicionado ainda.</td></tr>
-          </tbody>
+          <tbody id="confResumoBody"></tbody>
           <tfoot>
-            <tr class="total-row" id="confTotalRow" style="display:none">
-              <td colspan="2">TOTAL GERAL</td>
-              <td id="tPP">0</td><td id="tP">0</td><td id="tM">0</td>
-              <td id="tG">0</td><td id="tGG">0</td><td id="tG1">0</td>
-              <td id="tG2">0</td><td id="tG3">0</td><td id="tG4">0</td>
-              <td id="tTotal">0</td><td></td>
+            <tr class="total-row" id="confResumoTotal" style="display:none">
+              <td>TOTAL</td>
+              <td id="confResumoTotalVal">0</td>
             </tr>
           </tfoot>
         </table>
@@ -2127,15 +2148,24 @@ async function carregarVendasOnline() {
   const statusEl = document.getElementById('connStatusFin');
   if (statusEl) { statusEl.textContent = '🟡 Conectando...'; statusEl.style.color = 'var(--amber)'; }
   try {
-    dados.vendasOnline = await sbGet('vendas', 'select=*&order=data.desc,id.desc');
+    const [vendas, pedidosML, pedidosShopee, contas] = await Promise.all([
+      sbGet('vendas',         'select=*&order=data.desc,id.desc'),
+      sbGet('pedidos_ml',     'select=*&order=data.desc,id.desc&limit=10000'),
+      sbGet('pedidos_shopee', 'select=*&order=data.desc,id.desc').catch(() => []),
+      sbGet('contas_pagas',   'select=*&order=data.desc,id.desc').catch(() => [])
+    ]);
+    dados.vendasOnline = vendas;
+    dados.pedidosML    = pedidosML.map(v => ({ ...v, taxaVenda: v.taxa_venda, taxaFrete: v.taxa_frete }));
+    if (pedidosShopee.length) dados.vendasShopee = pedidosShopee;
+    if (contas.length)        dados.contasPagas  = contas;
     if (statusEl) { statusEl.textContent = '🟢 Online'; statusEl.style.color = 'var(--jade)'; }
     atualizarTudo();
+    renderGraficoVO();
+    renderGraficoML();
   } catch(e) {
-    console.warn('Supabase indisponível, usando dados locais.');
+    console.warn('Supabase indisponível, usando dados locais.', e);
     if (statusEl) { statusEl.textContent = '🔴 Sem conexão'; statusEl.style.color = 'var(--rose)'; }
-    // Não bloqueia — usa o que já está em dados.vendasOnline
     atualizarTudo();
-    // Tenta novamente em 10 segundos
     setTimeout(carregarVendasOnline, 10000);
   }
 }
@@ -3407,26 +3437,49 @@ function renderGradeConfeccao() {
   var body       = document.getElementById('confGradeBody');
   var totalRow   = document.getElementById('confTotalRow');
   var totalBadge = document.getElementById('confTotalPecas');
+  var resumoCard = document.getElementById('confResumoCard');
+  var resumoBody = document.getElementById('confResumoBody');
+  var resumoTot  = document.getElementById('confResumoTotal');
   if (!body) return;
 
   if (!itensConfeccao.length) {
     body.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Nenhum item adicionado ainda.</td></tr>';
     if (totalRow)   totalRow.style.display = 'none';
     if (totalBadge) totalBadge.textContent = '0 peças';
+    if (resumoCard) resumoCard.style.display = 'none';
+    // Mudar grid para 1 coluna
+    var gradeCard = document.getElementById('confGradeCard');
+    if (gradeCard) gradeCard.style.gridTemplateColumns = '1fr';
     return;
   }
 
+  // Mostrar resumo e restaurar grid 2 colunas
+  if (resumoCard) resumoCard.style.display = 'block';
+  var gradeCard = document.getElementById('confGradeCard');
+  if (gradeCard) gradeCard.style.gridTemplateColumns = '1fr 280px';
+
+  // Ordenar itens por produto (ordem crescente)
+  var ordenados = itensConfeccao.slice().sort(function(a, b) {
+    return (a.produto||'').localeCompare(b.produto||'', 'pt-BR', {sensitivity:'base'});
+  });
+
   var totTam = {}; TAMANHOS.forEach(function(t){ totTam[t]=0; });
   var totGeral = 0;
+  var resumoEstampa = {}; // { estampa: total }
 
-  body.innerHTML = itensConfeccao.map(function(item) {
+  body.innerHTML = ordenados.map(function(item) {
     var cells = TAMANHOS.map(function(t) {
       totTam[t] += item.grade[t] || 0;
       return '<td style="text-align:center">' + (item.grade[t] > 0 ? item.grade[t] : '<span style="color:#CCC">—</span>') + '</td>';
     }).join('');
     totGeral += item.total;
+
+    // Acumular resumo por estampa
+    var keyEst = (item.estampa || '—');
+    resumoEstampa[keyEst] = (resumoEstampa[keyEst] || 0) + item.total;
+
     return '<tr>' +
-      '<td>' + item.produto + '</td>' +
+      '<td style="font-size:12px">' + item.produto + '</td>' +
       '<td><span style="background:var(--amber-light);color:var(--amber);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">' + (item.estampa||'—') + '</span></td>' +
       cells +
       '<td style="text-align:center;font-weight:700;color:var(--jade)">' + item.total + '</td>' +
@@ -3434,6 +3487,7 @@ function renderGradeConfeccao() {
     '</tr>';
   }).join('');
 
+  // Total geral
   if (totalRow) {
     totalRow.style.display = '';
     TAMANHOS.forEach(function(t) {
@@ -3444,6 +3498,22 @@ function renderGradeConfeccao() {
     if (elT) elT.textContent = totGeral;
   }
   if (totalBadge) totalBadge.textContent = totGeral + ' peças';
+
+  // Resumo por estampa (ordenado alfabeticamente)
+  if (resumoBody) {
+    var estKeys = Object.keys(resumoEstampa).sort(function(a,b){ return a.localeCompare(b,'pt-BR',{sensitivity:'base'}); });
+    resumoBody.innerHTML = estKeys.map(function(est) {
+      return '<tr>' +
+        '<td style="font-size:12px"><span style="background:var(--amber-light);color:var(--amber);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">' + est + '</span></td>' +
+        '<td style="text-align:center;font-weight:700;color:var(--jade)">' + resumoEstampa[est] + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+  if (resumoTot) {
+    resumoTot.style.display = '';
+    var elRV = document.getElementById('confResumoTotalVal');
+    if (elRV) elRV.textContent = totGeral;
+  }
 }
 
 function gerarMensagem() {
