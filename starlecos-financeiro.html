@@ -1938,6 +1938,97 @@ async function limparEReimportarML() {
   setTimeout(sincronizarPedidosML, 500);
 }
 
+// ===== ATUALIZAÇÃO DE FRETE EM SEGUNDO PLANO =====
+let _freteEmAndamento = false;
+
+async function atualizarFretesEmSegundoPlano() {
+  if (_freteEmAndamento) return;
+  if (!mlToken && !mlRefresh) return;
+
+  // Buscar pedidos sem frete do Supabase
+  let semFrete = [];
+  try {
+    semFrete = await sbGet('pedidos_ml', 'select=id,pedido,taxa_frete&taxa_frete=eq.0&limit=500');
+  } catch(e) { return; }
+
+  if (!semFrete.length) {
+    console.log('✅ Todos os pedidos já têm frete atualizado!');
+    return;
+  }
+
+  console.log('🔄 Atualizando frete de ' + semFrete.length + ' pedidos em segundo plano...');
+  _freteEmAndamento = true;
+
+  // Renovar token se necessário
+  if (mlRefresh) await renovarTokenML();
+  if (!mlToken) { _freteEmAndamento = false; return; }
+
+  // Buscar pedidos do ML para obter shipping_id (em lotes de 50)
+  let processados = 0;
+  const LOTE = 10;
+
+  for (let offset = 0; offset < 2000; offset += 50) {
+    let orders = [];
+    try {
+      const res = await fetchMLOrders(offset);
+      if (!res || !res.results || !res.results.length) break;
+      orders = res.results;
+    } catch(e) { break; }
+
+    for (let i = 0; i < orders.length; i++) {
+      const order      = orders[i];
+      const pedidoId   = String(order.id);
+      const semFreteItem = semFrete.find(function(p){ return String(p.pedido) === pedidoId; });
+      if (!semFreteItem) continue;
+
+      const shippingId = order.shipping ? order.shipping.id : null;
+      if (!shippingId) continue;
+
+      try {
+        const frete = await buscarFreteML(shippingId);
+        if (frete > 0) {
+          // Buscar taxa_venda do registro atual
+          const reg = dados.pedidosML.find(function(p){ return String(p.pedido) === pedidoId; });
+          const taxaVenda = reg ? (reg.taxaVenda || reg.taxa_venda || 0) : 0;
+          const bruto     = reg ? (reg.bruto || 0) : 0;
+          const novaTaxa  = taxaVenda + frete;
+          const novoLiq   = bruto - novaTaxa;
+
+          // Atualizar no Supabase
+          await fetch(SUPABASE_URL + '/rest/v1/pedidos_ml?pedido=eq.' + pedidoId, {
+            method: 'PATCH',
+            headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ taxa_frete: frete, taxa: novaTaxa, liquido: novoLiq })
+          });
+
+          // Atualizar em memória
+          if (reg) {
+            reg.taxaFrete = frete;
+            reg.taxa      = novaTaxa;
+            reg.liquido   = novoLiq;
+          }
+          processados++;
+        }
+      } catch(e) { /* ignorar erros individuais */ }
+
+      // Pausa a cada LOTE para não sobrecarregar
+      if (processados % LOTE === 0 && processados > 0) {
+        console.log('🔄 Frete atualizado: ' + processados + ' pedidos...');
+        await new Promise(function(r){ setTimeout(r, 1000); });
+      }
+    }
+  }
+
+  _freteEmAndamento = false;
+  if (processados > 0) {
+    console.log('✅ Frete atualizado em ' + processados + ' pedidos!');
+    notify('✅ Frete de ' + processados + ' pedidos atualizado!');
+    await carregarVendasOnline();
+  } else {
+    console.log('Nenhum frete novo encontrado.');
+  }
+}
+
 async function buscarFreteML(shippingId) {
   try {
     const res = await fetch('/.netlify/functions/ml-shipping?shipping_id=' + shippingId, {
@@ -2049,6 +2140,8 @@ async function sincronizarPedidosML() {
     notify('✅ ' + novos + ' pedido(s) do ML importado(s)!');
     atualizarStatusML(true);
     renderML();
+    // Iniciar atualização de fretes em segundo plano
+    setTimeout(atualizarFretesEmSegundoPlano, 3000);
   } catch(e) {
     console.error('Erro sincronizar ML:', e);
     notify('Erro ao sincronizar ML', 'err');
@@ -2091,6 +2184,9 @@ function acaoML() {
     atualizarStatusML(true);
     sincronizarPedidosML();
   }
+
+  // Atualizar fretes em segundo plano após 5 segundos
+  setTimeout(atualizarFretesEmSegundoPlano, 5000);
 
   // Sincronização automática a cada 1 hora
   setInterval(async function() {
