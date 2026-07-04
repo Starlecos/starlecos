@@ -431,15 +431,7 @@ function renderPedido(p) {
         return formEntrega;
       }
       return '<div style="margin-top:12px">' + entregasHtml + acumHtml + formEntrega + '</div>';
-    })()
-      : '<div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
-          '<div style="display:flex;flex-direction:column;gap:4px">' +
-            '<label style="font-size:11px;font-weight:600;color:var(--muted)">Data de Entrega</label>' +
-            '<input type="date" id="data_entrega_'+p.id+'" value="'+new Date().toISOString().split('T')[0]+'" style="font-family:Inter,sans-serif;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;outline:none">' +
-          '</div>' +
-          '<button class="btn-salvar" style="align-self:flex-end" onclick="salvarProduzido('+p.id+')">💾 Salvar Produção</button>' +
-        '</div>'
-    ) +
+    })() +
   '</div>';
 }
 
