@@ -223,6 +223,7 @@ async function sbUpdate(table, filter, data) {
 }
 
 function fmt(d) { if(!d) return ''; const p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function hoje() { return new Date().toISOString().split('T')[0]; }
 function notify(msg, tipo) {
   const n = document.getElementById('notification');
   n.textContent = msg;
@@ -312,7 +313,17 @@ function renderPedido(p) {
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
     '</div>' +
-    '<button class="btn-salvar" onclick="salvarProduzido('+p.id+')">💾 Salvar Produção</button>' +
+    // Mostrar data de entrega se já foi salva (não editável)
+    (p.data_entrega
+      ? '<div style="margin-top:12px;padding:10px 14px;background:var(--jade-light);border:1px solid var(--jade);border-radius:8px;font-size:13px;color:var(--jade);font-weight:600">✅ Entregue em: ' + fmt(p.data_entrega) + '</div>'
+      : '<div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+          '<div style="display:flex;flex-direction:column;gap:4px">' +
+            '<label style="font-size:11px;font-weight:600;color:var(--muted)">Data de Entrega</label>' +
+            '<input type="date" id="data_entrega_'+p.id+'" value="'+new Date().toISOString().split('T')[0]+'" style="font-family:Inter,sans-serif;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;outline:none">' +
+          '</div>' +
+          '<button class="btn-salvar" style="align-self:flex-end" onclick="salvarProduzido('+p.id+')">💾 Salvar Produção</button>' +
+        '</div>'
+    ) +
   '</div>';
 }
 
@@ -362,19 +373,27 @@ async function salvarProduzido(pedidoId) {
   });
   var novoStatus = totalProd === 0 ? 'Aguardando' : totalProd >= totalPed ? 'Concluído' : 'Em produção';
 
+  // Capturar data de entrega (só salva se ainda não foi salva)
+  var dataEntregaEl = document.getElementById('data_entrega_'+pedidoId);
+  var dataEntrega   = dataEntregaEl ? dataEntregaEl.value : null;
+
   try {
-    await sbUpdate('pedidos_confeccao', 'id=eq.'+pedidoId, { produzido: produzido, status: novoStatus });
-    pedido.produzido = produzido;
-    pedido.status    = novoStatus;
+    var updateData = { produzido: produzido, status: novoStatus };
+    if (dataEntrega && !pedido.data_entrega) {
+      updateData.data_entrega = dataEntrega;
+    }
+    await sbUpdate('pedidos_confeccao', 'id=eq.'+pedidoId, updateData);
+    pedido.produzido    = produzido;
+    pedido.status       = novoStatus;
+    if (dataEntrega && !pedido.data_entrega) pedido.data_entrega = dataEntrega;
     notify('✅ Produção salva!');
-    // Atualizar badge de status
-    var badge = card.querySelector('.pedido-header .badge');
-    if (badge) badge.outerHTML = badgeStatus(novoStatus);
+    // Recarregar o card para mostrar data de entrega bloqueada
+    await carregarPedidos();
   } catch(e) {
     notify('Erro ao salvar','err');
     console.error(e);
+    btn.disabled = false; btn.textContent = '💾 Salvar Produção';
   }
-  btn.disabled = false; btn.textContent = '💾 Salvar Produção';
 }
 
 var _pedidos = [];
