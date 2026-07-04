@@ -1959,7 +1959,7 @@ async function atualizarFretesEmSegundoPlano() {
   // Buscar pedidos sem frete do Supabase (com o pedido ID para buscar shipping)
   let semFrete = [];
   try {
-    semFrete = await sbGet('pedidos_ml', 'select=id,pedido,bruto,taxa_venda&taxa_frete=eq.0&limit=500');
+    semFrete = await sbGet('pedidos_ml', 'select=id,pedido,bruto,taxa_venda&taxa_frete=eq.0&status=neq.Cancelado&limit=500');
   } catch(e) { return; }
 
   if (!semFrete.length) {
@@ -2629,7 +2629,11 @@ function importarCSVML(event) {
 
 function renderML() {
   const body = document.getElementById('bodyML');
-  const lista = dados.pedidosML.filter(v => dataNoFiltro(v.data) && v.status !== 'Cancelado');
+  const lista = dados.pedidosML.filter(v => dataNoFiltro(v.data) && v.status !== 'Cancelado').map(v => ({
+    ...v,
+    taxaFrete: v.taxaFrete === -1 ? 0 : (v.taxaFrete || 0),
+    taxa_frete: v.taxa_frete === -1 ? 0 : (v.taxa_frete || 0)
+  }));
   const total = lista.reduce((a,v) => a + v.liquido, 0);
   document.getElementById('totalML').textContent = fmt(total);
   renderGraficoML();
