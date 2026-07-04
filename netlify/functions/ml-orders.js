@@ -10,19 +10,25 @@ exports.handler = async function(event) {
   }
 
   try {
-    const token  = (event.headers.authorization || '').replace('Bearer ', '');
-    const userId = event.queryStringParameters && event.queryStringParameters.user_id;
-    const offset = event.queryStringParameters && event.queryStringParameters.offset || '0';
-    const limit  = event.queryStringParameters && event.queryStringParameters.limit  || '50';
+    const token    = (event.headers.authorization || '').replace('Bearer ', '');
+    const params   = event.queryStringParameters || {};
+    const userId   = params.user_id;
+    const offset   = params.offset || '0';
+    const limit    = params.limit  || '50';
+    const orderId  = params.order_id;
 
-    if (!token || !userId) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'token e user_id obrigatórios' }) };
+    if (!token) return { statusCode: 400, headers, body: JSON.stringify({ error: 'token obrigatório' }) };
+
+    let url;
+    if (orderId) {
+      // Buscar pedido específico
+      url = `https://api.mercadolibre.com/orders/${orderId}`;
+    } else {
+      if (!userId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'user_id obrigatório' }) };
+      url = `https://api.mercadolibre.com/orders/search?seller=${userId}&sort=date_desc&limit=${limit}&offset=${offset}`;
     }
 
-    const url = `https://api.mercadolibre.com/orders/search?seller=${userId}&sort=date_desc&limit=${limit}&offset=${offset}`;
-    const res  = await fetch(url, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
+    const res  = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
     const data = await res.json();
     return { statusCode: res.status, headers, body: JSON.stringify(data) };
   } catch(e) {
