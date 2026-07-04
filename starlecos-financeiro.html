@@ -1950,10 +1950,16 @@ async function atualizarFretesEmSegundoPlano() {
   if (_freteEmAndamento) return;
   if (!mlToken && !mlRefresh) return;
 
-  // Buscar pedidos sem frete do Supabase
+  // Renovar token se necessário
+  if (mlRefresh) await renovarTokenML();
+  if (!mlToken) return;
+  if (!mlUserId) mlUserId = localStorage.getItem('ml_user_id') || '';
+  if (!mlUserId) { console.warn('mlUserId não encontrado'); return; }
+
+  // Buscar pedidos sem frete do Supabase (com o pedido ID para buscar shipping)
   let semFrete = [];
   try {
-    semFrete = await sbGet('pedidos_ml', 'select=id,pedido,taxa_frete&taxa_frete=eq.0&limit=500');
+    semFrete = await sbGet('pedidos_ml', 'select=id,pedido,bruto,taxa_venda&taxa_frete=eq.0&limit=500');
   } catch(e) { return; }
 
   if (!semFrete.length) {
@@ -1964,67 +1970,47 @@ async function atualizarFretesEmSegundoPlano() {
   console.log('🔄 Atualizando frete de ' + semFrete.length + ' pedidos em segundo plano...');
   _freteEmAndamento = true;
 
-  // Renovar token se necessário
-  if (mlRefresh) await renovarTokenML();
-  if (!mlToken) { _freteEmAndamento = false; return; }
-
-  // Garantir que mlUserId está preenchido
-  if (!mlUserId) mlUserId = localStorage.getItem('ml_user_id') || '';
-  if (!mlUserId) { console.warn('mlUserId não encontrado'); _freteEmAndamento = false; return; }
-
-  // Buscar pedidos do ML para obter shipping_id (em lotes de 50)
   let processados = 0;
-  const LOTE = 10;
+  const PAUSA = 10; // pausa a cada 10 pedidos
 
-  for (let offset = 0; offset < 2000; offset += 50) {
-    let orders = [];
+  for (let i = 0; i < semFrete.length; i++) {
+    const item      = semFrete[i];
+    const pedidoId  = String(item.pedido);
+
     try {
-      const res = await fetchMLOrders(offset);
-      if (!res || !res.results || !res.results.length) break;
-      orders = res.results;
-    } catch(e) { break; }
+      // Buscar pedido específico pelo ID
+      const orderRes = await fetch('/.netlify/functions/ml-orders?order_id=' + pedidoId, {
+        headers: { 'Authorization': 'Bearer ' + mlToken }
+      });
 
-    for (let i = 0; i < orders.length; i++) {
-      const order      = orders[i];
-      const pedidoId   = String(order.id);
-      const semFreteItem = semFrete.find(function(p){ return String(p.pedido) === pedidoId; });
-      if (!semFreteItem) continue;
-
+      if (!orderRes.ok) continue;
+      const order = await orderRes.json();
       const shippingId = order.shipping ? order.shipping.id : null;
       if (!shippingId) continue;
 
-      try {
-        const frete = await buscarFreteML(shippingId);
-        if (frete > 0) {
-          // Buscar taxa_venda do registro atual
-          const reg = dados.pedidosML.find(function(p){ return String(p.pedido) === pedidoId; });
-          const taxaVenda = reg ? (reg.taxaVenda || reg.taxa_venda || 0) : 0;
-          const bruto     = reg ? (reg.bruto || 0) : 0;
-          const novaTaxa  = taxaVenda + frete;
-          const novoLiq   = bruto - novaTaxa;
+      const frete = await buscarFreteML(shippingId);
+      if (frete > 0) {
+        const taxaVenda = item.taxa_venda || 0;
+        const bruto     = item.bruto      || 0;
+        const novaTaxa  = taxaVenda + frete;
+        const novoLiq   = bruto - novaTaxa;
 
-          // Atualizar no Supabase
-          await fetch(SUPABASE_URL + '/rest/v1/pedidos_ml?pedido=eq.' + pedidoId, {
-            method: 'PATCH',
-            headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
-            body: JSON.stringify({ taxa_frete: frete, taxa: novaTaxa, liquido: novoLiq })
-          });
+        await fetch(SUPABASE_URL + '/rest/v1/pedidos_ml?pedido=eq.' + pedidoId, {
+          method: 'PATCH',
+          headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ taxa_frete: frete, taxa: novaTaxa, liquido: novoLiq })
+        });
 
-          // Atualizar em memória
-          if (reg) {
-            reg.taxaFrete = frete;
-            reg.taxa      = novaTaxa;
-            reg.liquido   = novoLiq;
-          }
-          processados++;
-        }
-      } catch(e) { /* ignorar erros individuais */ }
-
-      // Pausa a cada LOTE para não sobrecarregar
-      if (processados % LOTE === 0 && processados > 0) {
-        console.log('🔄 Frete atualizado: ' + processados + ' pedidos...');
-        await new Promise(function(r){ setTimeout(r, 1000); });
+        // Atualizar em memória
+        const reg = dados.pedidosML.find(function(p){ return String(p.pedido) === pedidoId; });
+        if (reg) { reg.taxaFrete = frete; reg.taxa = novaTaxa; reg.liquido = novoLiq; }
+        processados++;
       }
+    } catch(e) { /* ignorar erros individuais */ }
+
+    if ((i + 1) % PAUSA === 0) {
+      console.log('🔄 Frete atualizado: ' + processados + '/' + semFrete.length + ' pedidos...');
+      await new Promise(function(r){ setTimeout(r, 500); });
     }
   }
 
