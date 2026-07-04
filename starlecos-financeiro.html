@@ -1988,8 +1988,10 @@ async function atualizarFretesEmSegundoPlano() {
       const shippingId = order.shipping ? order.shipping.id : null;
       if (!shippingId) continue;
 
-      const frete = await buscarFreteML(shippingId);
-      if (frete > 0) {
+      const listCost       = await buscarFreteML(shippingId);
+      const freteComprador = order.payments && order.payments[0] ? (order.payments[0].shipping_cost || 0) : 0;
+      const frete          = Math.max(0, Math.round((listCost - freteComprador) * 100) / 100);
+      if (listCost >= 0) {
         const taxaVenda = item.taxa_venda || 0;
         const bruto     = item.bruto      || 0;
         const novaTaxa  = taxaVenda + frete;
