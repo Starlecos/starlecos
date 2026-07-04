@@ -315,7 +315,70 @@ function renderPedido(p) {
     '</div>' +
     // Mostrar data de entrega se já foi salva (não editável)
     (p.data_entrega
-      ? '<div style="margin-top:12px;padding:10px 14px;background:var(--jade-light);border:1px solid var(--jade);border-radius:8px;font-size:13px;color:var(--jade);font-weight:600">✅ Entregue em: ' + fmt(p.data_entrega) + '</div>'
+      ? (function() {
+          // Calcular resumo por produto: pedido vs entregue vs diferença
+          var resumoProd = {}; // { produto: { pedido: {tam:n}, entregue: {tam:n} } }
+          var produzido = p.produzido || {};
+          (p.itens||[]).forEach(function(item, idx) {
+            var key = idx+'_'+(item.produto||'').replace(/\s/g,'_');
+            var nome = item.produto || 'Produto';
+            if (!resumoProd[nome]) resumoProd[nome] = { pedido: {}, entregue: {} };
+            TAMANHOS.forEach(function(t) {
+              resumoProd[nome].pedido[t]   = (resumoProd[nome].pedido[t]   || 0) + (item.grade[t]||0);
+              var prodItem = produzido[key] || {};
+              resumoProd[nome].entregue[t] = (resumoProd[nome].entregue[t] || 0) + (prodItem[t]||0);
+            });
+          });
+
+          var totalEntregue = 0;
+          var linhas = Object.keys(resumoProd).sort().map(function(nome) {
+            var r = resumoProd[nome];
+            var totPed = TAMANHOS.reduce(function(a,t){ return a+(r.pedido[t]||0); }, 0);
+            var totEnt = TAMANHOS.reduce(function(a,t){ return a+(r.entregue[t]||0); }, 0);
+            var totDif = totEnt - totPed;
+            totalEntregue += totEnt;
+
+            // Colunas por tamanho
+            var cols = TAMANHOS.map(function(t) {
+              var ped = r.pedido[t]||0;
+              var ent = r.entregue[t]||0;
+              var dif = ent - ped;
+              var difHtml = dif === 0
+                ? '<span style="color:var(--jade)">=</span>'
+                : dif > 0
+                  ? '<span style="color:var(--sky)">+'+dif+'</span>'
+                  : '<span style="color:var(--rose)">'+dif+'</span>';
+              return '<td style="text-align:center;font-size:11px">'+ped+'→'+ent+'<br>'+difHtml+'</td>';
+            }).join('');
+
+            var difTotal = totDif === 0
+              ? '<span style="color:var(--jade)">✓</span>'
+              : totDif > 0
+                ? '<span style="color:var(--sky)">+'+totDif+'</span>'
+                : '<span style="color:var(--rose)">'+totDif+'</span>';
+
+            return '<tr>' +
+              '<td style="font-weight:600;font-size:12px">'+nome+'</td>' +
+              cols +
+              '<td style="text-align:center;font-weight:700">'+totPed+'→'+totEnt+'</td>' +
+              '<td style="text-align:center">'+difTotal+'</td>' +
+            '</tr>';
+          }).join('');
+
+          return '<div style="margin-top:12px;padding:14px;background:var(--jade-light);border:1px solid var(--jade);border-radius:10px">' +
+            '<div style="font-size:13px;font-weight:700;color:var(--jade);margin-bottom:10px">✅ Entregue em: ' + fmt(p.data_entrega) + ' — <strong>'+totalEntregue+' peças</strong></div>' +
+            '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">' +
+              '<thead><tr style="background:rgba(0,0,0,0.06)">' +
+                '<th style="text-align:left;padding:6px 8px">Produto</th>' +
+                TAMANHOS.map(function(t){ return '<th style="text-align:center;padding:4px">'+t+'</th>'; }).join('') +
+                '<th style="text-align:center;padding:4px">Total</th>' +
+                '<th style="text-align:center;padding:4px">Dif</th>' +
+              '</tr></thead>' +
+              '<tbody>' + linhas + '</tbody>' +
+            '</table></div>' +
+            '<div style="font-size:11px;color:var(--jade);margin-top:8px">Formato: Pedido → Entregue | Dif: <span style="color:var(--rose)">negativo</span> = faltou · <span style="color:var(--sky)">positivo</span> = a mais · <span style="color:var(--jade)">= igual</span></div>' +
+          '</div>';
+        })()
       : '<div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
           '<div style="display:flex;flex-direction:column;gap:4px">' +
             '<label style="font-size:11px;font-weight:600;color:var(--muted)">Data de Entrega</label>' +
