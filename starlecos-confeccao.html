@@ -286,14 +286,15 @@ function renderPedido(p) {
 
   return '<div class="pedido-card" id="card_'+p.id+'">' +
     '<div class="pedido-header">' +
-      '<div>' +
+      '<div style="flex:1">' +
         '<div class="pedido-titulo">📋 ' + (p.titulo||'Pedido #'+p.id) + '</div>' +
         '<div class="pedido-data">📅 ' + fmt(p.data) + '</div>' +
         (p.obs ? '<div class="pedido-obs">📝 '+p.obs+'</div>' : '') +
       '</div>' +
-      '<div style="text-align:right">' +
+      '<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px">' +
         statusBadge +
-        '<div style="font-size:12px;color:var(--muted);margin-top:6px">'+progresso+'% produzido</div>' +
+        '<div style="font-size:12px;color:var(--muted)">'+progresso+'% produzido</div>' +
+        '<button onclick="excluirPedidoConfeccao('+p.id+')" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:Inter,sans-serif;transition:all .2s" onmouseover="this.style.borderColor='#C0392B';this.style.color='#C0392B'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">🗑 Excluir</button>' +
       '</div>' +
     '</div>' +
     '<div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog_'+p.id+'" style="width:'+progresso+'%"></div></div>' +
@@ -314,71 +315,122 @@ function renderPedido(p) {
       '</table>' +
     '</div>' +
     // Mostrar data de entrega se já foi salva (não editável)
-    (p.data_entrega
-      ? (function() {
-          // Calcular resumo por produto: pedido vs entregue vs diferença
-          var resumoProd = {}; // { produto: { pedido: {tam:n}, entregue: {tam:n} } }
-          var produzido = p.produzido || {};
-          (p.itens||[]).forEach(function(item, idx) {
-            var key = idx+'_'+(item.produto||'').replace(/\s/g,'_');
-            var nome = item.produto || 'Produto';
-            if (!resumoProd[nome]) resumoProd[nome] = { pedido: {}, entregue: {} };
-            TAMANHOS.forEach(function(t) {
-              resumoProd[nome].pedido[t]   = (resumoProd[nome].pedido[t]   || 0) + (item.grade[t]||0);
-              var prodItem = produzido[key] || {};
-              resumoProd[nome].entregue[t] = (resumoProd[nome].entregue[t] || 0) + (prodItem[t]||0);
-            });
+    (function() {
+      var entregas = p.entregas || [];
+
+      // Calcular pedido por produto
+      var pedidoProd = {};
+      (p.itens||[]).forEach(function(item) {
+        var nome = item.produto || 'Produto';
+        if (!pedidoProd[nome]) pedidoProd[nome] = {};
+        TAMANHOS.forEach(function(t) {
+          pedidoProd[nome][t] = (pedidoProd[nome][t]||0) + (item.grade[t]||0);
+        });
+      });
+
+      // Calcular acumulado de todas as entregas por produto
+      var acumProd = {};
+      entregas.forEach(function(ent) {
+        Object.keys(ent.grade_por_produto||{}).forEach(function(nome) {
+          if (!acumProd[nome]) acumProd[nome] = {};
+          TAMANHOS.forEach(function(t) {
+            acumProd[nome][t] = (acumProd[nome][t]||0) + ((ent.grade_por_produto[nome]||{})[t]||0);
           });
+        });
+      });
 
-          var totalEntregue = 0;
-          var linhas = Object.keys(resumoProd).sort().map(function(nome) {
-            var r = resumoProd[nome];
-            var totPed = TAMANHOS.reduce(function(a,t){ return a+(r.pedido[t]||0); }, 0);
-            var totEnt = TAMANHOS.reduce(function(a,t){ return a+(r.entregue[t]||0); }, 0);
-            var totDif = totEnt - totPed;
-            totalEntregue += totEnt;
-
-            // Colunas por tamanho
-            var cols = TAMANHOS.map(function(t) {
-              var ped = r.pedido[t]||0;
-              var ent = r.entregue[t]||0;
-              var dif = ent - ped;
-              var difHtml = dif === 0
-                ? '<span style="color:var(--jade)">=</span>'
-                : dif > 0
-                  ? '<span style="color:var(--sky)">+'+dif+'</span>'
-                  : '<span style="color:var(--rose)">'+dif+'</span>';
-              return '<td style="text-align:center;font-size:11px">'+ped+'→'+ent+'<br>'+difHtml+'</td>';
-            }).join('');
-
-            var difTotal = totDif === 0
-              ? '<span style="color:var(--jade)">✓</span>'
-              : totDif > 0
-                ? '<span style="color:var(--sky)">+'+totDif+'</span>'
-                : '<span style="color:var(--rose)">'+totDif+'</span>';
-
-            return '<tr>' +
-              '<td style="font-weight:600;font-size:12px">'+nome+'</td>' +
-              cols +
-              '<td style="text-align:center;font-weight:700">'+totPed+'→'+totEnt+'</td>' +
-              '<td style="text-align:center">'+difTotal+'</td>' +
-            '</tr>';
+      // Render função da tabela de comparação
+      function tabelaComparacao(label, entregaGrade, acum, pedido, cor) {
+        var totalEnt = 0, totalPed = 0;
+        var produtos = Object.keys(pedido).sort();
+        var linhas = produtos.map(function(nome) {
+          var ped = pedido[nome]||{};
+          var ent = entregaGrade ? (entregaGrade[nome]||{}) : (acum[nome]||{});
+          var totP = TAMANHOS.reduce(function(a,t){ return a+(ped[t]||0); }, 0);
+          var totE = TAMANHOS.reduce(function(a,t){ return a+(ent[t]||0); }, 0);
+          totalEnt += totE; totalPed += totP;
+          var cols = TAMANHOS.map(function(t) {
+            var p2 = ped[t]||0; var e2 = ent[t]||0; var d = e2 - p2;
+            var difHtml = d===0 ? '<span style="color:var(--jade)">✓</span>'
+              : d>0 ? '<span style="color:var(--sky)">+'+d+'</span>'
+              : '<span style="color:var(--rose)">'+d+'</span>';
+            return '<td style="text-align:center;font-size:11px">'+(entregaGrade?e2:e2)+'<br>'+difHtml+'</td>';
           }).join('');
+          var dT = totE-totP;
+          var difT = dT===0?'<span style="color:var(--jade)">✓</span>':dT>0?'<span style="color:var(--sky)">+'+dT+'</span>':'<span style="color:var(--rose)">'+dT+'</span>';
+          return '<tr><td style="font-weight:600;font-size:12px">'+nome+'</td>'+cols+'<td style="text-align:center;font-weight:700">'+totE+'</td><td style="text-align:center">'+difT+'</td></tr>';
+        }).join('');
+        var totDifGeral = totalEnt-totalPed;
+        var difGeralHtml = totDifGeral===0?'<span style="color:var(--jade)">✓</span>':totDifGeral>0?'<span style="color:var(--sky)">+'+totDifGeral+'</span>':'<span style="color:var(--rose)">'+totDifGeral+'</span>';
+        linhas += '<tr style="background:rgba(0,0,0,.05);font-weight:700"><td>TOTAL GERAL</td>'+
+          TAMANHOS.map(function(){ return '<td></td>'; }).join('')+
+          '<td style="text-align:center">'+totalEnt+'</td><td style="text-align:center">'+difGeralHtml+'</td></tr>';
+        return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'+
+          '<thead><tr style="background:rgba(0,0,0,0.06)">'+
+            '<th style="text-align:left;padding:6px 8px">Produto</th>'+
+            TAMANHOS.map(function(t){ return '<th style="text-align:center;padding:4px">'+t+'</th>'; }).join('')+
+            '<th style="text-align:center;padding:4px">Total</th>'+
+            '<th style="text-align:center;padding:4px">Dif</th>'+
+          '</tr></thead><tbody>'+linhas+'</tbody></table></div>';
+      }
 
-          return '<div style="margin-top:12px;padding:14px;background:var(--jade-light);border:1px solid var(--jade);border-radius:10px">' +
-            '<div style="font-size:13px;font-weight:700;color:var(--jade);margin-bottom:10px">✅ Entregue em: ' + fmt(p.data_entrega) + ' — <strong>'+totalEntregue+' peças</strong></div>' +
-            '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">' +
-              '<thead><tr style="background:rgba(0,0,0,0.06)">' +
-                '<th style="text-align:left;padding:6px 8px">Produto</th>' +
-                TAMANHOS.map(function(t){ return '<th style="text-align:center;padding:4px">'+t+'</th>'; }).join('') +
-                '<th style="text-align:center;padding:4px">Total</th>' +
-                '<th style="text-align:center;padding:4px">Dif</th>' +
-              '</tr></thead>' +
-              '<tbody>' + linhas + '</tbody>' +
-            '</table></div>' +
-            '<div style="font-size:11px;color:var(--jade);margin-top:8px">Formato: Pedido → Entregue | Dif: <span style="color:var(--rose)">negativo</span> = faltou · <span style="color:var(--sky)">positivo</span> = a mais · <span style="color:var(--jade)">= igual</span></div>' +
-          '</div>';
-        })()
+      var entregasHtml = entregas.map(function(ent, idx) {
+        var totalEnt = 0;
+        Object.values(ent.grade_por_produto||{}).forEach(function(g){
+          TAMANHOS.forEach(function(t){ totalEnt += g[t]||0; });
+        });
+        return '<div style="margin-bottom:10px;padding:12px;background:white;border-radius:8px;border:1px solid #C8E6D4">' +
+          '<div style="font-size:12px;font-weight:700;color:var(--jade);margin-bottom:8px">📦 Entrega '+(idx+1)+' — '+fmt(ent.data)+' — '+totalEnt+' peças</div>'+
+          tabelaComparacao('ent', ent.grade_por_produto, {}, pedidoProd, 'jade')+
+        '</div>';
+      }).join('');
+
+      // Acumulado total (se mais de 1 entrega)
+      var acumHtml = '';
+      if (entregas.length > 1) {
+        var totalAcum = 0;
+        Object.values(acumProd).forEach(function(g){ TAMANHOS.forEach(function(t){ totalAcum += g[t]||0; }); });
+        acumHtml = '<div style="margin-top:8px;padding:12px;background:#E8F2FB;border:1px solid var(--sky);border-radius:8px">' +
+          '<div style="font-size:12px;font-weight:700;color:var(--sky);margin-bottom:8px">📊 Acumulado de '+entregas.length+' entregas — '+totalAcum+' peças</div>'+
+          tabelaComparacao(null, null, acumProd, pedidoProd, 'sky')+
+        '</div>';
+      }
+
+      // Form nova entrega (sempre disponível)
+      var formEntrega = '<div style="margin-top:10px;padding:12px;background:#F7FAFD;border:1.5px dashed var(--border);border-radius:8px">' +
+        '<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px">➕ Registrar Nova Entrega</div>' +
+        '<div id="grade_entrega_'+p.id+'" style="overflow-x:auto">' +
+          (function() {
+            var produtos = Object.keys(pedidoProd).sort();
+            var headerTams = TAMANHOS.map(function(t){ return '<th style="text-align:center;font-size:10px;padding:4px;background:#F0F4F8">'+t+'</th>'; }).join('');
+            var linhasForm = produtos.map(function(nome) {
+              var ped = pedidoProd[nome]||{};
+              var acumNome = acumProd[nome]||{};
+              var cells = TAMANHOS.map(function(t) {
+                var max = ped[t]||0;
+                var jaEntregue = acumNome[t]||0;
+                var restante = Math.max(0, max - jaEntregue);
+                return '<td style="text-align:center;padding:2px"><input type="number" id="ne_'+p.id+'_'+nome.replace(/\s/g,'_')+'_'+t+'" min="0" max="'+max+'" value="'+restante+'" '+(max===0?'disabled style="opacity:.3"':'')+' style="width:44px;text-align:center;font-size:12px;padding:3px;border:1.5px solid var(--border);border-radius:5px;font-family:Inter,sans-serif"></td>';
+              }).join('');
+              return '<tr><td style="font-size:12px;font-weight:600;padding:4px 8px">'+nome+'</td>'+cells+'</tr>';
+            }).join('');
+            return '<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;font-size:10px;padding:4px 8px;background:#F0F4F8">Produto</th>'+headerTams+'</tr></thead><tbody>'+linhasForm+'</tbody></table>';
+          })() +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">' +
+          '<div style="display:flex;flex-direction:column;gap:3px">' +
+            '<label style="font-size:11px;font-weight:600;color:var(--muted)">Data da Entrega</label>' +
+            '<input type="date" id="data_ne_'+p.id+'" value="'+new Date().toISOString().split('T')[0]+'" style="font-family:Inter,sans-serif;font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;outline:none">' +
+          '</div>' +
+          '<button class="btn-salvar" style="align-self:flex-end" onclick="registrarEntrega('+p.id+')">📦 Registrar Entrega</button>' +
+        '</div>' +
+      '</div>';
+
+      if (!entregas.length) {
+        return formEntrega;
+      }
+      return '<div style="margin-top:12px">' + entregasHtml + acumHtml + formEntrega + '</div>';
+    })()
       : '<div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
           '<div style="display:flex;flex-direction:column;gap:4px">' +
             '<label style="font-size:11px;font-weight:600;color:var(--muted)">Data de Entrega</label>' +
@@ -404,6 +456,76 @@ function atualizarProgresso(pedidoId) {
   var pct = totalMax > 0 ? Math.round((totalProd/totalMax)*100) : 0;
   var bar = document.getElementById('prog_'+pedidoId);
   if (bar) bar.style.width = pct+'%';
+}
+
+async function excluirPedidoConfeccao(pedidoId) {
+  if (!confirm('Tem certeza que deseja excluir este pedido de confecção? Esta ação não pode ser desfeita.')) return;
+  try {
+    await sbDelete('pedidos_confeccao', 'id=eq.'+pedidoId);
+    notify('Pedido excluído.');
+    await carregarPedidos();
+  } catch(e) {
+    notify('Erro ao excluir','err');
+    console.error(e);
+  }
+}
+
+async function registrarEntrega(pedidoId) {
+  var pedido = _pedidos.find(function(p){ return p.id===pedidoId; });
+  if (!pedido) return;
+
+  var data = document.getElementById('data_ne_'+pedidoId).value;
+  if (!data) { notify('Informe a data da entrega.','err'); return; }
+
+  // Coletar grade por produto
+  var pedidoProd = {};
+  (pedido.itens||[]).forEach(function(item) {
+    var nome = item.produto||'Produto';
+    if (!pedidoProd[nome]) pedidoProd[nome] = {};
+    TAMANHOS.forEach(function(t) {
+      pedidoProd[nome][t] = (pedidoProd[nome][t]||0) + (item.grade[t]||0);
+    });
+  });
+
+  var gradePorProduto = {};
+  var totalEntrega = 0;
+  Object.keys(pedidoProd).forEach(function(nome) {
+    gradePorProduto[nome] = {};
+    TAMANHOS.forEach(function(t) {
+      var el = document.getElementById('ne_'+pedidoId+'_'+nome.replace(/\s/g,'_')+'_'+t);
+      var val = el ? (parseInt(el.value)||0) : 0;
+      gradePorProduto[nome][t] = val;
+      totalEntrega += val;
+    });
+  });
+
+  if (totalEntrega === 0) { notify('Informe ao menos uma quantidade.','err'); return; }
+
+  var entregas = pedido.entregas ? JSON.parse(JSON.stringify(pedido.entregas)) : [];
+  entregas.push({ data: data, grade_por_produto: gradePorProduto });
+
+  // Calcular novo status baseado no acumulado
+  var totalPed = 0, totalAcum = 0;
+  (pedido.itens||[]).forEach(function(item) {
+    TAMANHOS.forEach(function(t){ totalPed += item.grade[t]||0; });
+  });
+  entregas.forEach(function(ent) {
+    Object.values(ent.grade_por_produto||{}).forEach(function(g) {
+      TAMANHOS.forEach(function(t){ totalAcum += g[t]||0; });
+    });
+  });
+  var novoStatus = totalAcum >= totalPed ? 'Concluído' : 'Em produção';
+
+  try {
+    await sbUpdate('pedidos_confeccao', 'id=eq.'+pedidoId, { entregas: entregas, status: novoStatus });
+    pedido.entregas = entregas;
+    pedido.status   = novoStatus;
+    notify('✅ Entrega registrada!');
+    await carregarPedidos();
+  } catch(e) {
+    notify('Erro ao registrar entrega','err');
+    console.error(e);
+  }
 }
 
 async function salvarProduzido(pedidoId) {
@@ -436,21 +558,11 @@ async function salvarProduzido(pedidoId) {
   });
   var novoStatus = totalProd === 0 ? 'Aguardando' : totalProd >= totalPed ? 'Concluído' : 'Em produção';
 
-  // Capturar data de entrega (só salva se ainda não foi salva)
-  var dataEntregaEl = document.getElementById('data_entrega_'+pedidoId);
-  var dataEntrega   = dataEntregaEl ? dataEntregaEl.value : null;
-
   try {
-    var updateData = { produzido: produzido, status: novoStatus };
-    if (dataEntrega && !pedido.data_entrega) {
-      updateData.data_entrega = dataEntrega;
-    }
-    await sbUpdate('pedidos_confeccao', 'id=eq.'+pedidoId, updateData);
-    pedido.produzido    = produzido;
-    pedido.status       = novoStatus;
-    if (dataEntrega && !pedido.data_entrega) pedido.data_entrega = dataEntrega;
+    await sbUpdate('pedidos_confeccao', 'id=eq.'+pedidoId, { produzido: produzido, status: novoStatus });
+    pedido.produzido = produzido;
+    pedido.status    = novoStatus;
     notify('✅ Produção salva!');
-    // Recarregar o card para mostrar data de entrega bloqueada
     await carregarPedidos();
   } catch(e) {
     notify('Erro ao salvar','err');
