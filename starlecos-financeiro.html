@@ -1918,6 +1918,11 @@ async function renovarTokenML() {
       mlRefresh = data.refresh_token;
       localStorage.setItem('ml_access_token',  mlToken);
       localStorage.setItem('ml_refresh_token', mlRefresh);
+      // Salvar user_id se veio na resposta
+      if (data.user_id) {
+        mlUserId = String(data.user_id);
+        localStorage.setItem('ml_user_id', mlUserId);
+      }
     }
   } catch(e) { console.error('Erro renovar token ML:', e); }
 }
