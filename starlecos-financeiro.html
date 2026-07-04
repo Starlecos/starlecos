@@ -1963,6 +1963,10 @@ async function atualizarFretesEmSegundoPlano() {
   if (mlRefresh) await renovarTokenML();
   if (!mlToken) { _freteEmAndamento = false; return; }
 
+  // Garantir que mlUserId está preenchido
+  if (!mlUserId) mlUserId = localStorage.getItem('ml_user_id') || '';
+  if (!mlUserId) { console.warn('mlUserId não encontrado'); _freteEmAndamento = false; return; }
+
   // Buscar pedidos do ML para obter shipping_id (em lotes de 50)
   let processados = 0;
   const LOTE = 10;
