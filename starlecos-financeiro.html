@@ -3505,7 +3505,8 @@ function addItemConfeccao() {
   var produto = document.getElementById('conf_produto').value;
   var estSel  = document.getElementById('conf_estampa');
   var estampa = estSel ? (estSel.value === '__outro__' ? '' : estSel.value.trim()) : '';
-  if (!produto) { notify('Selecione um produto.', 'err'); return; }
+  if (!produto) { notify('⚠️ Selecione o produto antes de continuar.', 'err'); return; }
+  if (!estampa) { notify('⚠️ Selecione a Estampa / Cor antes de continuar.', 'err'); return; }
 
   var grade = {};
   var totalItem = 0;
