@@ -295,7 +295,7 @@ function renderPedido(p) {
       '<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px">' +
         statusBadge +
         '<div style="font-size:12px;color:var(--muted)">'+progresso+'% produzido</div>' +
-        '<button onclick="excluirPedidoConfeccao('+p.id+')" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:Inter,sans-serif" class="btn-excluir-pedido">🗑 Excluir</button>' +
+
       '</div>' +
     '</div>' +
     '<div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog_'+p.id+'" style="width:'+progresso+'%"></div></div>' +
@@ -381,7 +381,10 @@ function renderPedido(p) {
           TAMANHOS.forEach(function(t){ totalEnt += g[t]||0; });
         });
         return '<div style="margin-bottom:10px;padding:12px;background:white;border-radius:8px;border:1px solid #C8E6D4">' +
-          '<div style="font-size:12px;font-weight:700;color:var(--jade);margin-bottom:8px">📦 Entrega '+(idx+1)+' — '+fmt(ent.data)+' — '+totalEnt+' peças</div>'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+            '<div style="font-size:12px;font-weight:700;color:var(--jade)">📦 Entrega '+(idx+1)+' — '+fmt(ent.data)+' — '+totalEnt+' peças</div>' +
+            '<button onclick="excluirEntrega('+p.id+','+idx+')" style="background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;font-family:Inter,sans-serif" class="btn-excluir-pedido">✕ Excluir</button>' +
+          '</div>'+
           tabelaComparacao('ent', ent.grade_por_produto, {}, pedidoProd, 'jade')+
         '</div>';
       }).join('');
@@ -449,6 +452,38 @@ function atualizarProgresso(pedidoId) {
   var pct = totalMax > 0 ? Math.round((totalProd/totalMax)*100) : 0;
   var bar = document.getElementById('prog_'+pedidoId);
   if (bar) bar.style.width = pct+'%';
+}
+
+async function excluirEntrega(pedidoId, idx) {
+  if (!confirm('Excluir esta entrega? O pedido e a produção serão mantidos.')) return;
+  var pedido = _pedidos.find(function(p){ return p.id===pedidoId; });
+  if (!pedido) return;
+
+  var entregas = JSON.parse(JSON.stringify(pedido.entregas || []));
+  entregas.splice(idx, 1);
+
+  // Recalcular status
+  var totalPed = 0, totalAcum = 0;
+  (pedido.itens||[]).forEach(function(item) {
+    TAMANHOS.forEach(function(t){ totalPed += item.grade[t]||0; });
+  });
+  entregas.forEach(function(ent) {
+    Object.values(ent.grade_por_produto||{}).forEach(function(g) {
+      TAMANHOS.forEach(function(t){ totalAcum += g[t]||0; });
+    });
+  });
+  var novoStatus = totalAcum === 0 ? 'Aguardando' : totalAcum >= totalPed ? 'Concluído' : 'Em produção';
+
+  try {
+    await sbUpdate('pedidos_confeccao', 'id=eq.'+pedidoId, { entregas: entregas, status: novoStatus });
+    pedido.entregas = entregas;
+    pedido.status   = novoStatus;
+    notify('Entrega removida.');
+    await carregarPedidos();
+  } catch(e) {
+    notify('Erro ao excluir','err');
+    console.error(e);
+  }
 }
 
 async function excluirPedidoConfeccao(pedidoId) {
