@@ -1992,27 +1992,17 @@ async function atualizarFretesEmSegundoPlano() {
       const freteComprador = order.payments && order.payments[0] ? (order.payments[0].shipping_cost || 0) : 0;
       let frete            = Math.max(0, Math.round((listCost - freteComprador) * 100) / 100);
 
-      // Se for pack_order, buscar quantos pedidos têm o mesmo pack_id e dividir frete
+      // Se for pack_order, contar pedidos com mesmo shipping_id no Supabase e dividir frete
       if (frete > 0 && order.pack_id && order.tags && order.tags.includes('pack_order')) {
         try {
-          // Buscar quantos pedidos no Supabase têm o mesmo shipping_id
-          const packlist = await sbGet('pedidos_ml',
-            'select=pedido&limit=10'
+          // Contar pedidos com mesmo shipping_id salvos no Supabase
+          const mesmoPack = await sbGet('pedidos_ml',
+            'select=pedido&shipping_id=eq.' + shippingId
           );
-          // Buscar pedidos com mesmo shipping via API do ML pack
-          const packRes = await fetch('/.netlify/functions/ml-orders?order_id=' + order.pack_id, {
-            headers: { 'Authorization': 'Bearer ' + mlToken }
-          });
-          if (packRes.ok) {
-            const packData = await packRes.json();
-            // pack_id retorna uma lista de orders
-            const qtdPedidos = Array.isArray(packData) ? packData.length : 2;
-            if (qtdPedidos > 1) frete = Math.round((frete / qtdPedidos) * 100) / 100;
-          } else {
-            frete = Math.round((frete / 2) * 100) / 100; // fallback: dividir por 2
-          }
+          const qtd = mesmoPack.length > 1 ? mesmoPack.length : 2;
+          frete = Math.round((frete / qtd) * 100) / 100;
         } catch(e) {
-          frete = Math.round((frete / 2) * 100) / 100; // fallback: dividir por 2
+          frete = Math.round((frete / 2) * 100) / 100;
         }
       }
 
@@ -2025,7 +2015,7 @@ async function atualizarFretesEmSegundoPlano() {
         await fetch(SUPABASE_URL + '/rest/v1/pedidos_ml?pedido=eq.' + pedidoId, {
           method: 'PATCH',
           headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ taxa_frete: frete, taxa: novaTaxa, liquido: novoLiq })
+          body: JSON.stringify({ taxa_frete: frete, taxa: novaTaxa, liquido: novoLiq, shipping_id: String(shippingId) })
         });
 
         // Atualizar em memória
