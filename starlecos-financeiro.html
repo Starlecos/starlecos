@@ -1959,7 +1959,7 @@ async function atualizarFretesEmSegundoPlano() {
   // Buscar pedidos sem frete do Supabase (com o pedido ID para buscar shipping)
   let semFrete = [];
   try {
-    semFrete = await sbGet('pedidos_ml', 'select=id,pedido,bruto,taxa_venda&taxa_frete=eq.0&status=neq.Cancelado&limit=500');
+    semFrete = await sbGetAll('pedidos_ml', 'select=id,pedido,bruto,taxa_venda&taxa_frete=eq.0&status=neq.Cancelado');
   } catch(e) { return; }
 
   if (!semFrete.length) {
@@ -2079,7 +2079,7 @@ async function sincronizarPedidosML() {
     // 2. Buscar todos os IDs já existentes no Supabase
     let pedidosExistentes = [];
     try {
-      pedidosExistentes = await sbGet('pedidos_ml', 'select=pedido&limit=10000');
+      pedidosExistentes = await sbGetAll('pedidos_ml', 'select=pedido');
     } catch(e) { pedidosExistentes = dados.pedidosML || []; }
     const jaExistentes = new Set(pedidosExistentes.map(p => String(p.pedido)));
     console.log('Pedidos já no histórico:', jaExistentes.size);
@@ -2219,19 +2219,31 @@ const SUPABASE_PUB = 'sb_publishable_veG4pqJH4m0kAflv7kZgYA_zvJam1Fa';
 const SB_HEADERS = { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON };
 
 async function sbGet(table, params) {
-  const headers = {
-    ...SB_HEADERS,
-    'Range': '0-9999',
-    'Range-Unit': 'items',
-    'Prefer': 'count=none'
-  };
-  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + (params || 'select=*'), { headers });
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + (params || 'select=*'), { headers: SB_HEADERS });
   if (!res.ok) {
     const err = await res.text();
     console.error('Supabase erro:', res.status, err);
     throw new Error(err);
   }
   return res.json();
+}
+
+// Busca paginada — retorna TODOS os registros sem limite
+async function sbGetAll(table, params) {
+  const PAGE = 1000;
+  let todos = [];
+  let offset = 0;
+  while (true) {
+    const paginaParams = (params || 'select=*') + '&limit=' + PAGE + '&offset=' + offset;
+    const headers = { ...SB_HEADERS, 'Prefer': 'count=none' };
+    const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + paginaParams, { headers });
+    if (!res.ok) throw new Error(await res.text());
+    const pagina = await res.json();
+    todos = todos.concat(pagina);
+    if (pagina.length < PAGE) break; // última página
+    offset += PAGE;
+  }
+  return todos;
 }
 async function sbDelete(table, filter) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + filter, { method: 'DELETE', headers: SB_HEADERS });
@@ -2264,7 +2276,7 @@ async function carregarVendasOnline() {
   try {
     const [vendas, pedidosML, pedidosShopee, contas] = await Promise.all([
       sbGet('vendas',         'select=*&order=data.desc,id.desc'),
-      sbGet('pedidos_ml',     'select=*&order=data.desc,id.desc&limit=10000'),
+      sbGetAll('pedidos_ml',  'select=*&order=data.desc,id.desc'),
       sbGet('pedidos_shopee', 'select=*&order=data.desc,id.desc').catch(() => []),
       sbGet('contas_pagas',   'select=*&order=data.desc,id.desc').catch(() => [])
     ]);
