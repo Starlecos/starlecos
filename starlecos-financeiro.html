@@ -1666,16 +1666,6 @@
         <div class="field">
           <label>Categoria</label>
           <select id="cp_categoria">
-            <option value="Matéria-Prima">Matéria-Prima / Insumos</option>
-            <option value="Aluguel">Aluguel</option>
-            <option value="Funcionários">Funcionários / Pró-labore</option>
-            <option value="Frete">Frete / Logística</option>
-            <option value="Marketing">Marketing / Publicidade</option>
-            <option value="Equipamentos">Equipamentos</option>
-            <option value="Impostos">Impostos / Taxas</option>
-            <option value="Serviços">Serviços Terceirizados</option>
-            <option value="Utilidades">Água / Luz / Internet</option>
-            <option value="Outros">Outros</option>
           </select>
         </div>
         <div class="field">
@@ -2443,6 +2433,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById(id);
     if (el) el.value = hoje();
   });
+  // Preencher select de categorias de contas pagas
+  const cpCat = document.getElementById('cp_categoria');
+  if (cpCat) {
+    cpCat.innerHTML = getCatMP().map(c => '<option value="'+c+'">'+c+'</option>').join('');
+  }
   atualizarTudo();
 });
 
@@ -3569,19 +3564,19 @@ async function carregarMPPagamentos() {
   } catch(e) { console.warn('Erro carregar MP pagamentos:', e); }
 }
 
-const CAT_MP_KEY = 'starlecos_cat_mp';
+const CAT_MP_KEY = 'starlecos_categorias_despesa'; // chave unificada
 const CAT_MP_PADRAO = [
-  'Matéria-Prima / Insumos',
+  'Aluguel',
+  'Equipamentos',
   'Fornecedor / Confecção',
   'Frete / Logística',
   'Funcionários / Pró-labore',
-  'Aluguel',
-  'Marketing / Publicidade',
-  'Equipamentos',
   'Impostos / Taxas',
+  'Marketing / Publicidade',
+  'Matéria-Prima / Insumos',
+  'Outros',
   'Serviços Terceirizados',
-  'Utilidades',
-  'Outros'
+  'Utilidades / Água / Luz / Internet'
 ];
 
 function getCatMP() {
@@ -3609,8 +3604,10 @@ function renderListaCatMP() {
     return '<span style="display:inline-flex;align-items:center;gap:6px;background:#E8EEF7;border:1px solid #C0CCDE;color:var(--navy);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600">' +
       c + '<button onclick="removerCatMP(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;padding:0;line-height:1">✕</button></span>';
   }).join('');
-  // Atualizar todos os selects de categoria na tela
+  // Atualizar todos os selects de categoria na tela (MP e Contas Pagas)
   atualizarSelectsCatMP();
+  const cpCat = document.getElementById('cp_categoria');
+  if (cpCat) cpCat.innerHTML = lista.map(c => '<option value="'+c+'">'+c+'</option>').join('');
 }
 
 function adicionarCatMP() {
