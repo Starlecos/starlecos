@@ -1,7 +1,17 @@
+const MP_SECRET = 'fad2c21efb2e7a3f84f2ae5c15b7dbded32b6829f5a16b6bbebec2bc75e71536';
+const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
+const MP_TOKEN   = 'APP_USR-2652530613418056-080218-f84b80c853e3c6b60ba96c0c8ee081e7-3583652481';
+const SB_HEADERS = {
+  'Content-Type': 'application/json',
+  'apikey': SUPABASE_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_KEY
+};
+
 exports.handler = async function(event) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, x-signature, x-request-id',
     'Content-Type': 'application/json'
   };
 
@@ -9,70 +19,66 @@ exports.handler = async function(event) {
     return { statusCode: 200, headers, body: '' };
   }
 
+  // Aceitar GET para validação inicial do MP
+  if (event.httpMethod === 'GET') {
+    return { statusCode: 200, headers, body: JSON.stringify({ status: 'ok' }) };
+  }
+
   try {
     const body = JSON.parse(event.body || '{}');
-    
-    // O MP envia notificações com tipo e id
     const tipo = body.type || body.topic || '';
     const id   = body.data && body.data.id ? body.data.id : (body.id || '');
 
-    if (!id || !tipo) {
+    console.log('Webhook MP recebido:', tipo, id);
+
+    // Só processar eventos de pagamento
+    if (tipo !== 'payment' || !id) {
       return { statusCode: 200, headers, body: JSON.stringify({ status: 'ignored' }) };
     }
 
-    // Só processar pagamentos (não recebimentos de vendas ML)
-    if (tipo !== 'payment') {
-      return { statusCode: 200, headers, body: JSON.stringify({ status: 'ignored', tipo }) };
-    }
-
     // Buscar detalhes do pagamento
-    const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || '';
-    if (!ACCESS_TOKEN) {
-      return { statusCode: 200, headers, body: JSON.stringify({ status: 'no_token' }) };
-    }
-
-    const res  = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
-      headers: { 'Authorization': 'Bearer ' + ACCESS_TOKEN }
+    const res = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
+      headers: { 'Authorization': 'Bearer ' + MP_TOKEN }
     });
-    const pagamento = await res.json();
+    const pag = await res.json();
 
-    // Filtrar somente saídas (dinheiro enviado)
-    // operation_type: money_transfer = PIX/transferência enviada
-    if (pagamento.operation_type !== 'money_transfer' && pagamento.payer && pagamento.payer.id === pagamento.collector && pagamento.collector.id) {
-      return { statusCode: 200, headers, body: JSON.stringify({ status: 'not_outgoing' }) };
+    console.log('Pagamento:', pag.id, pag.operation_type, pag.status, pag.transaction_amount);
+
+    // Filtrar somente saídas (money_transfer = PIX/transferência enviada)
+    if (pag.operation_type !== 'money_transfer') {
+      return { statusCode: 200, headers, body: JSON.stringify({ status: 'not_outgoing', op: pag.operation_type }) };
     }
 
-    // Salvar no Supabase como conta pendente de classificação
-    const SUPABASE_URL = process.env.SUPABASE_URL || 'https://pfaounkchpyfhlsdailo.supabase.co';
-    const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
+    // Só saídas aprovadas
+    if (pag.status !== 'approved') {
+      return { statusCode: 200, headers, body: JSON.stringify({ status: 'not_approved' }) };
+    }
 
-    const data = (pagamento.date_approved || pagamento.date_created || '').split('T')[0];
-    const valor = Math.abs(pagamento.transaction_amount || 0);
-    const descricao = pagamento.description || 'Pagamento MP #' + id;
-    const fornecedor = pagamento.collector && pagamento.collector.email ? pagamento.collector.email : '—';
+    const data      = (pag.date_approved || pag.date_created || '').split('T')[0];
+    const valor     = Math.abs(pag.transaction_amount || 0);
+    const descricao = pag.description || 'Pagamento MP #' + id;
+    const fornecedor = (pag.collector && pag.collector.email) ? pag.collector.email : '—';
 
-    await fetch(SUPABASE_URL + '/rest/v1/mp_pagamentos_pendentes', {
+    // Salvar no Supabase como pendente de classificação
+    const sbRes = await fetch(SUPABASE_URL + '/rest/v1/mp_pagamentos_pendentes', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Prefer': 'return=minimal,resolution=ignore-duplicates'
-      },
+      headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=ignore-duplicates' },
       body: JSON.stringify({
         id: String(id),
         data,
         valor,
         descricao,
         fornecedor,
-        tipo: pagamento.operation_type || tipo,
-        status: pagamento.status,
+        tipo: pag.operation_type,
+        status: pag.status,
         classificado: false,
-        raw: JSON.stringify(pagamento)
+        raw: JSON.stringify(pag)
       })
     });
 
-    return { statusCode: 200, headers, body: JSON.stringify({ status: 'ok', id }) };
+    console.log('Supabase status:', sbRes.status);
+
+    return { statusCode: 200, headers, body: JSON.stringify({ status: 'ok', id, valor, data }) };
   } catch(e) {
     console.error('Webhook MP erro:', e);
     return { statusCode: 200, headers, body: JSON.stringify({ status: 'error', error: e.message }) };
