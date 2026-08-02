@@ -19,22 +19,14 @@ exports.handler = async function(event) {
 
     if (!token) return { statusCode: 400, headers, body: JSON.stringify({ error: 'token obrigatório' }) };
 
-    // Buscar pagamentos de saída (money_transfer, payment)
-    let url = `https://api.mercadopago.com/v1/account/movements/search?type=PAYMENT&status=approved&limit=${limit}&offset=${offset}`;
+    // Buscar movimentos da conta MP - saídas (débitos)
+    let url = `https://api.mercadopago.com/v1/account/movements/search?limit=${limit}&offset=${offset}`;
     if (begin) url += `&begin_date=${begin}`;
     if (end)   url += `&end_date=${end}`;
 
-    const res  = await fetch(url, {
+    const res = await fetch(url, {
       headers: { 'Authorization': 'Bearer ' + token }
     });
-
-    // Se não funcionar, tentar endpoint alternativo
-    if (!res.ok) {
-      const url2 = `https://api.mercadopago.com/v1/payments/search?sort=date_created&criteria=desc&payment_type=money_transfer&limit=${limit}&offset=${offset}`;
-      const res2 = await fetch(url2, { headers: { 'Authorization': 'Bearer ' + token } });
-      const data2 = await res2.json();
-      return { statusCode: res2.status, headers, body: JSON.stringify(data2) };
-    }
 
     const data = await res.json();
     return { statusCode: res.status, headers, body: JSON.stringify(data) };
