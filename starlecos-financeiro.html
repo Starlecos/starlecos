@@ -1082,6 +1082,7 @@
     <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
     <button class="tab-btn" onclick="showTab('estoque')">📦 Estoque</button>
     <button class="tab-btn" onclick="showTab('calendario')">📅 Calendário</button>
+    <button class="tab-btn" onclick="showTab('mpPagamentos');carregarMPPagamentos()">💸 MP Pagamentos</button>
   </div>
 
   <!-- ====== DASHBOARD ====== -->
@@ -1796,6 +1797,77 @@
           <div id="calListaDia" style="padding:6px"></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ====== MP PAGAMENTOS ====== -->
+  <div class="tab-panel" id="panel-mpPagamentos">
+    <div class="section-header">
+      <div class="section-title">💸 Pagamentos Mercado Pago <span class="section-badge">Classificação automática</span></div>
+    </div>
+
+    <div class="ml-manual-note">
+      📱 <span>Os pagamentos enviados via Mercado Pago aparecem aqui automaticamente. Classifique cada um para registrar como despesa no financeiro.</span>
+    </div>
+
+    <!-- GERENCIAR CATEGORIAS -->
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">
+      <button onclick="toggleCatMP()" class="btn-add" style="background:var(--muted);padding:7px 14px;font-size:12px">⚙️ Gerenciar Categorias</button>
+    </div>
+
+    <div id="modalCatMP" style="display:none;background:#F7FAFD;border:1.5px dashed var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px">⚙️ Categorias de Despesa</div>
+      <div id="listaCatMP" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:30px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="novaCatMPInput" placeholder="Ex: Embalagens, Energia elétrica..." style="flex:1;font-family:Inter,sans-serif;font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;outline:none">
+        <button class="btn-add jade" onclick="adicionarCatMP()">＋ Adicionar</button>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span class="table-header-title">Pagamentos Pendentes de Classificação</span>
+        <button class="btn-add" onclick="carregarMPPagamentos()" style="padding:5px 12px;font-size:12px">🔄 Atualizar</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Fornecedor</th>
+            <th>Valor</th>
+            <th>Categoria</th>
+            <th>Observação</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bodyMPPendentes">
+          <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">💸</div><p>Nenhum pagamento pendente</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <br>
+
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Pagamentos Já Classificados</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Fornecedor</th>
+            <th>Valor</th>
+            <th>Categoria</th>
+            <th>Observação</th>
+          </tr>
+        </thead>
+        <tbody id="bodyMPClassificados">
+          <tr><td colspan="6"><div class="empty-state"><div class="empty-icon">✅</div><p>Nenhum pagamento classificado ainda</p></div></td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -3483,6 +3555,173 @@ async function enviarConfeccao() {
     renderGradeConfeccao();
     gerarMensagem();
   } catch(e) { notify('Erro ao enviar','err'); console.error(e); }
+}
+
+// ====== MP PAGAMENTOS ======
+async function carregarMPPagamentos() {
+  try {
+    const [pendentes, classificados] = await Promise.all([
+      sbGet('mp_pagamentos_pendentes', 'select=*&classificado=eq.false&order=data.desc&limit=100'),
+      sbGet('mp_pagamentos_pendentes', 'select=*&classificado=eq.true&order=data.desc&limit=100')
+    ]);
+    renderMPPendentes(pendentes);
+    renderMPClassificados(classificados);
+  } catch(e) { console.warn('Erro carregar MP pagamentos:', e); }
+}
+
+const CAT_MP_KEY = 'starlecos_cat_mp';
+const CAT_MP_PADRAO = [
+  'Matéria-Prima / Insumos',
+  'Fornecedor / Confecção',
+  'Frete / Logística',
+  'Funcionários / Pró-labore',
+  'Aluguel',
+  'Marketing / Publicidade',
+  'Equipamentos',
+  'Impostos / Taxas',
+  'Serviços Terceirizados',
+  'Utilidades',
+  'Outros'
+];
+
+function getCatMP() {
+  try {
+    const salvas = JSON.parse(localStorage.getItem(CAT_MP_KEY) || 'null');
+    return salvas || CAT_MP_PADRAO;
+  } catch(e) { return CAT_MP_PADRAO; }
+}
+
+function salvarCatMP(lista) {
+  localStorage.setItem(CAT_MP_KEY, JSON.stringify(lista));
+}
+
+function toggleCatMP() {
+  var el = document.getElementById('modalCatMP');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  renderListaCatMP();
+}
+
+function renderListaCatMP() {
+  const lista = getCatMP();
+  const el    = document.getElementById('listaCatMP');
+  if (!lista.length) { el.innerHTML = '<span style="color:var(--muted);font-size:12px">Nenhuma categoria ainda.</span>'; return; }
+  el.innerHTML = lista.map(function(c, i) {
+    return '<span style="display:inline-flex;align-items:center;gap:6px;background:#E8EEF7;border:1px solid #C0CCDE;color:var(--navy);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600">' +
+      c + '<button onclick="removerCatMP(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;padding:0;line-height:1">✕</button></span>';
+  }).join('');
+  // Atualizar todos os selects de categoria na tela
+  atualizarSelectsCatMP();
+}
+
+function adicionarCatMP() {
+  const input = document.getElementById('novaCatMPInput');
+  const nome  = input.value.trim();
+  if (!nome) return;
+  const lista = getCatMP();
+  if (!lista.includes(nome)) {
+    lista.push(nome);
+    lista.sort(function(a,b){ return a.localeCompare(b,'pt-BR',{sensitivity:'base'}); });
+    salvarCatMP(lista);
+  }
+  input.value = '';
+  renderListaCatMP();
+}
+
+function removerCatMP(idx) {
+  const lista = getCatMP();
+  lista.splice(idx, 1);
+  salvarCatMP(lista);
+  renderListaCatMP();
+}
+
+function atualizarSelectsCatMP() {
+  const lista = getCatMP();
+  const opts  = '<option value="">— Selecione —</option>' +
+    lista.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+  document.querySelectorAll('[id^="cat_mp_"]').forEach(function(sel) {
+    const val = sel.value;
+    sel.innerHTML = opts;
+    if (val) sel.value = val;
+  });
+}
+
+function renderMPPendentes(lista) {
+  const body = document.getElementById('bodyMPPendentes');
+  if (!lista.length) {
+    body.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">✅</div><p>Nenhum pagamento pendente de classificação</p></div></td></tr>';
+    return;
+  }
+  body.innerHTML = lista.map(p => `
+    <tr>
+      <td>${fmtData(p.data)}</td>
+      <td style="font-weight:600">${p.descricao||'—'}</td>
+      <td style="font-size:12px;color:var(--muted)">${p.fornecedor||'—'}</td>
+      <td class="val-neg"><strong>− ${fmt(p.valor)}</strong></td>
+      <td>
+        <select id="cat_mp_${p.id}" style="font-family:Inter,sans-serif;font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;outline:none">
+          <option value="">— Selecione —</option>
+          ${getCatMP().map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <input type="text" id="obs_mp_${p.id}" placeholder="Opcional" style="font-family:Inter,sans-serif;font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;outline:none;width:140px">
+      </td>
+      <td>
+        <button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="classificarMP('${p.id}','${p.data}','${p.descricao.replace(/'/g,"\'")}','${p.fornecedor}',${p.valor})">✅ Classificar</button>
+      </td>
+    </tr>`).join('');
+}
+
+function renderMPClassificados(lista) {
+  const body = document.getElementById('bodyMPClassificados');
+  if (!lista.length) {
+    body.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">✅</div><p>Nenhum pagamento classificado ainda</p></div></td></tr>';
+    return;
+  }
+  body.innerHTML = lista.map(p => `
+    <tr>
+      <td>${fmtData(p.data)}</td>
+      <td>${p.descricao||'—'}</td>
+      <td style="font-size:12px;color:var(--muted)">${p.fornecedor||'—'}</td>
+      <td class="val-neg">− ${fmt(p.valor)}</td>
+      <td><span class="badge badge-red">${p.categoria||'—'}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${p.obs||'—'}</td>
+    </tr>`).join('');
+}
+
+async function classificarMP(id, data, descricao, fornecedor, valor) {
+  const categoria = document.getElementById('cat_mp_' + id).value;
+  const obs       = document.getElementById('obs_mp_' + id).value.trim();
+
+  if (!categoria) { notify('Selecione uma categoria.', 'err'); return; }
+
+  try {
+    // 1. Marcar como classificado
+    await fetch(SUPABASE_URL + '/rest/v1/mp_pagamentos_pendentes?id=eq.' + id, {
+      method: 'PATCH',
+      headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ classificado: true, categoria, obs })
+    });
+
+    // 2. Salvar em contas_pagas
+    await sbInsert('contas_pagas', {
+      id: Date.now(),
+      data,
+      descricao: descricao + (obs ? ' — ' + obs : ''),
+      categoria,
+      valor,
+      pagamento: 'Mercado Pago',
+      fornecedor: fornecedor || '—',
+      comprovante: 'MP #' + id
+    });
+
+    notify('✅ Pagamento classificado e salvo nas Contas Pagas!');
+    await carregarMPPagamentos();
+    await carregarVendasOnline();
+  } catch(e) {
+    notify('Erro ao classificar', 'err');
+    console.error(e);
+  }
 }
 
 // ====== CONFECÇÃO ======
