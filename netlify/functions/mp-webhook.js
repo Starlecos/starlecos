@@ -24,13 +24,17 @@ exports.handler = async function(event) {
   let id   = '';
 
   if (event.httpMethod === 'GET') {
+    // IPN validation - MP exige 200 simples
     const params = event.queryStringParameters || {};
     tipo = params.topic || params.type || '';
     id   = params.id || '';
     console.log('IPN GET:', tipo, id);
-    if (!tipo || !id) {
-      return { statusCode: 200, headers, body: JSON.stringify({ status: 'ok' }) };
+    // Processar em background e retornar 200 imediatamente
+    if (tipo && id) {
+      // Processar de forma assíncrona (não aguardar)
+      processarPagamentoMP(tipo, id).catch(e => console.error(e));
     }
+    return { statusCode: 200, headers: { 'Content-Type': 'text/plain' }, body: 'OK' };
   } else if (event.httpMethod === 'POST') {
     try {
       const body = JSON.parse(event.body || '{}');
@@ -46,6 +50,11 @@ exports.handler = async function(event) {
     return { statusCode: 200, headers, body: JSON.stringify({ status: 'ok' }) };
   }
 
+  const resultado = await processarPagamentoMP(tipo, id);
+  return { statusCode: 200, headers, body: JSON.stringify(resultado) };
+};
+
+async function processarPagamentoMP(tipo, id) {
   try {
     // Buscar detalhes do pagamento
     const res = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
@@ -104,6 +113,6 @@ exports.handler = async function(event) {
     return { statusCode: 200, headers, body: JSON.stringify({ status: 'ok', id, valor, data }) };
   } catch(e) {
     console.error('Webhook erro:', e);
-    return { statusCode: 200, headers, body: JSON.stringify({ status: 'error', error: e.message }) };
+    return { status: 'error', error: e.message };
   }
-};
+}
