@@ -33,11 +33,25 @@ exports.handler = async function(event) {
       return { statusCode: 200, headers, body: JSON.stringify({ status: 'ignored', tipo, id }) };
     }
 
-    // Buscar detalhes do pagamento
-    const res = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
+    // Tentar buscar como payment primeiro, depois como transferência
+    let res = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
       headers: { 'Authorization': 'Bearer ' + MP_TOKEN }
     });
-    const pag = await res.json();
+    let pag = await res.json();
+
+    // Se não encontrou como payment, tentar como money_transfer
+    if (res.status === 404 || pag.status === 404) {
+      res = await fetch(`https://api.mercadopago.com/v1/account/movements/${id}`, {
+        headers: { 'Authorization': 'Bearer ' + MP_TOKEN }
+      });
+      if (res.ok) {
+        pag = await res.json();
+        pag.operation_type = pag.operation_type || 'money_transfer';
+        pag.status = pag.status || 'approved';
+        pag.transaction_amount = pag.amount || pag.transaction_amount;
+        pag.payer = pag.payer || { id: '1781620508' };
+      }
+    }
 
     console.log('Pagamento detalhes:', JSON.stringify({
       id: pag.id,
