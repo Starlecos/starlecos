@@ -48,13 +48,21 @@ exports.handler = async function(event) {
       collector_id: pag.collector && pag.collector.id
     }));
 
-    // Aceitar somente pagamentos aprovados
-    if (pag.status !== 'approved') {
-      return { statusCode: 200, headers, body: JSON.stringify({ status: 'not_approved', pag_status: pag.status }) };
+    // Log completo para debug
+    console.log('Status:', pag.status, 'Op type:', pag.operation_type, 'Payer:', pag.payer && pag.payer.id);
+
+    // Aceitar pagamentos aprovados OU processados
+    const statusOk = ['approved', 'processed', 'settled'].includes(pag.status);
+    if (!statusOk) {
+      return { statusCode: 200, headers, body: JSON.stringify({ 
+        status: 'not_approved', 
+        pag_status: pag.status,
+        operation_type: pag.operation_type,
+        payer_id: pag.payer && pag.payer.id
+      }) };
     }
 
-    // Filtrar saídas: o pagador é o dono da conta (user_id 3583652481)
-    // e o tipo é money_transfer, regular_payment ou outros tipos de saída
+    // Filtrar saídas: o pagador é o dono da conta
     const USER_ID = '3583652481';
     const ehSaida = pag.payer && String(pag.payer.id) === USER_ID;
 
