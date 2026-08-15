@@ -5,9 +5,20 @@ const MP_TOKEN   = process.env.MP_ACCESS_TOKEN;
 exports.handler = async function(event) {
   // Retornar 200 imediatamente para qualquer requisição
   // O MP exige resposta rápida e simples
+
+  // Formato antigo (IPN): GET com query params ?topic=payment&id=123
   const params = event.queryStringParameters || {};
-  const tipo   = params.topic || params.type || '';
-  const id     = params.id || '';
+  let tipo = params.topic || params.type || '';
+  let id   = params.id || '';
+
+  // Formato atual (Webhooks): POST com corpo JSON { type, data: { id } }
+  if (!id && event.httpMethod === 'POST') {
+    try {
+      const body = JSON.parse(event.body || '{}');
+      tipo = body.type || body.topic || tipo;
+      id   = (body.data && body.data.id) ? body.data.id : (body.id || id);
+    } catch (e) { /* corpo vazio ou inválido, ignora */ }
+  }
 
   // Processar em background sem aguardar
   if (id && (tipo === 'payment' || tipo === 'money_transfer')) {
