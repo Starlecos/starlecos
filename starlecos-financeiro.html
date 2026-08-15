@@ -1620,7 +1620,74 @@
     </div>
 
     <div style="background:var(--amber-light);border:1px solid #F0C060;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#7A5200">
-      🧵 O estoque é preenchido pela confecção. Aqui você pode visualizar e editar os valores.
+      🧵 O estoque de tecidos/zíperes é preenchido pela confecção. Aqui você pode visualizar e editar os valores.
+    </div>
+
+    <div class="table-card" style="margin-bottom:28px">
+      <div class="table-header">
+        <span class="table-header-title">🏷️ Produtos Acabados (SKU)</span>
+        <span class="table-total val-pos" id="totalEstoqueProdutos">0 un</span>
+      </div>
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Cadastre o mesmo SKU que você vai usar nos anúncios (Mercado Livre, Shopee, Shopify) — é o que vai permitir sincronizar o estoque entre as plataformas.</div>
+        <div class="form-row" style="grid-template-columns:1.4fr 100px 1fr 1fr 90px">
+          <div class="field">
+            <label>Produto</label>
+            <select id="ep_produto">
+              <option value="">— Selecione —</option>
+              <optgroup label="🥼 Jalecos Femininos">
+                <option>Jaleco Estampado Feminino</option>
+                <option>Jaleco Liso Feminino</option>
+                <option>Jaleco Estampado Feminino Botões</option>
+                <option>Jaleco S/Manga Feminino</option>
+              </optgroup>
+              <optgroup label="🥼 Jalecos Masculinos">
+                <option>Jaleco Estampado Masculino</option>
+                <option>Jaleco Liso Masculino</option>
+              </optgroup>
+              <optgroup label="👖 Calças">
+                <option>Calça Feminino</option>
+                <option>Calça Masculino</option>
+              </optgroup>
+              <optgroup label="👕 Blusas">
+                <option>Blusa Feminino Liso</option>
+                <option>Blusa Feminino Estampado</option>
+                <option>Blusa Masculino Liso</option>
+                <option>Blusa Masculino Estampado</option>
+              </optgroup>
+              <optgroup label="✨ Acessórios">
+                <option>Faixa de Cabelo</option>
+                <option>Touca</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="field">
+            <label>Tamanho</label>
+            <select id="ep_tamanho">
+              <option value="">—</option>
+              <option>PP</option><option>P</option><option>M</option><option>G</option><option>GG</option>
+              <option>G1</option><option>G2</option><option>G3</option><option>G4</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Estampa/Cor (opcional)</label>
+            <input type="text" id="ep_estampa" placeholder="Ex: Safari">
+          </div>
+          <div class="field">
+            <label>SKU</label>
+            <input type="text" id="ep_sku" placeholder="Ex: JEF-SAFARI-P">
+          </div>
+          <div class="field">
+            <label>Qtd inicial</label>
+            <input type="number" id="ep_qtd" min="0" value="0">
+          </div>
+        </div>
+        <button class="btn-add jade" onclick="addEstoqueProduto()" style="margin-top:10px">＋ Cadastrar SKU</button>
+      </div>
+      <table>
+        <thead><tr><th>SKU</th><th>Produto</th><th>Tamanho</th><th>Estampa</th><th>Quantidade</th><th></th></tr></thead>
+        <tbody id="bodyEstoqueProdutos"><tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Nenhum SKU cadastrado</p></div></td></tr></tbody>
+      </table>
     </div>
 
     <div class="table-card" style="margin-bottom:28px">
@@ -3447,6 +3514,75 @@ async function carregarEstoque() {
     renderTecidos(tecidos);
     renderZiperes(ziperes);
   } catch(e) { console.warn('Erro carregar estoque:', e); }
+  await carregarEstoqueProdutos();
+}
+
+// ====== ESTOQUE DE PRODUTOS ACABADOS (SKU) ======
+async function carregarEstoqueProdutos() {
+  try {
+    const lista = await sbGet('estoque_produtos', 'select=*&order=produto.asc,tamanho.asc');
+    renderEstoqueProdutos(lista);
+  } catch(e) { console.warn('Erro carregar estoque de produtos:', e); }
+}
+
+function renderEstoqueProdutos(lista) {
+  const body  = document.getElementById('bodyEstoqueProdutos');
+  const total = lista.reduce((a,v) => a + (v.quantidade||0), 0);
+  document.getElementById('totalEstoqueProdutos').textContent = total + ' un';
+  if (!lista.length) { body.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Nenhum SKU cadastrado</p></div></td></tr>'; return; }
+  body.innerHTML = lista.map(v => `
+    <tr>
+      <td style="font-weight:600;font-family:monospace;font-size:12px">${v.sku}</td>
+      <td>${v.produto}</td>
+      <td>${v.tamanho||'—'}</td>
+      <td style="font-size:12px;color:var(--muted)">${v.estampa||'—'}</td>
+      <td><input type="number" id="ep_q_${v.sku}" value="${v.quantidade||0}" min="0" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px"> un</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="atualizarEstoqueProduto('${v.sku}')">💾</button>
+        <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="deletarEstoqueProduto('${v.sku}')">✕</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function addEstoqueProduto() {
+  const produto  = document.getElementById('ep_produto').value;
+  const tamanho  = document.getElementById('ep_tamanho').value;
+  const estampa  = document.getElementById('ep_estampa').value.trim();
+  const sku      = document.getElementById('ep_sku').value.trim();
+  const qtd      = parseInt(document.getElementById('ep_qtd').value) || 0;
+  if (!produto || !sku) { notify('Informe pelo menos o produto e o SKU.', 'err'); return; }
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/estoque_produtos', {
+      method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ sku, produto, tamanho, estampa, quantidade: qtd })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    ['ep_estampa','ep_sku'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('ep_qtd').value = '0';
+    await carregarEstoqueProdutos();
+    notify('✅ SKU cadastrado!');
+  } catch(e) { console.error(e); notify('Erro ao cadastrar — o SKU já existe?', 'err'); }
+}
+
+async function atualizarEstoqueProduto(sku) {
+  const val = parseInt(document.getElementById('ep_q_' + sku).value) || 0;
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/estoque_produtos?sku=eq.' + encodeURIComponent(sku), {
+      method: 'PATCH', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ quantidade: val, updated_at: new Date().toISOString() })
+    });
+    await carregarEstoqueProdutos();
+    notify('✅ Estoque atualizado!');
+  } catch(e) { notify('Erro ao atualizar', 'err'); }
+}
+
+async function deletarEstoqueProduto(sku) {
+  if (!confirm('Remover o SKU "' + sku + '" do estoque?')) return;
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/estoque_produtos?sku=eq.' + encodeURIComponent(sku), { method: 'DELETE', headers: SB_HEADERS });
+    await carregarEstoqueProdutos();
+    notify('Removido.');
+  } catch(e) { notify('Erro ao remover', 'err'); }
 }
 
 function renderTecidos(lista) {

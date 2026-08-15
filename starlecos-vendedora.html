@@ -549,6 +549,39 @@ function fecharModalEstampas() { document.getElementById('modalEstampas').classL
 document.getElementById('modalEstampas').addEventListener('click', function(e){ if(e.target===this) fecharModalEstampas(); });
 
 // =============================================
+// ESTOQUE DE PRODUTOS (SKU) — desconto automático
+// =============================================
+var _estoqueProdutos = [];
+
+async function carregarEstoqueProdutos() {
+  try {
+    _estoqueProdutos = await sbGet('estoque_produtos', 'select=*');
+  } catch(e) { console.error('Erro estoque produtos:', e); }
+}
+
+function normEP(s) { return (s||'').trim().toLowerCase(); }
+
+async function descontarEstoque(itens) {
+  for (var i = 0; i < itens.length; i++) {
+    var it = itens[i];
+    var match = _estoqueProdutos.find(function(e) {
+      return normEP(e.produto) === normEP(it.produto) &&
+             normEP(e.tamanho) === normEP(it.tamanho) &&
+             normEP(e.estampa) === normEP(it.estampa);
+    });
+    if (!match) continue;
+    var nova = Math.max(0, (match.quantidade||0) - (it.qtd||0));
+    try {
+      await fetch(SUPABASE_URL + '/rest/v1/estoque_produtos?sku=eq.' + encodeURIComponent(match.sku), {
+        method: 'PATCH', headers: { ...HEADERS, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ quantidade: nova, updated_at: new Date().toISOString() })
+      });
+      match.quantidade = nova;
+    } catch(e) { console.error('Erro ao descontar estoque:', e); }
+  }
+}
+
+// =============================================
 // ITENS DO PEDIDO
 // =============================================
 var itemCount = 0;
@@ -668,7 +701,8 @@ async function registrarVenda() {
 
   try {
     await sbInsert('vendas', { id, data, vendedora, cliente, itens: validos, subtotal, frete, total, canal, pagamento, status, obs });
-    localStorage.setItem('starlecos_vendedora_nome', vendedora);
+    try { localStorage.setItem('starlecos_vendedora_nome', vendedora); } catch(e) {}
+    if (status !== 'Cancelado') descontarEstoque(validos);
 
     var nomes = validos.map(function(i){ return i.qtd+'x '+i.produto; }).join(', ');
     var box = document.getElementById('successBox');
@@ -840,7 +874,7 @@ async function exportarExcel() {
 async function init() {
   document.getElementById('vo_data').value = hoje();
   try {
-    await Promise.all([carregarVendedores(), carregarEstampas()]);
+    await Promise.all([carregarVendedores(), carregarEstampas(), carregarEstoqueProdutos()]);
     setConn('ok');
     await renderHistorico();
   } catch(e) {
