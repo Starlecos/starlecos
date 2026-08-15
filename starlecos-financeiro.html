@@ -3592,6 +3592,7 @@ async function carregarMPPagamentos() {
 
 const CAT_MP_KEY = 'starlecos_categorias_despesa'; // chave unificada
 const CAT_MP_PADRAO = [
+  'A Classificar',
   'Aluguel',
   'Bordado',
   'Equipamentos',
@@ -3727,19 +3728,18 @@ async function classificarMP(id, data, descricao, fornecedor, valor) {
       body: JSON.stringify({ classificado: true, categoria, obs })
     });
 
-    // 2. Salvar em contas_pagas
-    await sbInsert('contas_pagas', {
-      id: Date.now(),
-      data,
-      descricao: descricao + (obs ? ' — ' + obs : ''),
-      categoria,
-      valor,
-      pagamento: 'Mercado Pago',
-      fornecedor: fornecedor || '—',
-      comprovante: 'MP #' + id
+    // 2. A despesa já existe em contas_pagas (criada automaticamente pelo webhook do MP)
+    // — aqui só refinamos a categoria/observação, sem duplicar o lançamento.
+    await fetch(SUPABASE_URL + '/rest/v1/contas_pagas?id=eq.' + Number(id), {
+      method: 'PATCH',
+      headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        categoria,
+        descricao: descricao + (obs ? ' — ' + obs : '')
+      })
     });
 
-    notify('✅ Pagamento classificado e salvo nas Contas Pagas!');
+    notify('✅ Categoria atualizada!');
     await carregarMPPagamentos();
     await carregarVendasOnline();
   } catch(e) {

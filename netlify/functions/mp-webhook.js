@@ -59,6 +59,20 @@ async function processarAsync(tipo, id) {
         raw: JSON.stringify(pag)
       })
     });
+
+    // Já entra como despesa no financeiro na hora, sem esperar classificação manual.
+    // A categoria fica "A Classificar" até alguém refinar na aba MP Pagamentos.
+    await fetch(SUPABASE_URL + '/rest/v1/contas_pagas', {
+      method: 'POST',
+      headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=ignore-duplicates' },
+      body: JSON.stringify({
+        id: Number(id), data, valor, descricao,
+        categoria: 'A Classificar',
+        pagamento: 'Mercado Pago',
+        fornecedor: fornecedor || '—',
+        comprovante: 'MP #' + id
+      })
+    });
   } catch(e) {
     console.error('Erro processar MP:', e);
   }
