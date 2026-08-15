@@ -19,9 +19,9 @@ exports.handler = async function(event) {
 
     if (!token) return { statusCode: 500, headers, body: JSON.stringify({ error: 'MP_ACCESS_TOKEN não configurado' }) };
 
-    // Buscar movimentações da conta MP (extrato)
-    let url = `https://api.mercadopago.com/v1/account/movements/search?limit=${limit}&offset=${offset}`;
-    if (begin) url += `&begin_date=${begin}`;
+    // Buscar pagamentos da conta MP
+    let url = `https://api.mercadopago.com/v1/payments/search?sort=date_created&criteria=desc&limit=${limit}&offset=${offset}`;
+    if (begin) url += `&range=date_created&begin_date=${begin}`;
     if (end)   url += `&end_date=${end}`;
 
     const res  = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
