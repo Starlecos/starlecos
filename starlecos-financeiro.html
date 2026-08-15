@@ -1870,7 +1870,6 @@
 // MERCADO LIVRE — CONFIGURAÇÃO
 // =============================================
 const ML_APP_ID   = '6624742243995383';
-const ML_SECRET   = 'KxM33KRxAQf6Y82GaWi9paRiiKv7KawK';
 const ML_REDIRECT = 'https://ubiquitous-youtiao-3a8ab4.netlify.app/starlecos-financeiro.html';
 
 let mlToken   = localStorage.getItem('ml_access_token')  || '';
@@ -2132,6 +2131,9 @@ async function sincronizarPedidosML() {
       primeiro = await fetchMLOrders(0);
     }
     if (!primeiro) {
+      mlToken = ''; mlRefresh = '';
+      localStorage.removeItem('ml_access_token');
+      localStorage.removeItem('ml_refresh_token');
       notify('⚠️ Sessão ML expirada. Clique em Conectar ML.', 'err');
       atualizarStatusML(false);
       return;

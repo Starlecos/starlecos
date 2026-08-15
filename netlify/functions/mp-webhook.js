@@ -1,6 +1,6 @@
 const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
-const MP_TOKEN   = 'APP_USR-6598280361009358-080218-6705ff815040a88da4fa89210ccbb8c1-1781620508';
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+const MP_TOKEN   = process.env.MP_ACCESS_TOKEN;
 
 exports.handler = async function(event) {
   // Retornar 200 imediatamente para qualquer requisição

@@ -15,9 +15,9 @@ exports.handler = async function(event) {
 
     const params = new URLSearchParams({
       grant_type,
-      client_id:     '6624742243995383',
-      client_secret: 'KxM33KRxAQf6Y82GaWi9paRiiKv7KawK',
-      redirect_uri:  'https://ubiquitous-youtiao-3a8ab4.netlify.app/starlecos-financeiro.html'
+      client_id:     process.env.ML_CLIENT_ID,
+      client_secret: process.env.ML_CLIENT_SECRET,
+      redirect_uri:  process.env.ML_REDIRECT_URI || 'https://ubiquitous-youtiao-3a8ab4.netlify.app/starlecos-financeiro.html'
     });
 
     if (grant_type === 'authorization_code') {
