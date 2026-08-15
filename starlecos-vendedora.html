@@ -417,7 +417,7 @@ function buildSelectOptions() {
 // UTILITÁRIOS
 // =============================================
 function fmt(v) { return 'R$ ' + parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function hoje() { return new Date().toISOString().split('T')[0]; }
+function hoje() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
 function fmtData(d) { if(!d) return ''; var p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
 function notify(msg, tipo) {
   var n = document.getElementById('notification');

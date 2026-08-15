@@ -2186,7 +2186,7 @@ async function sincronizarPedidosML() {
       const taxaFrete = 0; // frete será 0 na importação em lote para não demorar
       const taxa      = taxaVenda + taxaFrete;
       const liquido   = bruto - taxa;
-      const data      = (order.date_created || '').split('T')[0] || hoje();
+      const data      = order.date_created ? dataBR(order.date_created) : hoje();
       const status    = order.status === 'paid' ? 'Entregue' : order.status === 'cancelled' ? 'Cancelado' : 'Aguardando';
       const mlId      = parseInt(pedidoId) || (Date.now() + i);
 
@@ -2199,6 +2199,7 @@ async function sincronizarPedidosML() {
 
     // Salvar em lotes de 100 no Supabase
     const LOTE = 100;
+    const idsFalharam = [];
     for (let j = 0; j < lote.length; j += LOTE) {
       const parte = lote.slice(j, j + LOTE);
       try {
@@ -2207,13 +2208,29 @@ async function sincronizarPedidosML() {
           headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=merge-duplicates' },
           body: JSON.stringify(parte)
         });
-        if (!res.ok) console.warn('Erro lote ML:', await res.text());
-      } catch(e) { console.warn('Erro salvar lote:', e); }
+        if (!res.ok) {
+          console.warn('Erro lote ML:', await res.text());
+          idsFalharam.push(...parte.map(p => p.id));
+        }
+      } catch(e) {
+        console.warn('Erro salvar lote:', e);
+        idsFalharam.push(...parte.map(p => p.id));
+      }
       notify('💾 Salvando... ' + Math.min(j + LOTE, lote.length) + '/' + lote.length);
     }
 
+    // Remover da tela qualquer pedido que não foi salvo de verdade no banco
+    if (idsFalharam.length) {
+      dados.pedidosML = dados.pedidosML.filter(p => !idsFalharam.includes(p.id));
+      novos -= idsFalharam.length;
+    }
+
     salvar();
-    notify('✅ ' + novos + ' pedido(s) do ML importado(s)!');
+    if (idsFalharam.length) {
+      notify('⚠️ ' + novos + ' pedido(s) importado(s), ' + idsFalharam.length + ' falharam ao salvar. Sincronize novamente.', 'err');
+    } else {
+      notify('✅ ' + novos + ' pedido(s) do ML importado(s)!');
+    }
     atualizarStatusML(true);
     renderML();
     // Iniciar atualização de fretes em segundo plano
@@ -2386,8 +2403,15 @@ function fmt(v) {
   return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
+// Converte uma Date ou string ISO para AAAA-MM-DD no fuso de Brasília,
+// em vez de usar UTC (que pode "virar o dia" errado à noite).
+function dataBR(d) {
+  const dt = (d instanceof Date) ? d : new Date(d);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(dt);
+}
+
 function hoje() {
-  return new Date().toISOString().split('T')[0];
+  return dataBR(new Date());
 }
 
 function fmtData(d) {

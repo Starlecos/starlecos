@@ -40,7 +40,10 @@ async function processarAsync(tipo, id) {
     const USER_ID = '1781620508';
     if (!pag.payer || String(pag.payer.id) !== USER_ID) return;
 
-    const data      = (pag.date_approved || pag.date_created || '').split('T')[0];
+    const dataRaw   = pag.date_approved || pag.date_created;
+    const data      = dataRaw
+      ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(dataRaw))
+      : '';
     const valor     = Math.abs(pag.transaction_amount || 0);
     const descricao = pag.description || 'Pagamento MP #' + id;
     const fornecedor = (pag.collector && pag.collector.email) ? pag.collector.email : '—';
