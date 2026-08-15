@@ -1797,12 +1797,20 @@
     </div>
 
     <div class="ml-manual-note">
-      📱 <span>Os pagamentos enviados via Mercado Pago aparecem aqui automaticamente. Classifique cada um para registrar como despesa no financeiro.</span>
+      📱 <span>Os pagamentos enviados via Mercado Pago entram automaticamente como despesa (categoria "A Classificar"). Use a lista abaixo só pra refinar a categoria de cada um.</span>
     </div>
 
-    <!-- GERENCIAR CATEGORIAS -->
-    <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">
+    <div class="ml-manual-note">
+      ⚠️ <span><strong>Pagamentos de antes da automação ligar:</strong> importe o extrato exportado do Mercado Pago (CSV/Excel) pra lançar retroativamente. O sistema tenta reconhecer as colunas de data, descrição, valor e ID da operação automaticamente.</span>
+    </div>
+
+    <!-- GERENCIAR CATEGORIAS / IMPORTAR -->
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <button onclick="toggleCatMP()" class="btn-add" style="background:var(--muted);padding:7px 14px;font-size:12px">⚙️ Gerenciar Categorias</button>
+      <label class="btn-add jade" style="cursor:pointer;padding:7px 14px;font-size:12px">
+        📂 Importar Extrato do Mercado Pago
+        <input type="file" accept=".csv" style="display:none" onchange="importarExtratoMP(event)">
+      </label>
     </div>
 
     <div id="modalCatMP" style="display:none;background:#F7FAFD;border:1.5px dashed var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
@@ -3576,6 +3584,120 @@ async function enviarConfeccao() {
     renderGradeConfeccao();
     gerarMensagem();
   } catch(e) { notify('Erro ao enviar','err'); console.error(e); }
+}
+
+// ====== IMPORTAR EXTRATO MERCADO PAGO ======
+async function importarExtratoMP(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const text  = e.target.result;
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length < 2) { notify('CSV sem dados válidos', 'err'); return; }
+
+    const sep     = lines[0].includes(';') ? ';' : ',';
+    const headers = lines[0].split(sep).map(function(h) {
+      var norm = h.trim().replace(/"/g,'').toLowerCase().normalize('NFD');
+      var out = '';
+      for (var k = 0; k < norm.length; k++) {
+        var code = norm.charCodeAt(k);
+        if (code < 0x0300 || code > 0x036f) out += norm[k];
+      }
+      return out;
+    });
+
+    function col(row, ...names) {
+      for (const n of names) {
+        const idx = headers.findIndex(h => h.includes(n));
+        if (idx >= 0 && row[idx]) return row[idx].replace(/^"|"$/g,'').trim();
+      }
+      return '';
+    }
+
+    function parseData(str) {
+      if (!str) return hoje();
+      str = str.trim().split(' ')[0]; // corta hora se vier junto
+      if (str.includes('/')) {
+        const p = str.split('/');
+        if (p.length === 3) {
+          const dia = p[0].padStart(2,'0'), mes = p[1].padStart(2,'0'), ano = p[2].length === 2 ? '20'+p[2] : p[2];
+          return ano + '-' + mes + '-' + dia;
+        }
+      }
+      if (str.includes('-') && str.length >= 10) return str.slice(0,10);
+      return hoje();
+    }
+
+    function parseValor(str) {
+      if (!str) return 0;
+      const limpo = str.replace(/[R$\s]/g,'').replace(/\.(?=\d{3},)/g,'').replace(',','.');
+      return Math.abs(parseFloat(limpo)) || 0;
+    }
+
+    // IDs já existentes em contas_pagas (pelo campo comprovante) pra não duplicar
+    let existentes = [];
+    try {
+      const atuais = await sbGet('contas_pagas', 'select=comprovante&comprovante=like.MP*');
+      existentes = atuais.map(c => c.comprovante);
+    } catch(e) { /* segue sem checar duplicidade se falhar */ }
+
+    const lote = [];
+    let importados = 0, ignorados = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = [];
+      let cur = '', inQ = false;
+      for (const c of lines[i]) {
+        if (c === '"') { inQ = !inQ; }
+        else if (c === sep && !inQ) { cols.push(cur.trim()); cur = ''; }
+        else { cur += c; }
+      }
+      cols.push(cur.trim());
+
+      const opId      = col(cols, 'id da operacao', 'numero de operacao', 'nro operacao', 'id do pagamento', 'source_id', 'id');
+      const data      = parseData(col(cols, 'data de aprovacao', 'data', 'date'));
+      const descricao = col(cols, 'descricao', 'detalhe', 'description') || 'Pagamento Mercado Pago';
+      const fornecedor = col(cols, 'nome', 'destinatario', 'pagador', 'recebedor', 'payer') || '—';
+      const valor     = parseValor(col(cols, 'valor', 'valor liquido', 'valor bruto', 'amount'));
+      const comprovante = opId ? ('MP #' + opId) : ('MP-CSV-' + Date.now() + '-' + i);
+
+      if (valor <= 0) { continue; }
+      if (existentes.includes(comprovante)) { ignorados++; continue; }
+
+      lote.push({
+        id: Date.now() + i,
+        data, descricao, categoria: 'A Classificar', valor,
+        pagamento: 'Mercado Pago', fornecedor, comprovante
+      });
+      importados++;
+    }
+
+    if (!lote.length) {
+      notify(ignorados ? 'Nada novo — todos já importados antes.' : 'Nenhuma linha válida encontrada no arquivo.', 'err');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      const LOTE = 100;
+      for (let j = 0; j < lote.length; j += LOTE) {
+        const parte = lote.slice(j, j + LOTE);
+        await fetch(SUPABASE_URL + '/rest/v1/contas_pagas', {
+          method: 'POST',
+          headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=ignore-duplicates' },
+          body: JSON.stringify(parte)
+        });
+      }
+      notify('✅ ' + importados + ' pagamento(s) importado(s)' + (ignorados ? ' (' + ignorados + ' já existiam)' : '') + '!');
+      await carregarVendasOnline();
+    } catch(e) {
+      console.error(e);
+      notify('Erro ao importar. Verifique o arquivo.', 'err');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file, 'ISO-8859-1');
 }
 
 // ====== MP PAGAMENTOS ======
