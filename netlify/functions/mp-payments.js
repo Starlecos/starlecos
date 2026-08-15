@@ -10,14 +10,14 @@ exports.handler = async function(event) {
   }
 
   try {
-    const token  = (event.headers.authorization || '').replace('Bearer ', '');
+    const token  = process.env.MP_ACCESS_TOKEN;
     const params = event.queryStringParameters || {};
     const offset = params.offset     || '0';
     const limit  = params.limit      || '50';
     const begin  = params.begin_date || '';
     const end    = params.end_date   || '';
 
-    if (!token) return { statusCode: 400, headers, body: JSON.stringify({ error: 'token obrigatório' }) };
+    if (!token) return { statusCode: 500, headers, body: JSON.stringify({ error: 'MP_ACCESS_TOKEN não configurado' }) };
 
     // Buscar movimentações da conta MP (extrato)
     let url = `https://api.mercadopago.com/v1/account/movements/search?limit=${limit}&offset=${offset}`;
