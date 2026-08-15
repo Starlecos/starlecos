@@ -23,6 +23,12 @@
       "short_name": "Financeiro",
       "url": "/starlecos-financeiro.html",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Logística e Bordado",
+      "short_name": "Logística",
+      "url": "/starlecos-logistica.html",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

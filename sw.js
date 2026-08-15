@@ -2,6 +2,7 @@ const CACHE = 'starlecos-v1';
 const URLS  = [
   '/starlecos-vendedora.html',
   '/starlecos-financeiro.html',
+  '/starlecos-logistica.html',
   '/manifest.json'
 ];
 

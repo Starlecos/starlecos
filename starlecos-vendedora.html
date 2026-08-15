@@ -52,6 +52,9 @@
   .item-row{background:#F7FAFD;border:1.5px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;animation:fadeIn .2s ease;position:relative;}
   .item-row-top{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .item-row-mid{display:grid;grid-template-columns:2fr 80px 110px;gap:10px;align-items:end;}
+  .bordado-row{display:flex;flex-direction:column;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
+  .bordado-check{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;}
+  .bordado-check input{width:16px;height:16px;accent-color:var(--jade);cursor:pointer;}
   .item-row .field{margin-bottom:0;}
   .item-row .field label{font-size:11px;}
   .item-row .field input,.item-row .field select{font-size:13px;padding:8px 10px;}
@@ -96,6 +99,7 @@
   .badge-red{background:var(--rose-light);color:var(--rose);}
   .tag-tam{background:#E8EEF7;color:var(--navy);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;}
   .tag-est{background:var(--amber-light);color:var(--amber);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;}
+  .tag-bordado{background:var(--jade-light);color:var(--jade);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;}
   .btn-excluir-pedido{background:none;border:1.5px solid var(--border);color:var(--muted);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;white-space:nowrap;margin-top:6px;display:inline-flex;align-items:center;gap:4px;}
   .btn-excluir-pedido:hover{background:var(--rose-light);border-color:var(--rose);color:var(--rose);}
 
@@ -569,8 +573,20 @@ function adicionarItem() {
         '<select id="tam-'+id+'"><option value="">—</option><option>PP</option><option>P</option><option>M</option><option>G</option><option>GG</option><option>G1</option><option>G2</option><option>G3</option><option>G4</option></select></div>'+
       '<div class="field"><label>Qtd</label><input type="number" id="qtd-'+id+'" min="1" value="1" oninput="calcTotal()"></div>'+
       '<div class="field"><label>Valor (R$)</label><input type="number" id="val-'+id+'" placeholder="0,00" step="0.01" min="0" oninput="calcTotal()"></div>'+
+    '</div>'+
+    '<div class="bordado-row">'+
+      '<label class="bordado-check"><input type="checkbox" id="bordado-'+id+'" onchange="toggleBordado('+id+')"> 🧵 Bordado</label>'+
+      '<div class="field" id="bordado-valor-wrap-'+id+'" style="display:none"><label>Valor cobrado do bordado (R$)</label><input type="number" id="bordado-valor-'+id+'" placeholder="0,00" step="0.01" min="0" oninput="calcTotal()"></div>'+
     '</div>';
   document.getElementById('itensList').appendChild(div);
+  calcTotal();
+}
+
+function toggleBordado(id) {
+  var checked = document.getElementById('bordado-'+id).checked;
+  var wrap    = document.getElementById('bordado-valor-wrap-'+id);
+  wrap.style.display = checked ? 'flex' : 'none';
+  if (!checked) document.getElementById('bordado-valor-'+id).value = '';
   calcTotal();
 }
 
@@ -600,12 +616,15 @@ function getItens() {
   var itens = [];
   document.querySelectorAll('#itensList .item-row').forEach(function(row){
     var n = row.id.replace('item-','');
+    var bordado = (document.getElementById('bordado-'+n)||{}).checked||false;
     itens.push({
       produto: (document.getElementById('prod-'+n)||{}).value||'',
       estampa: (document.getElementById('estampa-'+n)||{}).value||'',
       tamanho: (document.getElementById('tam-'+n)||{}).value||'',
       qtd:     parseInt((document.getElementById('qtd-'+n)||{}).value)||1,
-      valor:   parseFloat((document.getElementById('val-'+n)||{}).value)||0
+      valor:   parseFloat((document.getElementById('val-'+n)||{}).value)||0,
+      bordado: bordado,
+      valorBordado: bordado ? (parseFloat((document.getElementById('bordado-valor-'+n)||{}).value)||0) : 0
     });
   });
   return itens;
@@ -613,7 +632,7 @@ function getItens() {
 
 function calcTotal() {
   var itens    = getItens();
-  var subtotal = itens.reduce(function(a,i){ return a+i.valor*i.qtd; },0);
+  var subtotal = itens.reduce(function(a,i){ return a+i.valor*i.qtd+i.valorBordado; },0);
   var frete    = parseFloat(document.getElementById('vo_frete').value)||0;
   var total    = subtotal+frete;
   document.getElementById('subtotalProdutos').textContent = fmt(subtotal);
@@ -640,7 +659,7 @@ async function registrarVenda() {
   var validos = itens.filter(function(i){ return i.produto && i.valor>0; });
   if (!validos.length) { alert('Adicione pelo menos um produto com valor.'); return; }
 
-  var subtotal = validos.reduce(function(a,i){ return a+i.valor*i.qtd; },0);
+  var subtotal = validos.reduce(function(a,i){ return a+i.valor*i.qtd+i.valorBordado; },0);
   var total    = subtotal+frete;
   var id       = Date.now();
 
@@ -738,7 +757,8 @@ async function renderHistorico() {
         return '<div class="venda-produto-linha">• '+i.qtd+'x '+i.produto+
           (i.tamanho?' <span class="tag-tam">'+i.tamanho+'</span>':'')+
           (i.estampa?' <span class="tag-est">'+i.estampa+'</span>':'')+
-          ' — '+fmt((i.valor||0)*(i.qtd||1))+'</div>';
+          (i.bordado?' <span class="tag-bordado">🧵 Bordado '+fmt(i.valorBordado||0)+'</span>':'')+
+          ' — '+fmt((i.valor||0)*(i.qtd||1)+(i.valorBordado||0))+'</div>';
       }).join('');
       var freteInfo = v.frete>0?' · Frete: '+fmt(v.frete):'';
       return '<div class="venda-item">'+
@@ -780,7 +800,7 @@ async function exportarExcel() {
     var vendas = await sbGet('vendas','select=*&order=data.desc,id.desc');
     if (!vendas.length) { alert('Nenhuma venda para exportar.'); return; }
 
-    var cab = ['Data','Vendedora','Cliente','Produto','Estampa','Tamanho','Qtd','Valor Unit.(R$)','Subtotal Produto(R$)','Frete(R$)','Total Pedido(R$)','Canal','Pagamento','Status','Observação'];
+    var cab = ['Data','Vendedora','Cliente','Produto','Estampa','Tamanho','Qtd','Bordado','Valor Bordado(R$)','Valor Unit.(R$)','Subtotal Produto(R$)','Frete(R$)','Total Pedido(R$)','Canal','Pagamento','Status','Observação'];
     var linhas = [];
     vendas.forEach(function(v){
       var itensArr = v.itens && v.itens.length ? v.itens : [{produto:v.produto||'',estampa:'',tamanho:'',qtd:1,valor:v.valor||0}];
@@ -788,19 +808,20 @@ async function exportarExcel() {
         linhas.push([
           idx===0?fmtData(v.data):'', idx===0?(v.vendedora||''):'', idx===0?(v.cliente||''):'',
           i.produto||'', i.estampa||'', i.tamanho||'', i.qtd||1,
-          (i.valor||0).toFixed(2).replace('.',','), ((i.valor||0)*(i.qtd||1)).toFixed(2).replace('.',','),
+          i.bordado?'Sim':'Não', (i.valorBordado||0).toFixed(2).replace('.',','),
+          (i.valor||0).toFixed(2).replace('.',','), ((i.valor||0)*(i.qtd||1)+(i.valorBordado||0)).toFixed(2).replace('.',','),
           idx===0?(v.frete||0).toFixed(2).replace('.',','):'',
           idx===0?(v.total||0).toFixed(2).replace('.',','):'',
           idx===0?(v.canal||''):'', idx===0?(v.pagamento||''):'',
           idx===0?(v.status||''):'', idx===0?(v.obs||''):''
         ]);
       });
-      linhas.push(new Array(15).fill(''));
+      linhas.push(new Array(17).fill(''));
     });
 
     var totalG = vendas.filter(function(v){return v.status!=='Cancelado';}).reduce(function(a,v){return a+(v.total||0);},0);
-    linhas.push(new Array(15).fill(''));
-    linhas.push(['TOTAL GERAL (R$)','','','','','','','','','',totalG.toFixed(2).replace('.',','),'','','','']);
+    linhas.push(new Array(17).fill(''));
+    linhas.push(['TOTAL GERAL (R$)','','','','','','','','','','','',totalG.toFixed(2).replace('.',','),'','','','']);
 
     var bom='\uFEFF';
     var csv=bom+[cab].concat(linhas).map(function(r){ return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(';'); }).join('\r\n');

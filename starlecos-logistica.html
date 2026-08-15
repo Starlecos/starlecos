@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0F2D5C">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Starlecos">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+<title>Starlecos — Logística e Bordado</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:#0F2D5C; --jade:#1A7A4A; --jade-light:#E8F5EE;
+    --rose:#C0392B; --rose-light:#FDECEA; --amber:#D4870A;
+    --amber-light:#FEF6E4; --sky:#2575BF; --sky-light:#E8F2FB;
+    --border:#D8E2EE; --bg:#F0F4F8; --card:#FFFFFF;
+    --text:#1A2C42; --muted:#6B7D93; --stitch:#B8CCDE;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+
+  header{background:var(--navy);padding:0 24px;height:62px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 10px rgba(15,45,92,.25);}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo-icon{width:34px;height:34px;background:white;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .logo-text span:first-child{display:block;font-size:18px;font-weight:800;color:white;letter-spacing:-.5px;line-height:1;}
+  .logo-text span:last-child{display:block;font-size:10px;color:#8AAFD4;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;margin-top:1px;}
+  .conn-status{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.15);color:white;}
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:#86EFAC;}
+
+  main{flex:1;padding:24px 16px 48px;max-width:820px;margin:0 auto;width:100%;}
+
+  .section-title{font-size:16px;font-weight:800;color:var(--text);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+  .section-sub{font-size:13px;color:var(--muted);margin:-10px 0 18px;}
+
+  .pedido-card{background:var(--card);border-radius:14px;border:1.5px solid var(--border);padding:20px;margin-bottom:16px;}
+  .pedido-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:12px;}
+  .pedido-titulo{font-size:15px;font-weight:700;color:var(--navy);}
+  .pedido-data{font-size:12px;color:var(--muted);margin-top:2px;}
+
+  .venda-produto-linha{font-size:13px;color:var(--text);padding:2px 0;}
+  .tag-tam{background:#E8EEF7;color:var(--navy);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px;}
+  .tag-est{background:var(--amber-light);color:var(--amber);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px;}
+  .tag-bordado{background:var(--jade-light);color:var(--jade);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px;}
+
+  .cobrado-box{display:flex;gap:16px;flex-wrap:wrap;background:#F7FAFD;border:1.5px dashed var(--border);border-radius:10px;padding:12px 14px;margin:14px 0;font-size:12px;color:var(--muted);}
+  .cobrado-box strong{color:var(--text);font-size:13px;}
+
+  .confirma-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:12px;font-weight:600;color:var(--muted);}
+  .field input{font-family:'Inter',sans-serif;font-size:14px;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;color:var(--text);background:#FAFBFD;outline:none;}
+  .field input:focus{border-color:var(--sky);background:white;}
+
+  .btn-confirmar{width:100%;background:var(--jade);color:white;border:none;padding:11px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-top:14px;transition:background .2s;}
+  .btn-confirmar:hover{background:#15643D;}
+  .btn-confirmar:disabled{background:var(--muted);cursor:not-allowed;}
+
+  .empty-state{text-align:center;padding:48px 24px;color:var(--muted);}
+  .empty-state .icon{font-size:40px;margin-bottom:12px;}
+  .empty-state p{font-size:14px;}
+
+  .historico-card{background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden;margin-top:8px;}
+  .historico-header{padding:12px 18px;background:#FAFBFD;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;}
+  .historico-item{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #F0F4F8;font-size:13px;gap:10px;}
+  .historico-item:last-child{border-bottom:none;}
+  .historico-item .val{font-weight:700;color:var(--jade);white-space:nowrap;}
+
+  #notification{position:fixed;bottom:24px;right:24px;background:var(--jade);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.2);transform:translateY(60px);opacity:0;transition:all .3s;z-index:999;}
+  #notification.show{transform:translateY(0);opacity:1;}
+
+  @media(max-width:540px){main{padding:16px 10px 40px;}.confirma-row{grid-template-columns:1fr;}.pedido-header{flex-direction:column;gap:6px;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🚚</div>
+    <div class="logo-text">
+      <span>Starlecos</span>
+      <span>Logística e Bordado</span>
+    </div>
+  </div>
+  <div id="connStatus" class="conn-status">Conectando...</div>
+</header>
+
+<main>
+  <div class="section-title">🚚 Pedidos Pendentes de Confirmação</div>
+  <div class="section-sub">Confirme o valor real pago de frete e bordado — isso gera a despesa automaticamente no Financeiro.</div>
+
+  <div id="listaPendentes">
+    <div class="empty-state"><div class="icon">⏳</div><p>Carregando pedidos...</p></div>
+  </div>
+
+  <div class="historico-card" style="margin-top:28px">
+    <div class="historico-header">✅ Confirmados recentemente</div>
+    <div id="listaConfirmados"><div style="padding:16px 18px;color:var(--muted);font-size:13px">Nenhum ainda.</div></div>
+  </div>
+</main>
+
+<div id="notification"></div>
+
+<script>
+const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
+const SB_HEADERS = { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+
+async function sbGet(table, params) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + (params || 'select=*'), { headers: SB_HEADERS });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+async function sbPost(table, data) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+    method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' }, body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+async function sbPatch(table, filter, data) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + filter, {
+    method: 'PATCH', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' }, body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+function fmt(v) { return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function hoje() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+function fmtData(d) { if (!d) return ''; var p = d.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+function notify(msg, tipo) {
+  var n = document.getElementById('notification');
+  n.textContent = msg;
+  n.style.background = tipo === 'err' ? 'var(--rose)' : 'var(--jade)';
+  n.classList.add('show');
+  setTimeout(function () { n.classList.remove('show'); }, 2800);
+}
+
+function somaBordadoCobrado(itens) {
+  return (itens || []).reduce(function (a, i) { return a + (i.bordado ? (i.valorBordado || 0) : 0); }, 0);
+}
+
+function renderPedidoPendente(v) {
+  var itensArr = v.itens || [];
+  var bordadoCobrado = somaBordadoCobrado(itensArr);
+  var itensHtml = itensArr.map(function (i) {
+    return '<div class="venda-produto-linha">• ' + i.qtd + 'x ' + i.produto +
+      (i.tamanho ? '<span class="tag-tam">' + i.tamanho + '</span>' : '') +
+      (i.estampa ? '<span class="tag-est">' + i.estampa + '</span>' : '') +
+      (i.bordado ? '<span class="tag-bordado">🧵 Bordado ' + fmt(i.valorBordado || 0) + '</span>' : '') +
+      '</div>';
+  }).join('');
+
+  return '<div class="pedido-card" id="card_' + v.id + '">' +
+    '<div class="pedido-header">' +
+      '<div>' +
+        '<div class="pedido-titulo">📋 ' + (v.cliente || 'Cliente não informado') + '</div>' +
+        '<div class="pedido-data">📅 ' + fmtData(v.data) + ' · ' + (v.vendedora || '') + ' · ' + (v.canal || '') + '</div>' +
+      '</div>' +
+    '</div>' +
+    itensHtml +
+    '<div class="cobrado-box">' +
+      '<div>Frete cobrado do cliente<br><strong>' + fmt(v.frete || 0) + '</strong></div>' +
+      '<div>Bordado cobrado do cliente<br><strong>' + fmt(bordadoCobrado) + '</strong></div>' +
+    '</div>' +
+    '<div class="confirma-row">' +
+      '<div class="field"><label>Valor real pago de frete (R$)</label><input type="number" id="frete_pago_' + v.id + '" step="0.01" min="0" value="' + (v.frete || 0) + '"></div>' +
+      '<div class="field"><label>Valor real pago de bordado (R$)</label><input type="number" id="bordado_pago_' + v.id + '" step="0.01" min="0" value="' + bordadoCobrado + '"></div>' +
+    '</div>' +
+    '<button class="btn-confirmar" onclick="confirmarPagamento(' + v.id + ')">✅ Confirmar Pagamento</button>' +
+  '</div>';
+}
+
+async function carregarPendentes() {
+  try {
+    const pedidos = await sbGet('vendas', 'select=*&logistica_confirmado=eq.false&order=data.desc,id.desc');
+    const pendentes = pedidos.filter(function (v) {
+      return (v.frete || 0) > 0 || somaBordadoCobrado(v.itens) > 0;
+    });
+    const lista = document.getElementById('listaPendentes');
+    if (!pendentes.length) {
+      lista.innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>Nenhum pedido pendente de confirmação.</p></div>';
+    } else {
+      lista.innerHTML = pendentes.map(renderPedidoPendente).join('');
+    }
+    document.getElementById('connStatus').textContent = 'Online — ' + pendentes.length + ' pendente(s)';
+  } catch (e) {
+    console.error(e);
+    document.getElementById('connStatus').textContent = 'Sem conexão';
+    document.getElementById('listaPendentes').innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Erro ao conectar. Verifique sua conexão.</p></div>';
+  }
+}
+
+async function carregarConfirmados() {
+  try {
+    const pedidos = await sbGet('vendas', 'select=*&logistica_confirmado=eq.true&order=logistica_confirmado_em.desc&limit=10');
+    const el = document.getElementById('listaConfirmados');
+    if (!pedidos.length) { el.innerHTML = '<div style="padding:16px 18px;color:var(--muted);font-size:13px">Nenhum ainda.</div>'; return; }
+    el.innerHTML = pedidos.map(function (v) {
+      return '<div class="historico-item">' +
+        '<span>' + (v.cliente || 'Cliente') + ' · ' + fmtData(v.data) + '</span>' +
+        '<span class="val">Frete ' + fmt(v.frete_pago || 0) + ' · Bordado ' + fmt(v.bordado_pago || 0) + '</span>' +
+      '</div>';
+    }).join('');
+  } catch (e) { console.error(e); }
+}
+
+async function confirmarPagamento(id) {
+  const card = document.getElementById('card_' + id);
+  const btn = card.querySelector('.btn-confirmar');
+  const fretePago = parseFloat(document.getElementById('frete_pago_' + id).value) || 0;
+  const bordadoPago = parseFloat(document.getElementById('bordado_pago_' + id).value) || 0;
+
+  btn.disabled = true; btn.textContent = 'Confirmando...';
+
+  try {
+    await sbPatch('vendas', 'id=eq.' + id, {
+      frete_pago: fretePago,
+      bordado_pago: bordadoPago,
+      logistica_confirmado: true,
+      logistica_confirmado_em: new Date().toISOString()
+    });
+
+    const pedidos = await sbGet('vendas', 'select=cliente&id=eq.' + id);
+    const cliente = (pedidos[0] && pedidos[0].cliente) || ('Pedido #' + id);
+
+    if (fretePago > 0) {
+      await sbPost('contas_pagas', {
+        id: Date.now(), data: hoje(), descricao: 'Frete - ' + cliente,
+        categoria: 'Frete / Logística', valor: fretePago, pagamento: '—', fornecedor: '—', comprovante: ''
+      });
+    }
+    if (bordadoPago > 0) {
+      await sbPost('contas_pagas', {
+        id: Date.now() + 1, data: hoje(), descricao: 'Bordado - ' + cliente,
+        categoria: 'Bordado', valor: bordadoPago, pagamento: '—', fornecedor: '—', comprovante: ''
+      });
+    }
+
+    notify('✅ Pagamento confirmado e enviado ao Financeiro!');
+    await carregarPendentes();
+    await carregarConfirmados();
+  } catch (e) {
+    console.error(e);
+    notify('Erro ao confirmar. Tente novamente.', 'err');
+    btn.disabled = false; btn.textContent = '✅ Confirmar Pagamento';
+  }
+}
+
+carregarPendentes();
+carregarConfirmados();
+setInterval(carregarPendentes, 2 * 60 * 1000);
+</script>
+
+  <!-- PWA Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator && !location.hostname.includes('claudeusercontent')) {
+      navigator.serviceWorker.register('/sw.js').catch(function(){});
+    }
+  </script>
+</body>
+</html>
