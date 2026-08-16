@@ -71,7 +71,34 @@
   #notification{position:fixed;bottom:24px;right:24px;background:var(--jade);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.2);transform:translateY(60px);opacity:0;transition:all .3s;z-index:999;}
   #notification.show{transform:translateY(0);opacity:1;}
 
-  @media(max-width:540px){main{padding:16px 10px 40px;}.confirma-row{grid-template-columns:1fr;}.pedido-header{flex-direction:column;gap:6px;}}
+  .tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1.5px solid var(--border);}
+  .tab-btn{font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:var(--muted);background:none;border:none;padding:10px 16px;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:color .15s,border-color .15s;}
+  .tab-btn:hover{color:var(--navy);}
+  .tab-btn.active{color:var(--navy);border-bottom-color:var(--jade);}
+  .tab-badge{display:inline-block;background:var(--rose);color:white;font-size:11px;font-weight:800;border-radius:10px;padding:1px 7px;margin-left:5px;min-width:18px;}
+  .tab-badge:empty,.tab-badge[data-zero]{background:var(--border);color:var(--muted);}
+
+  .periodo-bar{display:flex;align-items:flex-end;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .periodo-bar .field{flex:1;min-width:130px;}
+  .btn-secundario{background:var(--navy);color:white;border:none;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;height:38px;transition:background .2s;}
+  .btn-secundario:hover{background:#0A2143;}
+
+  .resumo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+  .resumo-card{background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;}
+  .resumo-titulo{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+  .resumo-linha{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);padding:3px 0;gap:10px;}
+  .resumo-linha strong{color:var(--text);font-size:14px;white-space:nowrap;}
+  .resumo-card.total{background:var(--jade-light);border-color:var(--jade);}
+  .resumo-card.total .resumo-linha{color:var(--text);}
+  .resumo-card.total .resumo-linha strong{color:var(--jade);font-size:17px;}
+
+  .extra-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .btn-extra{background:white;border:1.5px solid var(--sky);color:var(--sky);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;padding:9px 14px;border-radius:8px;cursor:pointer;transition:background .15s;}
+  .btn-extra:hover{background:var(--sky-light);}
+  .extra-form{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px;}
+  .extra-form .field{margin-top:12px;}
+
+  @media(max-width:540px){main{padding:16px 10px 40px;}.confirma-row{grid-template-columns:1fr;}.pedido-header{flex-direction:column;gap:6px;}.resumo-grid{grid-template-columns:1fr;}.periodo-bar{flex-direction:column;align-items:stretch;}}
 </style>
 </head>
 <body>
@@ -88,16 +115,68 @@
 </header>
 
 <main>
-  <div class="section-title">🚚 Pedidos Pendentes de Confirmação</div>
-  <div class="section-sub">Confirme o valor real pago de frete e bordado — isso gera a despesa automaticamente no Financeiro.</div>
-
-  <div id="listaPendentes">
-    <div class="empty-state"><div class="icon">⏳</div><p>Carregando pedidos...</p></div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tabBtnPendentes" onclick="mostrarAba('pendentes')">⏳ Pendentes <span class="tab-badge" id="badgePendentes" data-zero></span></button>
+    <button class="tab-btn" id="tabBtnConfirmados" onclick="mostrarAba('confirmados')">✅ Confirmados</button>
   </div>
 
-  <div class="historico-card" style="margin-top:28px">
-    <div class="historico-header">✅ Confirmados recentemente</div>
-    <div id="listaConfirmados"><div style="padding:16px 18px;color:var(--muted);font-size:13px">Nenhum ainda.</div></div>
+  <div id="abaPendentes">
+    <div class="section-title">🚚 Pedidos Pendentes de Confirmação</div>
+    <div class="section-sub">Confirme o valor real pago de frete e bordado — isso gera a despesa automaticamente no Financeiro.</div>
+
+    <div id="listaPendentes">
+      <div class="empty-state"><div class="icon">⏳</div><p>Carregando pedidos...</p></div>
+    </div>
+  </div>
+
+  <div id="abaConfirmados" style="display:none">
+    <div class="section-title">✅ Pedidos Confirmados</div>
+    <div class="section-sub">Selecione o período pra ver o resumo de frete e bordado — cobrado x real pago.</div>
+
+    <div class="periodo-bar">
+      <div class="field"><label>De</label><input type="date" id="periodoDe"></div>
+      <div class="field"><label>Até</label><input type="date" id="periodoAte"></div>
+      <button class="btn-secundario" onclick="filtrarPeriodo()">🔍 Filtrar</button>
+    </div>
+
+    <div class="resumo-grid" id="resumoGrid"></div>
+
+    <div class="extra-actions">
+      <button class="btn-extra" onclick="toggleExtraForm('frete')">↩️ + Frete adicional (troca)</button>
+      <button class="btn-extra" onclick="toggleExtraForm('motoboy')">🏍️ + Motoboy (bordado)</button>
+    </div>
+
+    <div class="extra-form" id="formFrete" style="display:none">
+      <div class="section-title" style="margin-bottom:4px;font-size:14px">↩️ Frete adicional (troca pós-entrega)</div>
+      <div class="section-sub" style="margin:-2px 0 0">Custo de frete que a Starlecos arcou depois da entrega (ex: cliente pediu troca).</div>
+      <div class="confirma-row">
+        <div class="field"><label>Data</label><input type="date" id="fa_data"></div>
+        <div class="field"><label>Valor (R$)</label><input type="number" id="fa_valor" step="0.01" min="0" placeholder="0,00"></div>
+      </div>
+      <div class="field"><label>Cliente / motivo (opcional)</label><input type="text" id="fa_desc" placeholder="Ex: João Silva - troca de tamanho"></div>
+      <button class="btn-confirmar" id="fa_btn" onclick="lancarExtra('frete')">✅ Lançar frete adicional</button>
+    </div>
+
+    <div class="extra-form" id="formMotoboy" style="display:none">
+      <div class="section-title" style="margin-bottom:4px;font-size:14px">🏍️ Motoboy — envio pro bordado</div>
+      <div class="section-sub" style="margin:-2px 0 0">Custo do motoboy que leva a peça até o bordado.</div>
+      <div class="confirma-row">
+        <div class="field"><label>Data</label><input type="date" id="mt_data"></div>
+        <div class="field"><label>Valor (R$)</label><input type="number" id="mt_valor" step="0.01" min="0" placeholder="0,00"></div>
+      </div>
+      <div class="field"><label>Observação (opcional)</label><input type="text" id="mt_desc" placeholder="Ex: corrida pro bordado - pedido #123"></div>
+      <button class="btn-confirmar" id="mt_btn" onclick="lancarExtra('motoboy')">✅ Lançar motoboy</button>
+    </div>
+
+    <div class="historico-card" style="margin-bottom:16px">
+      <div class="historico-header">Lançamentos extras no período</div>
+      <div id="listaExtras"><div style="padding:16px 18px;color:var(--muted);font-size:13px">Nenhum ainda.</div></div>
+    </div>
+
+    <div class="historico-card">
+      <div class="historico-header">Pedidos confirmados no período</div>
+      <div id="listaConfirmados"><div style="padding:16px 18px;color:var(--muted);font-size:13px">Nenhum ainda.</div></div>
+    </div>
   </div>
 </main>
 
@@ -126,8 +205,12 @@ async function sbPatch(table, filter, data) {
   if (!res.ok) throw new Error(await res.text());
 }
 
+const CAT_FRETE_ADICIONAL = 'Frete Adicional - Troca';
+const CAT_MOTOBOY = 'Motoboy - Bordado';
+
 function fmt(v) { return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function hoje() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+function primeiroDiaMes() { return hoje().slice(0, 8) + '01'; }
 function fmtData(d) { if (!d) return ''; var p = d.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
 function notify(msg, tipo) {
   var n = document.getElementById('notification');
@@ -172,6 +255,20 @@ function renderPedidoPendente(v) {
   '</div>';
 }
 
+function mostrarAba(nome) {
+  var ehPendentes = nome === 'pendentes';
+  document.getElementById('abaPendentes').style.display = ehPendentes ? '' : 'none';
+  document.getElementById('abaConfirmados').style.display = ehPendentes ? 'none' : '';
+  document.getElementById('tabBtnPendentes').classList.toggle('active', ehPendentes);
+  document.getElementById('tabBtnConfirmados').classList.toggle('active', !ehPendentes);
+}
+
+function atualizarBadgePendentes(qtd) {
+  var badge = document.getElementById('badgePendentes');
+  badge.textContent = qtd || '';
+  if (qtd > 0) { badge.removeAttribute('data-zero'); } else { badge.setAttribute('data-zero', ''); }
+}
+
 async function carregarPendentes() {
   try {
     const pedidos = await sbGet('vendas', 'select=*&logistica_confirmado=eq.false&order=data.desc,id.desc');
@@ -184,6 +281,7 @@ async function carregarPendentes() {
     } else {
       lista.innerHTML = pendentes.map(renderPedidoPendente).join('');
     }
+    atualizarBadgePendentes(pendentes.length);
     document.getElementById('connStatus').textContent = 'Online — ' + pendentes.length + ' pendente(s)';
   } catch (e) {
     console.error(e);
@@ -192,18 +290,131 @@ async function carregarPendentes() {
   }
 }
 
+function periodoAtual() {
+  var de = document.getElementById('periodoDe').value || primeiroDiaMes();
+  var ate = document.getElementById('periodoAte').value || hoje();
+  return { de: de, ate: ate };
+}
+
+function filtrarPeriodo() { carregarConfirmados(); }
+
+function renderResumo(pedidos, freteExtras, motoboyExtras) {
+  var freteCobrado = 0, fretePago = 0, bordadoCobrado = 0, bordadoPago = 0;
+  pedidos.forEach(function (v) {
+    freteCobrado += (v.frete || 0);
+    fretePago += (v.frete_pago || 0);
+    bordadoCobrado += somaBordadoCobrado(v.itens);
+    bordadoPago += (v.bordado_pago || 0);
+  });
+  var totalFreteAdicional = freteExtras.reduce(function (a, e) { return a + (e.valor || 0); }, 0);
+  var totalMotoboy = motoboyExtras.reduce(function (a, e) { return a + (e.valor || 0); }, 0);
+  var totalPago = fretePago + bordadoPago + totalFreteAdicional + totalMotoboy;
+
+  document.getElementById('resumoGrid').innerHTML =
+    '<div class="resumo-card">' +
+      '<div class="resumo-titulo">🚚 Frete (pedidos)</div>' +
+      '<div class="resumo-linha"><span>Cobrado do cliente</span><strong>' + fmt(freteCobrado) + '</strong></div>' +
+      '<div class="resumo-linha"><span>Real pago</span><strong>' + fmt(fretePago) + '</strong></div>' +
+    '</div>' +
+    '<div class="resumo-card">' +
+      '<div class="resumo-titulo">🧵 Bordado (pedidos)</div>' +
+      '<div class="resumo-linha"><span>Cobrado do cliente</span><strong>' + fmt(bordadoCobrado) + '</strong></div>' +
+      '<div class="resumo-linha"><span>Real pago</span><strong>' + fmt(bordadoPago) + '</strong></div>' +
+    '</div>' +
+    '<div class="resumo-card">' +
+      '<div class="resumo-titulo">↩️ Frete adicional (trocas)</div>' +
+      '<div class="resumo-linha"><span>Total no período</span><strong>' + fmt(totalFreteAdicional) + '</strong></div>' +
+    '</div>' +
+    '<div class="resumo-card">' +
+      '<div class="resumo-titulo">🏍️ Motoboy (bordado)</div>' +
+      '<div class="resumo-linha"><span>Total no período</span><strong>' + fmt(totalMotoboy) + '</strong></div>' +
+    '</div>' +
+    '<div class="resumo-card total" style="grid-column:1/-1">' +
+      '<div class="resumo-linha"><span>Total real pago no período (o que entrou como despesa no Financeiro)</span><strong>' + fmt(totalPago) + '</strong></div>' +
+    '</div>';
+}
+
+function renderExtras(extras) {
+  var el = document.getElementById('listaExtras');
+  if (!extras.length) { el.innerHTML = '<div style="padding:16px 18px;color:var(--muted);font-size:13px">Nenhum lançamento extra no período.</div>'; return; }
+  extras.sort(function (a, b) { return a.data < b.data ? 1 : -1; });
+  el.innerHTML = extras.map(function (e) {
+    var icone = e.categoria === CAT_MOTOBOY ? '🏍️' : '↩️';
+    return '<div class="historico-item">' +
+      '<span>' + icone + ' ' + (e.descricao || e.categoria) + ' · ' + fmtData(e.data) + '</span>' +
+      '<span class="val">' + fmt(e.valor || 0) + '</span>' +
+    '</div>';
+  }).join('');
+}
+
 async function carregarConfirmados() {
   try {
-    const pedidos = await sbGet('vendas', 'select=*&logistica_confirmado=eq.true&order=logistica_confirmado_em.desc&limit=10');
+    var p = periodoAtual();
+    const [pedidos, freteExtras, motoboyExtras] = await Promise.all([
+      sbGet('vendas', 'select=*&logistica_confirmado=eq.true&data=gte.' + p.de + '&data=lte.' + p.ate + '&order=data.desc,id.desc'),
+      sbGet('contas_pagas', 'select=*&categoria=eq.' + encodeURIComponent(CAT_FRETE_ADICIONAL) + '&data=gte.' + p.de + '&data=lte.' + p.ate + '&order=data.desc'),
+      sbGet('contas_pagas', 'select=*&categoria=eq.' + encodeURIComponent(CAT_MOTOBOY) + '&data=gte.' + p.de + '&data=lte.' + p.ate + '&order=data.desc')
+    ]);
+
+    renderResumo(pedidos, freteExtras, motoboyExtras);
+    renderExtras(freteExtras.concat(motoboyExtras));
+
     const el = document.getElementById('listaConfirmados');
-    if (!pedidos.length) { el.innerHTML = '<div style="padding:16px 18px;color:var(--muted);font-size:13px">Nenhum ainda.</div>'; return; }
+    if (!pedidos.length) { el.innerHTML = '<div style="padding:16px 18px;color:var(--muted);font-size:13px">Nenhum pedido confirmado no período.</div>'; return; }
     el.innerHTML = pedidos.map(function (v) {
       return '<div class="historico-item">' +
         '<span>' + (v.cliente || 'Cliente') + ' · ' + fmtData(v.data) + '</span>' +
         '<span class="val">Frete ' + fmt(v.frete_pago || 0) + ' · Bordado ' + fmt(v.bordado_pago || 0) + '</span>' +
       '</div>';
     }).join('');
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+    notify('Erro ao carregar o período. Tente novamente.', 'err');
+  }
+}
+
+function toggleExtraForm(tipo) {
+  var idAlvo = tipo === 'frete' ? 'formFrete' : 'formMotoboy';
+  var idOutro = tipo === 'frete' ? 'formMotoboy' : 'formFrete';
+  var alvo = document.getElementById(idAlvo);
+  var abrindo = alvo.style.display === 'none';
+  document.getElementById(idOutro).style.display = 'none';
+  alvo.style.display = abrindo ? '' : 'none';
+  if (abrindo) {
+    document.getElementById(tipo === 'frete' ? 'fa_data' : 'mt_data').value = hoje();
+  }
+}
+
+async function lancarExtra(tipo) {
+  var prefixo = tipo === 'frete' ? 'fa' : 'mt';
+  var categoria = tipo === 'frete' ? CAT_FRETE_ADICIONAL : CAT_MOTOBOY;
+  var rotulo = tipo === 'frete' ? 'Frete adicional' : 'Motoboy (bordado)';
+  var data = document.getElementById(prefixo + '_data').value || hoje();
+  var valor = parseFloat(document.getElementById(prefixo + '_valor').value) || 0;
+  var desc = document.getElementById(prefixo + '_desc').value.trim();
+
+  if (valor <= 0) { notify('Informe um valor maior que zero.', 'err'); return; }
+
+  var btn = document.getElementById(prefixo + '_btn');
+  var textoOriginal = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Lançando...';
+
+  try {
+    await sbPost('contas_pagas', {
+      id: Date.now(), data: data, descricao: rotulo + (desc ? ' - ' + desc : ''),
+      categoria: categoria, valor: valor, pagamento: '—', fornecedor: '—', comprovante: ''
+    });
+    notify('✅ ' + rotulo + ' lançado e enviado ao Financeiro!');
+    document.getElementById(prefixo + '_valor').value = '';
+    document.getElementById(prefixo + '_desc').value = '';
+    document.getElementById(tipo === 'frete' ? 'formFrete' : 'formMotoboy').style.display = 'none';
+    await carregarConfirmados();
+  } catch (e) {
+    console.error(e);
+    notify('Erro ao lançar. Tente novamente.', 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = textoOriginal;
+  }
 }
 
 async function confirmarPagamento(id) {
@@ -247,6 +458,9 @@ async function confirmarPagamento(id) {
     btn.disabled = false; btn.textContent = '✅ Confirmar Pagamento';
   }
 }
+
+document.getElementById('periodoDe').value = primeiroDiaMes();
+document.getElementById('periodoAte').value = hoje();
 
 carregarPendentes();
 carregarConfirmados();
