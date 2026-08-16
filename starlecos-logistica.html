@@ -67,6 +67,10 @@
   .historico-item{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #F0F4F8;font-size:13px;gap:10px;}
   .historico-item:last-child{border-bottom:none;}
   .historico-item .val{font-weight:700;color:var(--jade);white-space:nowrap;}
+  .btn-editar{background:none;border:1px solid var(--border);color:var(--sky);width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;}
+  .btn-editar:hover{background:var(--sky-light);}
+  .btn-cancelar{background:none;border:1.5px solid var(--border);color:var(--muted);padding:11px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;}
+  .btn-cancelar:hover{background:var(--bg);}
 
   #notification{position:fixed;bottom:24px;right:24px;background:var(--jade);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.2);transform:translateY(60px);opacity:0;transition:all .3s;z-index:999;}
   #notification.show{transform:translateY(0);opacity:1;}
@@ -201,6 +205,12 @@ async function sbPost(table, data) {
 async function sbPatch(table, filter, data) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + filter, {
     method: 'PATCH', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' }, body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+async function sbDelete(table, filter) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + filter, {
+    method: 'DELETE', headers: SB_HEADERS
   });
   if (!res.ok) throw new Error(await res.text());
 }
@@ -347,6 +357,8 @@ function renderExtras(extras) {
   }).join('');
 }
 
+var confirmadosCache = {};
+
 async function carregarConfirmados() {
   try {
     var p = periodoAtual();
@@ -359,17 +371,104 @@ async function carregarConfirmados() {
     renderResumo(pedidos, freteExtras, motoboyExtras);
     renderExtras(freteExtras.concat(motoboyExtras));
 
+    confirmadosCache = {};
+    pedidos.forEach(function (v) { confirmadosCache[v.id] = v; });
+
     const el = document.getElementById('listaConfirmados');
     if (!pedidos.length) { el.innerHTML = '<div style="padding:16px 18px;color:var(--muted);font-size:13px">Nenhum pedido confirmado no período.</div>'; return; }
     el.innerHTML = pedidos.map(function (v) {
-      return '<div class="historico-item">' +
-        '<span>' + (v.cliente || 'Cliente') + ' · ' + fmtData(v.data) + '</span>' +
-        '<span class="val">Frete ' + fmt(v.frete_pago || 0) + ' · Bordado ' + fmt(v.bordado_pago || 0) + '</span>' +
-      '</div>';
+      return '<div class="historico-item" id="conf_' + v.id + '">' + conteudoConfirmadoDisplay(v) + '</div>';
     }).join('');
   } catch (e) {
     console.error(e);
     notify('Erro ao carregar o período. Tente novamente.', 'err');
+  }
+}
+
+function conteudoConfirmadoDisplay(v) {
+  return '<span>' + (v.cliente || 'Cliente') + ' · ' + fmtData(v.data) + '</span>' +
+    '<span style="display:flex;align-items:center;gap:10px">' +
+      '<span class="val">Frete ' + fmt(v.frete_pago || 0) + ' · Bordado ' + fmt(v.bordado_pago || 0) + '</span>' +
+      '<button class="btn-editar" onclick="abrirEdicaoConfirmado(' + v.id + ')" title="Editar valores confirmados">✏️</button>' +
+    '</span>';
+}
+
+function abrirEdicaoConfirmado(id) {
+  var v = confirmadosCache[id];
+  var el = document.getElementById('conf_' + id);
+  if (!v || !el) return;
+  el.style.display = 'block';
+  el.innerHTML =
+    '<div style="font-size:13px;font-weight:700;margin-bottom:10px">' + (v.cliente || 'Cliente') + ' · ' + fmtData(v.data) + '</div>' +
+    '<div class="confirma-row">' +
+      '<div class="field"><label>Frete real pago (R$)</label><input type="number" id="edit_frete_' + id + '" step="0.01" min="0" value="' + (v.frete_pago || 0) + '"></div>' +
+      '<div class="field"><label>Bordado real pago (R$)</label><input type="number" id="edit_bordado_' + id + '" step="0.01" min="0" value="' + (v.bordado_pago || 0) + '"></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:10px;margin-top:12px">' +
+      '<button class="btn-confirmar" style="margin-top:0" onclick="salvarEdicaoConfirmado(' + id + ')">💾 Salvar</button>' +
+      '<button class="btn-cancelar" onclick="fecharEdicaoConfirmado(' + id + ')">Cancelar</button>' +
+    '</div>';
+}
+
+function fecharEdicaoConfirmado(id) {
+  var v = confirmadosCache[id];
+  var el = document.getElementById('conf_' + id);
+  if (!v || !el) return;
+  el.style.display = '';
+  el.innerHTML = conteudoConfirmadoDisplay(v);
+}
+
+async function sincronizarDespesaLigada(comprovanteKey, valorAntigo, valorNovo, descricaoBase, categoria, dataFallback, idNovo) {
+  const existentes = await sbGet('contas_pagas', 'select=id&comprovante=eq.' + encodeURIComponent(comprovanteKey));
+  if (existentes.length) {
+    if (valorNovo > 0) {
+      await sbPatch('contas_pagas', 'id=eq.' + existentes[0].id, { valor: valorNovo });
+    } else {
+      await sbDelete('contas_pagas', 'id=eq.' + existentes[0].id);
+    }
+    return true;
+  }
+  if (valorNovo > 0) {
+    await sbPost('contas_pagas', {
+      id: idNovo, data: dataFallback, descricao: descricaoBase,
+      categoria: categoria, valor: valorNovo, pagamento: '—', fornecedor: '—', comprovante: comprovanteKey
+    });
+  }
+  return (valorAntigo || 0) <= 0;
+}
+
+async function salvarEdicaoConfirmado(id) {
+  var v = confirmadosCache[id];
+  if (!v) return;
+  var cliente = v.cliente || ('Pedido #' + id);
+  var novoFrete = parseFloat(document.getElementById('edit_frete_' + id).value) || 0;
+  var novoBordado = parseFloat(document.getElementById('edit_bordado_' + id).value) || 0;
+
+  var el = document.getElementById('conf_' + id);
+  var btn = el.querySelector('.btn-confirmar');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  try {
+    await sbPatch('vendas', 'id=eq.' + id, { frete_pago: novoFrete, bordado_pago: novoBordado });
+
+    var idBase = Date.now();
+    var okFrete = await sincronizarDespesaLigada('LOG-FRETE-' + id, v.frete_pago, novoFrete, 'Frete - ' + cliente, 'Frete / Logística', v.data, idBase);
+    var okBordado = await sincronizarDespesaLigada('LOG-BORD-' + id, v.bordado_pago, novoBordado, 'Bordado - ' + cliente, 'Bordado', v.data, idBase + 1);
+
+    var avisos = [];
+    if (!okFrete) avisos.push('frete');
+    if (!okBordado) avisos.push('bordado');
+
+    if (avisos.length) {
+      notify('Pedido atualizado, mas não achei a despesa antiga vinculada de ' + avisos.join(' e ') + ' (pedido confirmado antes desse recurso) — confira o Contas Pagas pra não duplicar.', 'err');
+    } else {
+      notify('✅ Confirmação atualizada e despesa ajustada no Financeiro!');
+    }
+    await carregarConfirmados();
+  } catch (e) {
+    console.error(e);
+    notify('Erro ao salvar edição. Tente novamente.', 'err');
+    btn.disabled = false; btn.textContent = '💾 Salvar';
   }
 }
 
@@ -439,13 +538,13 @@ async function confirmarPagamento(id) {
     if (fretePago > 0) {
       await sbPost('contas_pagas', {
         id: Date.now(), data: hoje(), descricao: 'Frete - ' + cliente,
-        categoria: 'Frete / Logística', valor: fretePago, pagamento: '—', fornecedor: '—', comprovante: ''
+        categoria: 'Frete / Logística', valor: fretePago, pagamento: '—', fornecedor: '—', comprovante: 'LOG-FRETE-' + id
       });
     }
     if (bordadoPago > 0) {
       await sbPost('contas_pagas', {
         id: Date.now() + 1, data: hoje(), descricao: 'Bordado - ' + cliente,
-        categoria: 'Bordado', valor: bordadoPago, pagamento: '—', fornecedor: '—', comprovante: ''
+        categoria: 'Bordado', valor: bordadoPago, pagamento: '—', fornecedor: '—', comprovante: 'LOG-BORD-' + id
       });
     }
 
