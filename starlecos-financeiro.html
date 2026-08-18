@@ -3209,16 +3209,23 @@ async function sincronizarPedidosShopify() {
       if (todasOrders.length) notify('🔄 Carregando... ' + todasOrders.length + ' pedido(s)');
     } while (pageInfo && paginas < 40); // trava de segurança
 
-    // 3. Filtrar só os novos
-    const pedidosNovos = todasOrders.filter(o => !jaExistentes.has(String(o.id)));
+    // 3. Só pedidos efetivamente pagos entram no Financeiro — boleto/pix gerado e não
+    //    pago (Shopify mostra como "Expirado" na tela dele, mas a API não expõe esse
+    //    status diretamente; o sinal confiável que a API dá é financial_status) fica de
+    //    fora, não é venda efetiva.
+    const STATUS_PAGO = ['paid', 'partially_refunded', 'refunded'];
+    const pedidosPagos = todasOrders.filter(o => STATUS_PAGO.includes(o.financial_status));
+
+    // 4. Filtrar só os novos
+    const pedidosNovos = pedidosPagos.filter(o => !jaExistentes.has(String(o.id)));
     if (!pedidosNovos.length) {
-      notify('Shopify atualizado — nenhum pedido novo.');
+      notify('Shopify atualizado — nenhum pedido pago novo.');
       renderShopify();
       return;
     }
     notify('🔄 Salvando ' + pedidosNovos.length + ' pedido(s) novo(s)...');
 
-    // 4. Mapear pro formato da tabela (mesma simplificação do ML: só o 1º item do pedido —
+    // 5. Mapear pro formato da tabela (mesma simplificação do ML: só o 1º item do pedido —
     //    pedido com múltiplos produtos guarda só o primeiro, limitação conhecida)
     const lote = pedidosNovos.map(o => {
       const item    = o.line_items && o.line_items[0] ? o.line_items[0] : null;
@@ -3227,9 +3234,8 @@ async function sincronizarPedidosShopify() {
       const bruto   = parseFloat(o.total_price || 0);
       const liquido = bruto; // Shopify não retorna taxa de gateway direto no pedido — ajustar depois se precisar
       const data    = o.created_at ? dataBR(o.created_at) : hoje();
-      const cancelado    = !!o.cancelled_at;
-      const financeiro   = o.financial_status;
-      const status = cancelado ? 'Cancelado' : (financeiro === 'paid' ? 'Entregue' : 'Aguardando');
+      const cancelado = !!o.cancelled_at;
+      const status = cancelado ? 'Cancelado' : 'Entregue';
       return { id: o.id, pedido: o.name || String(o.id), produto, qtd, bruto, taxa: 0, liquido, data, status };
     });
 
