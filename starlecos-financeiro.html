@@ -1080,6 +1080,7 @@
     <button class="tab-btn" onclick="showTab('vendasOnline')">💻 Vendas Online</button>
     <button class="tab-btn" onclick="showTab('mercadoLivre')">🛒 Mercado Livre</button>
     <button class="tab-btn" onclick="showTab('shopee')">🛍️ Shopee</button>
+    <button class="tab-btn" onclick="showTab('shopify')">🏪 Shopify</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
     <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
     <button class="tab-btn" onclick="showTab('estoque');carregarEstoque()">📦 Estoque</button>
@@ -1469,6 +1470,51 @@
         </thead>
         <tbody id="bodyShopee">
           <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛍️</div><p>Nenhum pedido importado ainda</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== SHOPIFY ====== -->
+  <div class="tab-panel" id="panel-shopify">
+    <div class="section-header">
+      <div class="section-title">🏪 Shopify <span class="section-badge">Importação de pedidos</span></div>
+    </div>
+
+    <div class="ml-sync-bar" style="background:linear-gradient(135deg,#95BF47 0%,#5E8E3E 100%)">
+      <div class="ml-info">
+        <div class="ml-logo">🏪</div>
+        <div class="ml-text">
+          <h4>Shopify — Sincronização sob demanda</h4>
+          <p>Clique em Sincronizar pra buscar os pedidos novos da loja</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button id="shopifyStatusBtn" class="btn-ml-sync" onclick="sincronizarPedidosShopify()" style="background:#3D5D26">
+          🔄 Sincronizar Shopify
+        </button>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Pedidos Shopify</span>
+        <span class="table-total val-pos" id="totalShopify">R$ 0,00</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Nº Pedido</th>
+            <th>Produto</th>
+            <th>Qtd</th>
+            <th>Bruto</th>
+            <th>Líquido</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="bodyShopify">
+          <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🏪</div><p>Nenhum pedido sincronizado ainda</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -2459,21 +2505,23 @@ async function sbUpsert(table, data) {
 // =============================================
 // STATE — vendasOnline vem do Supabase, resto do localStorage
 // =============================================
-let dados = JSON.parse(localStorage.getItem('starlecos_dados') || '{"vendasOnline":[],"pedidosML":[],"vendasShopee":[],"contasPagas":[]}');
+let dados = JSON.parse(localStorage.getItem('starlecos_dados') || '{"vendasOnline":[],"pedidosML":[],"vendasShopee":[],"pedidosShopify":[],"contasPagas":[]}');
 
 async function carregarVendasOnline() {
   const statusEl = document.getElementById('connStatusFin');
   if (statusEl) { statusEl.textContent = '🟡 Conectando...'; statusEl.style.color = 'var(--amber)'; }
   try {
-    const [vendas, pedidosML, pedidosShopee, contas] = await Promise.all([
-      sbGet('vendas',         'select=*&order=data.desc,id.desc'),
-      sbGetAll('pedidos_ml',  'select=*&order=data.desc,id.desc'),
-      sbGet('pedidos_shopee', 'select=*&order=data.desc,id.desc').catch(() => []),
-      sbGet('contas_pagas',   'select=*&order=data.desc,id.desc').catch(() => [])
+    const [vendas, pedidosML, pedidosShopee, pedidosShopify, contas] = await Promise.all([
+      sbGet('vendas',           'select=*&order=data.desc,id.desc'),
+      sbGetAll('pedidos_ml',    'select=*&order=data.desc,id.desc'),
+      sbGet('pedidos_shopee',   'select=*&order=data.desc,id.desc').catch(() => []),
+      sbGetAll('pedidos_shopify', 'select=*&order=data.desc,id.desc').catch(() => []),
+      sbGet('contas_pagas',     'select=*&order=data.desc,id.desc').catch(() => [])
     ]);
-    dados.vendasOnline = vendas;
-    dados.pedidosML    = pedidosML.map(v => ({ ...v, taxaVenda: v.taxa_venda, taxaFrete: v.taxa_frete }));
+    dados.vendasOnline   = vendas;
+    dados.pedidosML      = pedidosML.map(v => ({ ...v, taxaVenda: v.taxa_venda, taxaFrete: v.taxa_frete }));
     if (pedidosShopee.length) dados.vendasShopee = pedidosShopee;
+    dados.pedidosShopify = pedidosShopify;
     if (contas.length)        dados.contasPagas  = contas;
     if (statusEl) { statusEl.textContent = '🟢 Online'; statusEl.style.color = 'var(--jade)'; }
     atualizarTudo();
@@ -3109,6 +3157,105 @@ function renderShopee() {
     </tr>`).join('');
 }
 
+// ====== SHOPIFY ======
+function renderShopify() {
+  const body  = document.getElementById('bodyShopify');
+  const lista = (dados.pedidosShopify || []).filter(v => dataNoFiltro(v.data));
+  const total = lista.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
+  document.getElementById('totalShopify').textContent = fmt(total);
+
+  if (!lista.length) {
+    body.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🏪</div><p>Nenhum pedido no período</p></div></td></tr>';
+    return;
+  }
+
+  body.innerHTML = [...lista].sort((a,b) => b.data.localeCompare(a.data) || b.id-a.id).map(v => `
+    <tr>
+      <td>${fmtData(v.data)}</td>
+      <td style="font-size:12px;color:var(--muted)">${v.pedido}</td>
+      <td>${v.produto}</td>
+      <td>${v.qtd}</td>
+      <td class="val-pos">${fmt(v.bruto)}</td>
+      <td class="val-pos"><strong>${fmt(v.liquido)}</strong></td>
+      <td><span class="badge ${v.status==='Entregue'||v.status==='Pago'?'badge-green':v.status==='Cancelado'?'badge-red':'badge-amber'}">${v.status}</span></td>
+    </tr>`).join('');
+}
+
+async function sincronizarPedidosShopify() {
+  const btn = document.getElementById('shopifyStatusBtn');
+  const textoOriginal = btn.textContent;
+  btn.disabled = true; btn.textContent = '🔄 Sincronizando...';
+
+  try {
+    // 1. Buscar pedidos já existentes no Supabase (dedupe por id do pedido Shopify)
+    let pedidosExistentes = [];
+    try {
+      pedidosExistentes = await sbGetAll('pedidos_shopify', 'select=id');
+    } catch(e) { pedidosExistentes = dados.pedidosShopify || []; }
+    const jaExistentes = new Set(pedidosExistentes.map(p => String(p.id)));
+
+    // 2. Paginar por cursor (a function do Netlify já extrai o next_page_info do header Link)
+    let todasOrders = [];
+    let pageInfo = null;
+    let paginas = 0;
+    do {
+      const url = '/.netlify/functions/shopify-orders?limit=50' + (pageInfo ? '&page_info=' + encodeURIComponent(pageInfo) : '');
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao buscar pedidos Shopify');
+      todasOrders = todasOrders.concat(data.orders || []);
+      pageInfo = data.next_page_info;
+      paginas++;
+      if (todasOrders.length) notify('🔄 Carregando... ' + todasOrders.length + ' pedido(s)');
+    } while (pageInfo && paginas < 40); // trava de segurança
+
+    // 3. Filtrar só os novos
+    const pedidosNovos = todasOrders.filter(o => !jaExistentes.has(String(o.id)));
+    if (!pedidosNovos.length) {
+      notify('Shopify atualizado — nenhum pedido novo.');
+      renderShopify();
+      return;
+    }
+    notify('🔄 Salvando ' + pedidosNovos.length + ' pedido(s) novo(s)...');
+
+    // 4. Mapear pro formato da tabela (mesma simplificação do ML: só o 1º item do pedido —
+    //    pedido com múltiplos produtos guarda só o primeiro, limitação conhecida)
+    const lote = pedidosNovos.map(o => {
+      const item    = o.line_items && o.line_items[0] ? o.line_items[0] : null;
+      const produto = item ? item.title : 'Produto Shopify';
+      const qtd     = item ? item.quantity : 1;
+      const bruto   = parseFloat(o.total_price || 0);
+      const liquido = bruto; // Shopify não retorna taxa de gateway direto no pedido — ajustar depois se precisar
+      const data    = o.created_at ? dataBR(o.created_at) : hoje();
+      const cancelado    = !!o.cancelled_at;
+      const financeiro   = o.financial_status;
+      const status = cancelado ? 'Cancelado' : (financeiro === 'paid' ? 'Entregue' : 'Aguardando');
+      return { id: o.id, pedido: o.name || String(o.id), produto, qtd, bruto, taxa: 0, liquido, data, status };
+    });
+
+    // 5. Salvar em lotes no Supabase (merge-duplicates evita duplicar se rodar sync 2x)
+    const LOTE = 100;
+    for (let j = 0; j < lote.length; j += LOTE) {
+      const parte = lote.slice(j, j + LOTE);
+      const res = await fetch(SUPABASE_URL + '/rest/v1/pedidos_shopify', {
+        method: 'POST',
+        headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=merge-duplicates' },
+        body: JSON.stringify(parte)
+      });
+      if (!res.ok) console.warn('Erro lote Shopify:', await res.text());
+    }
+
+    dados.pedidosShopify = (dados.pedidosShopify || []).concat(lote);
+    notify('✅ ' + lote.length + ' pedido(s) Shopify sincronizado(s)!');
+    atualizarTudo();
+  } catch(e) {
+    console.error(e);
+    notify('Erro ao sincronizar Shopify: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = textoOriginal;
+  }
+}
+
 // ====== CONTAS PAGAS ======
 function addContaPaga() {
   const data = document.getElementById('cp_data').value;
@@ -3218,22 +3365,24 @@ function filtrarPeriodo() {
 // ====== DASHBOARD / SUMMARY ======
 function atualizarTudo() {
   // Aplicar filtro de período em cópias filtradas
-  const vendasOnlineF = dados.vendasOnline.filter(v => dataNoFiltro(v.data));
-  const pedidosMLF    = dados.pedidosML.filter(v => dataNoFiltro(v.data));
-  const vendasShopeeF = (dados.vendasShopee || []).filter(v => dataNoFiltro(v.data));
-  const contasPagasF  = dados.contasPagas.filter(v => dataNoFiltro(v.data));
+  const vendasOnlineF   = dados.vendasOnline.filter(v => dataNoFiltro(v.data));
+  const pedidosMLF      = dados.pedidosML.filter(v => dataNoFiltro(v.data));
+  const vendasShopeeF   = (dados.vendasShopee || []).filter(v => dataNoFiltro(v.data));
+  const pedidosShopifyF = (dados.pedidosShopify || []).filter(v => dataNoFiltro(v.data));
+  const contasPagasF    = dados.contasPagas.filter(v => dataNoFiltro(v.data));
 
   // Receitas
   const rVO = vendasOnlineF.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+getVendaValor(v), 0);
   const rML = pedidosMLF.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+v.liquido, 0);
   const rSH = vendasShopeeF.reduce((a,v) => a + (v.status !== 'Cancelado' ? v.liquido : 0), 0);
-  const totalReceitas = rVO + rML + rSH;
+  const rSF = pedidosShopifyF.filter(v => v.status !== 'Cancelado').reduce((a,v) => a+v.liquido, 0);
+  const totalReceitas = rVO + rML + rSH + rSF;
 
   // Despesas
   const totalDespesas = contasPagasF.reduce((a,v) => a+v.valor, 0);
 
   // Pedidos
-  const totalPedidos = vendasOnlineF.length + pedidosMLF.length + vendasShopeeF.length;
+  const totalPedidos = vendasOnlineF.length + pedidosMLF.length + vendasShopeeF.length + pedidosShopifyF.length;
 
   // Update summary
   document.getElementById('totalReceitas').textContent = fmt(totalReceitas);
@@ -3247,14 +3396,15 @@ function atualizarTudo() {
   const nVO = vendasOnlineF.length;
   const nML = pedidosMLF.length;
   const nSH = vendasShopeeF.length;
+  const nSF = pedidosShopifyF.length;
   const nCP = contasPagasF.length;
 
-  document.getElementById('subReceitas').textContent = `${nVO + nML + nSH} vendas registradas`;
+  document.getElementById('subReceitas').textContent = `${nVO + nML + nSH + nSF} vendas registradas`;
   document.getElementById('subDespesas').textContent = `${nCP} conta(s) paga(s)`;
-  document.getElementById('subPedidos').textContent = `${nVO} online · ${nML} ML · ${nSH} Shopee`;
+  document.getElementById('subPedidos').textContent = `${nVO} online · ${nML} ML · ${nSH} Shopee · ${nSF} Shopify`;
 
   // Channels
-  renderChannels(rVO, rML, rSH, totalReceitas);
+  renderChannels(rVO, rML, rSH, rSF, totalReceitas);
 
   // Últimas movimentações
   renderUltimas();
@@ -3266,10 +3416,11 @@ function atualizarTudo() {
   renderVendasOnline();
   renderML();
   renderShopee();
+  renderShopify();
   renderContas();
 }
 
-function renderChannels(rVO, rML, rSH, total) {
+function renderChannels(rVO, rML, rSH, rSF, total) {
   const el = document.getElementById('channelList');
   if (total === 0) {
     el.innerHTML = '<div class="empty-state"><div class="empty-icon">📉</div><p>Registre vendas para ver o comparativo</p></div>';
@@ -3280,6 +3431,7 @@ function renderChannels(rVO, rML, rSH, total) {
     { name: 'Vendas Online (Vendedora)', val: rVO, color: '#1A7A4A' },
     { name: 'Mercado Livre', val: rML, color: '#FFB800' },
     { name: 'Shopee', val: rSH, color: '#FF6633' },
+    { name: 'Shopify', val: rSF, color: '#95BF47' },
   ].filter(c => c.val > 0);
 
   el.innerHTML = channels.map(c => `
@@ -3302,6 +3454,7 @@ function renderUltimas() {
     ...dados.vendasOnline.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, tipo: 'Receita', desc: 'Venda: '+getVendaDesc(v), vendedora: v.vendedora||'', val: getVendaValor(v), cor: 'val-pos', canal: 'Online' })),
     ...dados.pedidosML.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, tipo: 'Receita', desc: `ML: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'ML' })),
     ...(dados.vendasShopee || []).filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, tipo: 'Receita', desc: `Shopee: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'Shopee' })),
+    ...(dados.pedidosShopify || []).filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, tipo: 'Receita', desc: `Shopify: ${v.produto}`, val: v.liquido, cor: 'val-pos', canal: 'Shopify' })),
     ...dados.contasPagas.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, tipo: 'Despesa', desc: v.descricao, val: -v.valor, cor: 'val-neg', canal: v.categoria })),
   ].sort((a,b) => b.data.localeCompare(a.data)).slice(0, 8);
 
@@ -3327,6 +3480,7 @@ function renderGeral() {
     ...dados.vendasOnline.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, canal: 'Online', vendedora: v.vendedora||'—', desc: getVendaDesc(v), cat: v.canal, tipo: 'Receita', val: getVendaValor(v), id: v.id })),
     ...dados.pedidosML.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, canal: 'Mercado Livre', vendedora: '—', desc: v.produto, cat: 'ML', tipo: 'Receita', val: v.liquido, id: v.id })),
     ...(dados.vendasShopee || []).filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, canal: 'Shopee', vendedora: '—', desc: v.produto, cat: 'Shopee', tipo: 'Receita', val: v.liquido, id: v.id })),
+    ...(dados.pedidosShopify || []).filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, canal: 'Shopify', vendedora: '—', desc: v.produto, cat: 'Shopify', tipo: 'Receita', val: v.liquido, id: v.id })),
     ...dados.contasPagas.filter(v => dataNoFiltro(v.data)).map(v => ({ data: v.data, canal: 'Despesa', vendedora: '—', desc: v.descricao, cat: v.categoria, tipo: 'Despesa', val: -v.valor, id: v.id })),
   ].sort((a,b) => b.data.localeCompare(a.data) || b.id - a.id);
 
@@ -3340,7 +3494,7 @@ function renderGeral() {
   body.innerHTML = todas.map(m => `
     <tr>
       <td>${fmtData(m.data)}</td>
-      <td><span class="badge ${m.canal==='Mercado Livre'?'badge-amber':m.canal==='Shopee'?'badge-red':m.canal==='Despesa'?'badge-red':'badge-sky'}">${m.canal}</span></td>
+      <td><span class="badge ${m.canal==='Mercado Livre'?'badge-amber':m.canal==='Shopee'?'badge-red':m.canal==='Shopify'?'badge-green':m.canal==='Despesa'?'badge-red':'badge-sky'}">${m.canal}</span></td>
       <td style="font-size:13px;font-weight:600;color:var(--navy)">${m.vendedora||'—'}</td>
       <td>${m.desc}</td>
       <td style="font-size:12px;color:var(--muted)">${m.cat}</td>
@@ -3357,6 +3511,7 @@ function exportarCSV() {
   dados.vendasOnline.forEach(v => rows.push([v.data,'Online',getVendaDesc(v)+' - '+(v.vendedora||''),v.canal,'Receita',getVendaValor(v).toFixed(2)]));
   dados.pedidosML.forEach(v => rows.push([v.data,'Mercado Livre',v.produto,'ML','Receita',v.liquido.toFixed(2)]));
   (dados.vendasShopee || []).forEach(v => rows.push([v.data,'Shopee',v.produto,'Shopee','Receita',v.liquido.toFixed(2)]));
+  (dados.pedidosShopify || []).forEach(v => rows.push([v.data,'Shopify',v.produto,'Shopify','Receita',v.liquido.toFixed(2)]));
   dados.contasPagas.forEach(v => rows.push([v.data,'Despesa',v.descricao,v.categoria,'Despesa',('-'+v.valor.toFixed(2))]));
 
   const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
