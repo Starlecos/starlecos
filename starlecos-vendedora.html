@@ -154,8 +154,35 @@
   #notification{position:fixed;bottom:24px;right:24px;background:var(--jade);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.2);transform:translateY(60px);opacity:0;transition:all .3s;z-index:999;}
   #notification.show{transform:translateY(0);opacity:1;}
 
+  /* TABS PRINCIPAIS (Lançar Venda / Estoque) */
+  .tabs-principal{display:flex;gap:4px;width:100%;max-width:600px;margin-bottom:20px;border-bottom:1.5px solid var(--border);}
+  .tab-btn-principal{font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:var(--muted);background:none;border:none;padding:10px 16px;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:color .15s,border-color .15s;}
+  .tab-btn-principal:hover{color:var(--navy);}
+  .tab-btn-principal.active{color:var(--navy);border-bottom-color:var(--jade);}
+  #abaVenda,#abaEstoqueTab{width:100%;display:flex;flex-direction:column;align-items:center;}
+
+  /* ABA ESTOQUE */
+  .estoque-wrap{width:100%;max-width:1000px;}
+  .estoque-resumo{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+  .estoque-resumo .day-card{flex:1;min-width:130px;}
+  .estoque-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:flex-end;}
+  .estoque-toolbar .field{flex:1;min-width:180px;margin-bottom:0;}
+
+  .table-card{background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;}
+  .table-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#FAFBFD;}
+  .table-header-title{font-size:13px;font-weight:700;color:var(--text);}
+  .table-total{font-size:13px;font-weight:700;color:var(--jade);}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;padding:10px 16px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);background:#FAFBFD;border-bottom:1px solid var(--border);}
+  td{padding:9px 16px;border-bottom:1px solid #F0F4F8;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:#FAFCFF;}
+  .empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+  .empty-state .icon{font-size:32px;margin-bottom:10px;}
+  .empty-state p{font-size:13px;}
+
   @keyframes fadeIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
-  @media(max-width:540px){.field-row{grid-template-columns:1fr;}.item-row-top,.item-row-mid{grid-template-columns:1fr;}.form-card{padding:20px 14px;}main{padding:20px 10px 40px;}.header-badge{display:none;}}
+  @media(max-width:540px){.field-row{grid-template-columns:1fr;}.item-row-top,.item-row-mid{grid-template-columns:1fr;}.form-card{padding:20px 14px;}main{padding:20px 10px 40px;}.header-badge{display:none;}.table-card{overflow-x:auto;-webkit-overflow-scrolling:touch;}table{min-width:520px;}}
 </style>
 </head>
 <body>
@@ -257,6 +284,12 @@
 </div>
 
 <main>
+  <div class="tabs-principal">
+    <button class="tab-btn-principal active" id="tabBtnVenda" onclick="mostrarAbaPrincipal('venda')">📝 Lançar Venda</button>
+    <button class="tab-btn-principal" id="tabBtnEstoqueTab" onclick="mostrarAbaPrincipal('estoque')">📦 Estoque</button>
+  </div>
+
+  <div id="abaVenda">
   <div class="page-title">
     <h1>Registrar Venda</h1>
     <p>Preencha os dados do pedido do cliente</p>
@@ -364,6 +397,55 @@
     </div>
     <div id="historicoLista"></div>
   </div>
+  </div><!-- /abaVenda -->
+
+  <div id="abaEstoqueTab" style="display:none">
+    <div class="page-title">
+      <h1>Estoque de Produtos</h1>
+      <p>Consulta de SKUs por produto, tamanho e estampa (somente leitura)</p>
+    </div>
+
+    <div class="estoque-wrap">
+      <div class="estoque-resumo" id="estoqueResumoChips"></div>
+
+      <div style="background:var(--sky-light);border:1.5px solid #A9CBEA;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#0F4A80">
+        ℹ️ Só consulta. Entrada de estoque e ajustes são feitos no Financeiro.
+      </div>
+
+      <div class="estoque-toolbar">
+        <div class="field"><label>Filtrar por produto</label><select id="eq_filtro_produto" onchange="onProdutoFiltroChange()"></select></div>
+        <div class="field"><label>Filtrar por estampa/cor</label>
+          <select id="eq_filtro_estampa" onchange="renderEstoqueTab()" disabled>
+            <option value="">— Selecione um produto —</option>
+          </select>
+        </div>
+        <div class="field"><label>Filtrar por tamanho</label>
+          <select id="eq_filtro_tamanho" onchange="renderEstoqueTab()">
+            <option value="">— Todos os tamanhos —</option>
+            <option>PP</option><option>P</option><option>M</option><option>G</option><option>GG</option><option>G1</option><option>G2</option><option>G3</option><option>G4</option>
+          </select>
+        </div>
+        <div class="field"><label>Buscar por SKU</label><input type="text" id="eq_busca" placeholder="Ex: JAL-EST-F" oninput="renderEstoqueTab()"></div>
+        <div class="field" style="justify-content:flex-end">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--text)">
+            <input type="checkbox" id="eq_so_com_estoque" onchange="renderEstoqueTab()" style="width:16px;height:16px;accent-color:var(--jade);cursor:pointer">
+            Só com estoque
+          </label>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-header-title">🏷️ Produtos Acabados (SKU)</span>
+          <span class="table-total" id="eqTotalFiltrado">0 un</span>
+        </div>
+        <table>
+          <thead><tr><th>SKU</th><th>Produto</th><th>Tamanho</th><th>Estampa</th><th>Quantidade</th></tr></thead>
+          <tbody id="eqTabela"><tr><td colspan="5"><div class="empty-state"><div class="icon">🔎</div><p>Selecione um produto, tamanho ou busque uma estampa/SKU.</p></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </main>
 
 <div id="notification"></div>
@@ -381,6 +463,21 @@ async function sbGet(table, params) {
   var res = await fetch(url, { headers: HEADERS });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+async function sbGetAll(table, params) {
+  var PAGE = 1000;
+  var todos = [];
+  var offset = 0;
+  while (true) {
+    var url = SUPABASE_URL + '/rest/v1/' + table + '?' + (params || 'select=*') + '&limit=' + PAGE + '&offset=' + offset;
+    var res = await fetch(url, { headers: HEADERS });
+    if (!res.ok) throw new Error(await res.text());
+    var pagina = await res.json();
+    todos = todos.concat(pagina);
+    if (pagina.length < PAGE) break;
+    offset += PAGE;
+  }
+  return todos;
 }
 async function sbInsert(table, data) {
   var res = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
@@ -555,7 +652,7 @@ var _estoqueProdutos = [];
 
 async function carregarEstoqueProdutos() {
   try {
-    _estoqueProdutos = await sbGet('estoque_produtos', 'select=*');
+    _estoqueProdutos = await sbGetAll('estoque_produtos', 'select=*');
   } catch(e) { console.error('Erro estoque produtos:', e); }
 }
 
@@ -579,6 +676,84 @@ async function descontarEstoque(itens) {
       match.quantidade = nova;
     } catch(e) { console.error('Erro ao descontar estoque:', e); }
   }
+}
+
+// =============================================
+// ABA ESTOQUE (produtos acabados)
+// =============================================
+function mostrarAbaPrincipal(nome) {
+  var ehVenda = nome === 'venda';
+  document.getElementById('abaVenda').style.display = ehVenda ? '' : 'none';
+  document.getElementById('abaEstoqueTab').style.display = ehVenda ? 'none' : '';
+  document.getElementById('tabBtnVenda').classList.toggle('active', ehVenda);
+  document.getElementById('tabBtnEstoqueTab').classList.toggle('active', !ehVenda);
+  if (!ehVenda) { renderResumoChips(); renderEstoqueTab(); }
+}
+
+function renderResumoChips() {
+  var total = _estoqueProdutos.reduce(function(a,r){ return a+(r.quantidade||0); }, 0);
+  var comEstoque = _estoqueProdutos.filter(function(r){ return (r.quantidade||0)>0; }).length;
+  var zerados = _estoqueProdutos.length - comEstoque;
+  document.getElementById('estoqueResumoChips').innerHTML =
+    '<div class="day-card"><div class="val">'+_estoqueProdutos.length+'</div><div class="lbl">SKUs cadastrados</div></div>'+
+    '<div class="day-card"><div class="val">'+total+'</div><div class="lbl">Peças em estoque</div></div>'+
+    '<div class="day-card"><div class="val">'+zerados+'</div><div class="lbl">SKUs zerados</div></div>';
+}
+
+function onProdutoFiltroChange() {
+  var produto = document.getElementById('eq_filtro_produto').value;
+  var selEstampa = document.getElementById('eq_filtro_estampa');
+  if (!produto) {
+    selEstampa.innerHTML = '<option value="">— Selecione um produto —</option>';
+    selEstampa.disabled = true;
+  } else {
+    var estampas = _estoqueProdutos
+      .filter(function(r){ return r.produto === produto && r.estampa; })
+      .map(function(r){ return r.estampa; });
+    estampas = estampas.filter(function(v,i){ return estampas.indexOf(v) === i; }).sort();
+    selEstampa.innerHTML = '<option value="">— Todas as estampas/cores —</option>' +
+      estampas.map(function(e){ return '<option>'+e+'</option>'; }).join('');
+    selEstampa.disabled = false;
+  }
+  renderEstoqueTab();
+}
+
+function renderEstoqueTab() {
+  var filtroProduto = document.getElementById('eq_filtro_produto').value;
+  var filtroEstampa = document.getElementById('eq_filtro_estampa').value;
+  var filtroTamanho = document.getElementById('eq_filtro_tamanho').value;
+  var busca = normEP(document.getElementById('eq_busca').value);
+  var soComEstoque = document.getElementById('eq_so_com_estoque').checked;
+  var lista = _estoqueProdutos.filter(function(r) {
+    if (filtroProduto && r.produto !== filtroProduto) return false;
+    if (filtroEstampa && r.estampa !== filtroEstampa) return false;
+    if (filtroTamanho && r.tamanho !== filtroTamanho) return false;
+    if (busca && normEP(r.sku).indexOf(busca) === -1) return false;
+    if (soComEstoque && (r.quantidade||0) <= 0) return false;
+    return true;
+  });
+  var corpo = document.getElementById('eqTabela');
+  var totalFiltrado = lista.reduce(function(a,r){ return a+(r.quantidade||0); }, 0);
+  document.getElementById('eqTotalFiltrado').textContent = totalFiltrado + ' un (' + lista.length + ' SKUs)';
+
+  if (!filtroProduto && !filtroTamanho && !busca && !soComEstoque) {
+    corpo.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="icon">🔎</div><p>Selecione um produto, tamanho, marque "Só com estoque" ou busque um SKU.</p></div></td></tr>';
+    return;
+  }
+  if (!lista.length) {
+    corpo.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="icon">🏷️</div><p>Nenhum SKU encontrado.</p></div></td></tr>';
+    return;
+  }
+  lista.sort(function(a,b){ return (a.produto+a.estampa+a.tamanho).localeCompare(b.produto+b.estampa+b.tamanho); });
+  corpo.innerHTML = lista.map(function(r) {
+    return '<tr>'+
+      '<td style="font-family:monospace;font-size:11px">'+r.sku+'</td>'+
+      '<td>'+r.produto+'</td>'+
+      '<td>'+(r.tamanho||'—')+'</td>'+
+      '<td style="color:var(--muted)">'+(r.estampa||'—')+'</td>'+
+      '<td style="font-weight:700;color:'+((r.quantidade||0)>0?'var(--jade)':'var(--rose)')+'">'+(r.quantidade||0)+'</td>'+
+    '</tr>';
+  }).join('');
 }
 
 // =============================================
@@ -873,10 +1048,12 @@ async function exportarExcel() {
 // =============================================
 async function init() {
   document.getElementById('vo_data').value = hoje();
+  document.getElementById('eq_filtro_produto').innerHTML = buildSelectOptions();
   try {
     await Promise.all([carregarVendedores(), carregarEstampas(), carregarEstoqueProdutos()]);
     setConn('ok');
     await renderHistorico();
+    renderResumoChips();
   } catch(e) {
     console.warn('Erro de conexão:', e.message);
     setConn('err');
