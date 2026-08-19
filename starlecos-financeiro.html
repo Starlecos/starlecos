@@ -1081,6 +1081,7 @@
     <button class="tab-btn" onclick="showTab('mercadoLivre')">🛒 Mercado Livre</button>
     <button class="tab-btn" onclick="showTab('shopee')">🛍️ Shopee</button>
     <button class="tab-btn" onclick="showTab('shopify')">🏪 Shopify</button>
+    <button class="tab-btn" onclick="showTab('mercadoads')">📢 Mercado Ads</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
     <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
     <button class="tab-btn" onclick="showTab('estoque');carregarEstoque()">📦 Estoque</button>
@@ -1515,6 +1516,57 @@
         </thead>
         <tbody id="bodyShopify">
           <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🏪</div><p>Nenhum pedido sincronizado ainda</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== MERCADO ADS ====== -->
+  <div class="tab-panel" id="panel-mercadoads">
+    <div class="section-header">
+      <div class="section-title">📢 Mercado Ads <span class="section-badge">Publicidade paga</span></div>
+    </div>
+
+    <div class="ml-sync-bar" style="background:linear-gradient(135deg,#FFB800 0%,#C98F00 100%)">
+      <div class="ml-info">
+        <div class="ml-logo">📢</div>
+        <div class="ml-text">
+          <h4>Performance de campanhas — Mercado Ads</h4>
+          <p>Busca métrica real da conta (precisa estar conectado ao Mercado Livre com permissão de Publicidade)</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input type="date" id="ads_data_de" style="padding:8px 10px;border-radius:8px;border:none;font-family:'Inter',sans-serif;font-size:13px">
+        <input type="date" id="ads_data_ate" style="padding:8px 10px;border-radius:8px;border:none;font-family:'Inter',sans-serif;font-size:13px">
+        <button id="adsStatusBtn" class="btn-ml-sync" onclick="sincronizarMercadoAds()" style="background:#8A6200">
+          🔄 Buscar Performance
+        </button>
+      </div>
+    </div>
+
+    <div class="summary-grid" id="adsResumoCards" style="margin-bottom:20px"></div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Campanhas — período consultado</span>
+        <span class="table-total" id="totalAdsCusto">R$ 0,00 investido</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Campanha</th>
+            <th>Status</th>
+            <th>Budget/dia</th>
+            <th>ACOS alvo</th>
+            <th>ACOS real</th>
+            <th>ROAS real</th>
+            <th>Custo</th>
+            <th>Receita</th>
+            <th>Unid.</th>
+          </tr>
+        </thead>
+        <tbody id="bodyMercadoAds">
+          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -3260,6 +3312,131 @@ async function sincronizarPedidosShopify() {
   } finally {
     btn.disabled = false; btn.textContent = textoOriginal;
   }
+}
+
+// ====== MERCADO ADS ======
+async function fetchML_Ads(path, params) {
+  const qs = params ? '&' + params : '';
+  const res = await fetch('/.netlify/functions/ml-ads?path=' + path + qs, {
+    headers: { Authorization: 'Bearer ' + mlToken }
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || data.error || 'Erro na API do Mercado Ads');
+  return data;
+}
+
+async function sincronizarMercadoAds() {
+  if (!mlToken) { notify('Conecte o Mercado Livre primeiro (aba Mercado Livre).', 'err'); return; }
+
+  const btn = document.getElementById('adsStatusBtn');
+  const textoOriginal = btn.textContent;
+  btn.disabled = true; btn.textContent = '🔄 Buscando...';
+
+  try {
+    let de  = document.getElementById('ads_data_de').value;
+    let ate = document.getElementById('ads_data_ate').value;
+    if (!ate) { ate = hoje(); document.getElementById('ads_data_ate').value = ate; }
+    if (!de) {
+      const d = new Date(); d.setDate(d.getDate() - 30);
+      de = d.toISOString().split('T')[0];
+      document.getElementById('ads_data_de').value = de;
+    }
+
+    // 1. Descobrir o advertiser_id da conta conectada
+    const advData = await fetchML_Ads('/advertising/advertisers', 'product_id=PADS');
+    const advertiser = advData.advertisers && advData.advertisers[0];
+    if (!advertiser) throw new Error('Nenhum advertiser encontrado — a permissão de Publicidade está ativa?');
+
+    // 2. Buscar campanhas com métrica do período
+    const metricas = 'clicks,prints,cost,acos,roas,cvr,units_quantity,direct_amount,total_amount';
+    const campData = await fetchML_Ads(
+      '/marketplace/advertising/' + advertiser.site_id + '/advertisers/' + advertiser.advertiser_id + '/product_ads/campaigns/search',
+      'limit=100&metrics=' + metricas + '&date_from=' + de + '&date_to=' + ate
+    );
+    const campanhas = campData.results || [];
+
+    renderMercadoAds(campanhas, de, ate);
+
+    // 3. Salvar snapshot no Supabase (histórico — sempre insere, não sobrescreve)
+    if (campanhas.length) {
+      const agora = new Date().toISOString();
+      const linhas = campanhas.map(c => ({
+        campanha_id: c.id, campanha_nome: c.name, status: c.status, budget: c.budget,
+        acos_target: c.acos_target, roas_target: c.roas_target,
+        periodo_de: de, periodo_ate: ate,
+        clicks: c.metrics.clicks, prints: c.metrics.prints, custo: c.metrics.cost,
+        receita_direta: c.metrics.direct_amount, receita_indireta: c.metrics.total_amount - c.metrics.direct_amount,
+        receita_total: c.metrics.total_amount, unidades_total: c.metrics.units_quantity,
+        acos_real: c.metrics.acos, cvr: c.metrics.cvr, roas_real: c.metrics.roas,
+        sincronizado_em: agora
+      }));
+      const res = await fetch(SUPABASE_URL + '/rest/v1/mercadoads_campanhas', {
+        method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' }, body: JSON.stringify(linhas)
+      });
+      if (!res.ok) console.warn('Erro ao salvar histórico de ads:', await res.text());
+    }
+
+    notify('✅ ' + campanhas.length + ' campanha(s) atualizadas!');
+  } catch(e) {
+    console.error(e);
+    notify('Erro ao buscar Mercado Ads: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = textoOriginal;
+  }
+}
+
+function renderMercadoAds(campanhas, de, ate) {
+  const body = document.getElementById('bodyMercadoAds');
+  const custoTotal   = campanhas.reduce((a,c) => a + (c.metrics.cost||0), 0);
+  const receitaTotal = campanhas.reduce((a,c) => a + (c.metrics.total_amount||0), 0);
+  const unidadesTotal = campanhas.reduce((a,c) => a + (c.metrics.units_quantity||0), 0);
+  const acosGeral = custoTotal > 0 ? (custoTotal / receitaTotal * 100) : 0;
+  const roasGeral = custoTotal > 0 ? (receitaTotal / custoTotal) : 0;
+
+  document.getElementById('totalAdsCusto').textContent = fmt(custoTotal) + ' investido';
+  document.getElementById('adsResumoCards').innerHTML = `
+    <div class="sum-card despesa">
+      <div class="sum-icon">💸</div>
+      <div class="sum-label">Investido no Período</div>
+      <div class="sum-value">${fmt(custoTotal)}</div>
+      <div class="sum-sub">${fmtData(de)} a ${fmtData(ate)}</div>
+    </div>
+    <div class="sum-card receita">
+      <div class="sum-icon">💰</div>
+      <div class="sum-label">Receita Atribuída</div>
+      <div class="sum-value">${fmt(receitaTotal)}</div>
+      <div class="sum-sub">${unidadesTotal} unidade(s)</div>
+    </div>
+    <div class="sum-card estoque">
+      <div class="sum-icon">📊</div>
+      <div class="sum-label">ACOS Geral</div>
+      <div class="sum-value">${acosGeral.toFixed(1)}%</div>
+      <div class="sum-sub">Custo ÷ Receita do período</div>
+    </div>
+    <div class="sum-card pedidos">
+      <div class="sum-icon">🎯</div>
+      <div class="sum-label">ROAS Geral</div>
+      <div class="sum-value">${roasGeral.toFixed(2)}x</div>
+      <div class="sum-sub">${campanhas.length} campanha(s)</div>
+    </div>`;
+
+  if (!campanhas.length) {
+    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Nenhuma campanha encontrada no período</p></div></td></tr>';
+    return;
+  }
+
+  body.innerHTML = [...campanhas].sort((a,b) => (b.metrics.cost||0) - (a.metrics.cost||0)).map(c => `
+    <tr>
+      <td style="font-weight:600">${c.name}</td>
+      <td><span class="badge ${c.status==='active'?'badge-green':'badge-red'}">${c.status==='active'?'Ativa':'Pausada'}</span></td>
+      <td>${fmt(c.budget||0)}</td>
+      <td style="color:var(--muted)">${(c.acos_target||0).toFixed(1)}%</td>
+      <td class="${c.metrics.acos <= (c.acos_target||999) ? 'val-pos' : 'val-neg'}">${(c.metrics.acos||0).toFixed(1)}%</td>
+      <td class="${c.metrics.roas >= (c.roas_target||0) ? 'val-pos' : 'val-neg'}"><strong>${(c.metrics.roas||0).toFixed(2)}x</strong></td>
+      <td class="val-neg">${fmt(c.metrics.cost||0)}</td>
+      <td class="val-pos">${fmt(c.metrics.total_amount||0)}</td>
+      <td>${c.metrics.units_quantity||0}</td>
+    </tr>`).join('');
 }
 
 // ====== CONTAS PAGAS ======
