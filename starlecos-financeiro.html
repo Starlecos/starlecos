@@ -427,6 +427,7 @@
   .badge-amber { background: var(--amber-light); color: var(--amber); }
   .badge-sky { background: var(--sky-light); color: var(--sky); }
   .badge-navy { background: #E8EEF7; color: var(--navy); }
+  .badge-gray { background: #ECECEC; color: #666; }
 
   .val-pos { color: var(--jade); font-weight: 700; }
   .val-neg { color: var(--rose); font-weight: 700; }
@@ -1566,6 +1567,34 @@
           </tr>
         </thead>
         <tbody id="bodyMercadoAds">
+          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-card" style="margin-top:20px">
+      <div class="table-header">
+        <span class="table-header-title">Anúncios individuais — classificação por ad_group (framework oficial Starlecos)</span>
+        <span class="table-total" id="totalAdsAnuncios">0 anúncio(s)</span>
+      </div>
+      <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
+        Classificação automática (heurística): ALERTA_SEM_CONVERSAO = gastou &gt;R$3 sem venda · MANTER_OBSERVANDO = menos de 10 cliques no período · ESCALAR/OTIMIZAR_LANCES/ROLLBACK comparam ACOS real contra o ACOS alvo da campanha ML atual. Isso é um apoio inicial — a leitura fina (REVISAR_ANUNCIO, esteira de destino) é o <code>starlecos-mercadoads</code>.
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Anúncio</th>
+            <th>Campanha ML (id)</th>
+            <th>ACOS</th>
+            <th>ROAS</th>
+            <th>Cliques</th>
+            <th>Custo</th>
+            <th>Receita</th>
+            <th>Unid.</th>
+            <th>Classificação</th>
+          </tr>
+        </thead>
+        <tbody id="bodyMercadoAdsAnuncios">
           <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
         </tbody>
       </table>
@@ -3376,13 +3405,117 @@ async function sincronizarMercadoAds() {
       if (!res.ok) console.warn('Erro ao salvar histórico de ads:', await res.text());
     }
 
-    notify('✅ ' + campanhas.length + ' campanha(s) atualizadas!');
+    // 4. Buscar TODOS os anúncios individuais (nível ad_group/item), paginado
+    const campanhasMap = {};
+    campanhas.forEach(c => { campanhasMap[c.id] = c; });
+    const anuncios = await buscarTodosAnuncios(advertiser, metricas, de, ate);
+    renderMercadoAdsAnuncios(anuncios, campanhasMap);
+
+    if (anuncios.length) {
+      const agora2 = new Date().toISOString();
+      const linhasAnuncios = anuncios.map(ad => {
+        const m = ad.metrics || {};
+        return {
+          item_id: ad.item_id, campanha_id: ad.campaign_id, ad_group_id: ad.ad_group_id,
+          titulo: ad.title, status: ad.status, price: ad.price,
+          family_id: ad.family_id ? String(ad.family_id) : null, family_name: ad.family_name,
+          permalink: ad.permalink, thumbnail: ad.thumbnail,
+          periodo_de: de, periodo_ate: ate,
+          clicks: m.clicks||0, prints: m.prints||0, custo: m.cost||0,
+          receita_direta: m.direct_amount||0, receita_indireta: (m.total_amount||0) - (m.direct_amount||0),
+          receita_total: m.total_amount||0, unidades_total: m.units_quantity||0,
+          acos_real: m.acos||0, cvr: m.cvr||0, roas_real: m.roas||0,
+          classificacao: classificarAnuncio(ad, campanhasMap),
+          sincronizado_em: agora2
+        };
+      });
+      // Envia em lotes (evita payload gigante com 300+ anúncios)
+      const TAM_LOTE = 100;
+      for (let i = 0; i < linhasAnuncios.length; i += TAM_LOTE) {
+        const lote = linhasAnuncios.slice(i, i + TAM_LOTE);
+        const resA = await fetch(SUPABASE_URL + '/rest/v1/mercadoads_anuncios', {
+          method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' }, body: JSON.stringify(lote)
+        });
+        if (!resA.ok) console.warn('Erro ao salvar histórico de anúncios:', await resA.text());
+      }
+    }
+
+    notify('✅ ' + campanhas.length + ' campanha(s) e ' + anuncios.length + ' anúncio(s) atualizados!');
   } catch(e) {
     console.error(e);
     notify('Erro ao buscar Mercado Ads: ' + e.message, 'err');
   } finally {
     btn.disabled = false; btn.textContent = textoOriginal;
   }
+}
+
+async function buscarTodosAnuncios(advertiser, metricas, de, ate) {
+  const limit = 100;
+  let offset = 0;
+  let total = Infinity;
+  const anuncios = [];
+  while (offset < total) {
+    const data = await fetchML_Ads(
+      '/marketplace/advertising/' + advertiser.site_id + '/advertisers/' + advertiser.advertiser_id + '/product_ads/ads/search',
+      'limit=' + limit + '&offset=' + offset + '&metrics=' + metricas + '&date_from=' + de + '&date_to=' + ate
+    );
+    const results = data.results || [];
+    anuncios.push(...results);
+    total = (data.paging && typeof data.paging.total === 'number') ? data.paging.total : results.length;
+    offset += limit;
+    if (!results.length) break;
+  }
+  return anuncios;
+}
+
+// Heurística de apoio — classificação fina fica a cargo do agente starlecos-mercadoads
+function classificarAnuncio(ad, campanhasMap) {
+  const m = ad.metrics || {};
+  const custo = m.cost || 0;
+  const unidades = m.units_quantity || 0;
+  const clicks = m.clicks || 0;
+  const acos = m.acos || 0;
+  if (custo > 3 && unidades === 0) return 'ALERTA_SEM_CONVERSAO';
+  if (clicks < 10) return 'MANTER_OBSERVANDO';
+  const camp = campanhasMap[ad.campaign_id];
+  const acosAlvo = (camp && camp.acos_target) ? camp.acos_target : 10;
+  if (acos <= acosAlvo) return 'ESCALAR';
+  if (acos <= acosAlvo * 2) return 'OTIMIZAR_LANCES';
+  return 'ROLLBACK';
+}
+
+const CLASSIFICACAO_BADGE = {
+  ESCALAR: 'badge-green', OTIMIZAR_LANCES: 'badge-amber', ROLLBACK: 'badge-red',
+  ALERTA_SEM_CONVERSAO: 'badge-red', MANTER_OBSERVANDO: 'badge-gray'
+};
+
+function renderMercadoAdsAnuncios(anuncios, campanhasMap) {
+  const body = document.getElementById('bodyMercadoAdsAnuncios');
+  document.getElementById('totalAdsAnuncios').textContent = anuncios.length + ' anúncio(s)';
+
+  if (!anuncios.length) {
+    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Nenhum anúncio encontrado no período</p></div></td></tr>';
+    return;
+  }
+
+  body.innerHTML = [...anuncios].sort((a,b) => (b.metrics.cost||0) - (a.metrics.cost||0)).map(ad => {
+    const m = ad.metrics || {};
+    const camp = campanhasMap[ad.campaign_id];
+    const classe = classificarAnuncio(ad, campanhasMap);
+    const badge = CLASSIFICACAO_BADGE[classe] || 'badge-gray';
+    return `
+    <tr>
+      <td style="font-weight:600;max-width:320px">${ad.title||ad.item_id}</td>
+      <td style="color:var(--muted);font-size:12px">${camp ? camp.name : ad.campaign_id}</td>
+      <td class="${m.acos <= ((camp&&camp.acos_target)||999) ? 'val-pos' : 'val-neg'}">${(m.acos||0).toFixed(1)}%</td>
+      <td><strong>${(m.roas||0).toFixed(2)}x</strong></td>
+      <td>${m.clicks||0}</td>
+      <td class="val-neg">${fmt(m.cost||0)}</td>
+      <td class="val-pos">${fmt(m.total_amount||0)}</td>
+      <td>${m.units_quantity||0}</td>
+      <td><span class="badge ${badge}">${classe}</span></td>
+    </tr>`;
+  }).join('');
 }
 
 function renderMercadoAds(campanhas, de, ate) {
