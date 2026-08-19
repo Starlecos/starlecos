@@ -6,6 +6,12 @@
 // a function só repassa com o Bearer token, igual o ml-orders.js já faz pra
 // pedidos. Path e querystring exatos a usar serão confirmados testando ao
 // vivo contra a API assim que a permissão de Publicidade estiver ativa.
+//
+// Repassa o método HTTP e o corpo do request do cliente (GET pra leitura,
+// POST/PUT/PATCH pra escrita — criação/edição de campanha) — o corpo vem
+// tal como o cliente mandou, sem validar formato, porque o contrato de
+// escrita ainda não é documentado publicamente e está sendo descoberto por
+// teste ao vivo.
 exports.handler = async function(event) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -31,8 +37,22 @@ exports.handler = async function(event) {
     const qs = extra.toString();
 
     const url = 'https://api.mercadolibre.com' + path + (qs ? '?' + qs : '');
-    const res  = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token, 'Api-Version': params.api_version || '2' } });
-    const data = await res.json();
+    const method = event.httpMethod || 'GET';
+    const fetchOpts = {
+      method,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Api-Version': params.api_version || '2',
+        'Content-Type': 'application/json'
+      }
+    };
+    if (method !== 'GET' && method !== 'HEAD' && event.body) {
+      fetchOpts.body = event.body;
+    }
+    const res  = await fetch(url, fetchOpts);
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
     return { statusCode: res.status, headers, body: JSON.stringify(data) };
   } catch(e) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
