@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Starlecos - Ponte de Promoções ML
 // @namespace    starlecos
-// @version      1.2
+// @version      1.3
 // @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
 // @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
 // @run-at       document-start
@@ -224,6 +224,40 @@
     return itens.length;
   }
 
+  // ---------- confere de verdade no ML se a promoção ficou ativa ----------
+  // (o confirm-from-modal pode responder 200 sem realmente aplicar nada —
+  // já vimos esse tipo de falso-positivo antes nesse projeto, com a escrita
+  // de SKU no ML. Não confia só no status HTTP: busca a lista de novo e olha
+  // o itemStatus real da promoção pra esse item.)
+  function acharCaixaPromo(dados, itemIdNum, promotionId) {
+    const rowGroups = [];
+    encontrarNos(dados, o => o.uiType === 'row_group' && typeof o.id === 'string' && o.id.includes(itemIdNum), rowGroups);
+    if (!rowGroups.length) return null;
+    const promoListNode = acharUm(rowGroups[0], o => o.promotionList);
+    const pl = promoListNode ? promoListNode.promotionList : null;
+    const todasCaixas = pl ? [...(pl.promotionBoxes || []), ...(pl.collapsibleRows || [])] : [];
+    for (const caixa of todasCaixas) {
+      const ids = [];
+      acharTodos(caixa, 'promo_id', ids);
+      if (ids.includes(promotionId)) return caixa;
+    }
+    return null;
+  }
+  function acharTodos(obj, chave, resultados) {
+    if (obj === null || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) { obj.forEach(o => acharTodos(o, chave, resultados)); return; }
+    if (Object.prototype.hasOwnProperty.call(obj, chave)) resultados.push(obj[chave]);
+    Object.values(obj).forEach(v => acharTodos(v, chave, resultados));
+  }
+  async function statusRealNoML(itemIdNum, promotionId) {
+    const url = 'https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/items/refresh?page=1&sort=&search=' + itemIdNum + '&filters=&tab=promotions&viewId=promos';
+    const res = await fetchOriginal(url, { credentials: 'include', headers: headersCapturados });
+    if (!res.ok) return null; // não deu pra confirmar — trata como incerto
+    const dados = await res.json();
+    const caixa = acharCaixaPromo(dados, itemIdNum, promotionId);
+    return caixa ? caixa.itemStatus : null; // null = não achou mais essa promoção pra esse item
+  }
+
   // ---------- aplica de verdade as que o Enzo aprovou no Financeiro ----------
   async function aplicarAprovadas() {
     const pendentes = await sb('GET', 'ml_promocoes?status=eq.aprovado&select=*');
@@ -231,6 +265,7 @@
 
     let aplicadas = 0;
     for (const row of pendentes) {
+      const itemIdNum = row.item_id.replace('MLB', '');
       try {
         const modalRes = await fetchOriginal('https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/modal-ondemand', {
           method: 'POST',
@@ -238,7 +273,7 @@
           headers: { ...headersCapturados, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             urlCallback: row.url_callback,
-            itemId: row.item_id.replace('MLB', ''),
+            itemId: itemIdNum,
             viewId: 'promos',
             actionType: 'create'
           })
@@ -282,13 +317,21 @@
             actionType: 'create'
           })
         });
+        const confirmTxt = await confirmRes.text();
         if (!confirmRes.ok) {
-          const txt = await confirmRes.text();
-          throw new Error('confirm-from-modal falhou: ' + confirmRes.status + ' ' + txt.slice(0, 300));
+          throw new Error('confirm-from-modal falhou: ' + confirmRes.status + ' ' + confirmTxt.slice(0, 300));
         }
 
-        await sb('PATCH', 'ml_promocoes?id=eq.' + row.id, { status: 'aplicado', aplicado_em: new Date().toISOString() });
-        aplicadas++;
+        // espera um instante e confere de verdade — não confia só no 200
+        await new Promise(r => setTimeout(r, 2000));
+        const statusReal = await statusRealNoML(itemIdNum, row.promotion_id);
+
+        if (statusReal === 'active') {
+          await sb('PATCH', 'ml_promocoes?id=eq.' + row.id, { status: 'aplicado', aplicado_em: new Date().toISOString() });
+          aplicadas++;
+        } else {
+          throw new Error('confirm-from-modal respondeu 200 mas status real no ML é "' + statusReal + '" (esperado "active") — resposta: ' + confirmTxt.slice(0, 200));
+        }
       } catch (e) {
         await sb('PATCH', 'ml_promocoes?id=eq.' + row.id, { status: 'erro', erro_msg: String(e.message || e).slice(0, 500) });
       }
