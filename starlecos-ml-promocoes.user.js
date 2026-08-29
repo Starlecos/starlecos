@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Starlecos - Ponte de Promoções ML
 // @namespace    starlecos
-// @version      1.0
+// @version      1.1
 // @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
 // @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
 // @run-at       document-start
@@ -18,26 +18,51 @@
 
   // ---------- captura os headers reais que a própria página do ML usa ----------
   // (csrf token e afins são gerados por sessão — em vez de tentar adivinhar de
-  // onde vêm, intercepta o primeiro fetch real que a página faz pra API de
-  // promoções e reusa os mesmos headers pras nossas próprias chamadas)
+  // onde vêm, intercepta as chamadas reais que a página faz pra API de
+  // promoções — via fetch OU via XMLHttpRequest, não sabemos qual ela usa —
+  // e reusa os mesmos headers pras nossas próprias chamadas)
   const headersCapturados = {};
+  let urlCapturadaDebug = null;
+
+  function guardarHeader(nome, valor) {
+    if (!nome || valor == null) return;
+    headersCapturados[String(nome).toLowerCase()] = valor;
+  }
+
   const fetchOriginal = window.fetch;
   window.fetch = function (input, init) {
     try {
       const url = typeof input === 'string' ? input : (input && input.url);
       if (url && url.includes('/anuncios/lista/promos/api/')) {
+        urlCapturadaDebug = url;
         const h = (init && init.headers) || (input && input.headers);
         if (h) {
-          const obj = h instanceof Headers ? Object.fromEntries(h.entries()) : h;
-          Object.assign(headersCapturados, obj);
+          if (h instanceof Headers) h.forEach((v, k) => guardarHeader(k, v));
+          else Object.keys(h).forEach(k => guardarHeader(k, h[k]));
         }
       }
     } catch (e) { /* nunca deixa a captura quebrar a página real do ML */ }
     return fetchOriginal.apply(this, arguments);
   };
 
+  const xhrOpenOriginal = XMLHttpRequest.prototype.open;
+  const xhrSetHeaderOriginal = XMLHttpRequest.prototype.setRequestHeader;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    this.__starlecosUrl = url;
+    return xhrOpenOriginal.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.setRequestHeader = function (nome, valor) {
+    try {
+      if (this.__starlecosUrl && String(this.__starlecosUrl).includes('/anuncios/lista/promos/api/')) {
+        urlCapturadaDebug = this.__starlecosUrl;
+        guardarHeader(nome, valor);
+      }
+    } catch (e) { /* idem */ }
+    return xhrSetHeaderOriginal.apply(this, arguments);
+  };
+
   function headersProntos() {
-    return !!headersCapturados['x-csrf-token'];
+    return Object.keys(headersCapturados).length > 0;
   }
 
   function badge(texto) {
@@ -270,7 +295,8 @@
   // ---------- loop principal ----------
   async function ciclo() {
     if (!headersProntos()) {
-      badge('aguardando a página carregar a lista de promoções...');
+      badge(urlCapturadaDebug ? 'viu a chamada mas sem headers ainda...' : 'aguardando a página carregar a lista de promoções...');
+      console.log('[Starlecos ponte] debug — url vista:', urlCapturadaDebug, '| headers capturados:', headersCapturados);
       return;
     }
     try {
