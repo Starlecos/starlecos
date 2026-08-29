@@ -684,6 +684,32 @@ async function descontarEstoque(itens) {
   }
 }
 
+// Devolve estoque de um pedido excluído — usa a mesma função atômica dos
+// webhooks (aplicar_movimento_estoque) pra não devolver duas vezes se o
+// exclusão for clicada mais de uma vez.
+async function devolverEstoque(itens, pedidoId) {
+  for (var i = 0; i < itens.length; i++) {
+    var it = itens[i];
+    var match = _estoqueProdutos.find(function(e) {
+      return normEP(e.produto) === normEP(it.produto) &&
+             normEP(e.tamanho) === normEP(it.tamanho) &&
+             normEP(e.estampa) === normEP(it.estampa);
+    });
+    if (!match) continue;
+    try {
+      await fetch(SUPABASE_URL + '/rest/v1/rpc/aplicar_movimento_estoque', {
+        method: 'POST', headers: { ...HEADERS, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ p_canal: 'vendas', p_pedido_id: String(pedidoId), p_sku: match.sku, p_delta: (it.qtd||0), p_motivo: 'cancelamento' })
+      });
+      match.quantidade = (match.quantidade||0) + (it.qtd||0);
+      fetch('/.netlify/functions/push-estoque', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku: match.sku })
+      }).catch(function(e) { console.error('Erro ao empurrar estoque:', e); });
+    } catch(e) { console.error('Erro ao devolver estoque:', e); }
+  }
+}
+
 // =============================================
 // ABA ESTOQUE (produtos acabados)
 // =============================================
@@ -999,7 +1025,18 @@ function fecharConfirm()   { _pedidoParaExcluir=null; document.getElementById('c
 async function confirmarExclusao() {
   if (!_pedidoParaExcluir) return;
   try {
+    var pedidoAntigo = await sbGet('vendas', 'id=eq.' + _pedidoParaExcluir + '&select=*');
+    var v = pedidoAntigo && pedidoAntigo[0];
+
     await sbDelete('vendas','id=eq.'+_pedidoParaExcluir);
+
+    // Se o pedido não estava cancelado, o estoque foi descontado no
+    // registro — devolve agora que o pedido deixou de existir.
+    if (v && v.status !== 'Cancelado') {
+      var itensArr = v.itens && v.itens.length ? v.itens : [{produto:v.produto||'',tamanho:'',estampa:'',qtd:1}];
+      await devolverEstoque(itensArr, v.id);
+    }
+
     fecharConfirm();
     await renderHistorico();
     notify('Pedido excluído.');
