@@ -29,7 +29,10 @@ async function obterTokenML() {
   const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'refresh_token', client_id: ML_APP_ID, refresh_token: refreshToken }).toString()
+    body: new URLSearchParams({
+      grant_type: 'refresh_token', client_id: ML_APP_ID,
+      client_secret: process.env.ML_CLIENT_SECRET, refresh_token: refreshToken
+    }).toString()
   });
   const tokenData = await tokenRes.json();
   if (!tokenRes.ok || !tokenData.access_token) throw new Error('Falha ao renovar token ML: ' + JSON.stringify(tokenData));
