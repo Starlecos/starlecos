@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Starlecos - Ponte de Promoções ML
 // @namespace    starlecos
-// @version      1.1
+// @version      1.2
 // @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
 // @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
 // @run-at       document-start
@@ -198,7 +198,11 @@
     for (let pagina = 1; pagina <= 15; pagina++) {
       const url = 'https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/items/refresh?page=' + pagina + '&sort=&search=&filters=&tab=promotions&viewId=promos';
       const res = await fetchOriginal(url, { credentials: 'include', headers: headersCapturados });
-      if (!res.ok) break;
+      if (!res.ok) {
+        // sobe o status real (401/403 etc.) pra aparecer no badge — sem isso
+        // ficamos cegos sobre se falta CSRF ou é outro problema qualquer
+        throw new Error('items/refresh HTTP ' + res.status + ' (página ' + pagina + ')');
+      }
       const dados = await res.json();
       const extraidos = parseLista(dados);
       const rowGroupsNaPagina = [];
@@ -294,18 +298,15 @@
 
   // ---------- loop principal ----------
   async function ciclo() {
-    if (!headersProntos()) {
-      badge(urlCapturadaDebug ? 'viu a chamada mas sem headers ainda...' : 'aguardando a página carregar a lista de promoções...');
-      console.log('[Starlecos ponte] debug — url vista:', urlCapturadaDebug, '| headers capturados:', headersCapturados);
-      return;
-    }
+    const statusHeaders = headersProntos() ? Object.keys(headersCapturados).length + ' header(s) vistos' : 'sem headers de sessão capturados';
     try {
-      badge('sincronizando...');
+      badge('sincronizando... (' + statusHeaders + ')');
       const n = await sincronizarLista();
-      const aplicadas = await aplicarAprovadas();
+      let aplicadas = 0;
+      if (headersProntos()) aplicadas = await aplicarAprovadas();
       badge(n + ' promoções sincronizadas' + (aplicadas ? ' · ' + aplicadas + ' aplicada(s) agora' : '') + ' · ' + new Date().toLocaleTimeString('pt-BR'));
     } catch (e) {
-      badge('erro: ' + String(e.message || e).slice(0, 200));
+      badge('erro (' + statusHeaders + '): ' + String(e.message || e).slice(0, 200));
       console.error('[Starlecos ponte]', e);
     }
   }
