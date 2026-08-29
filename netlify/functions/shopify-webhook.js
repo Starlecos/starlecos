@@ -63,11 +63,15 @@ exports.handler = async function(event) {
     for (const item of itens) {
       if (!item.sku) continue; // sem SKU não tem como casar com o estoque interno
       await aplicarMovimento('shopify', String(order.id), item.sku, sinal * (item.quantity || 1), motivo);
+      // Empurra a quantidade nova pro Mercado Livre (a Shopify já ajusta a
+      // própria contagem sozinha quando o pedido é pago/cancelado).
+      try {
+        await fetch('https://ubiquitous-youtiao-3a8ab4.netlify.app/.netlify/functions/push-estoque', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sku: item.sku, ignorar_canal: 'shopify' })
+        });
+      } catch (e) { console.error('Erro ao empurrar estoque pro ML:', e.message); }
     }
-
-    // Fase seguinte: empurrar a quantidade atualizada pro Mercado Livre
-    // (a Shopify já ajusta a própria contagem sozinha quando o pedido é
-    // pago/cancelado, não precisamos empurrar de volta pra ela mesma).
 
     return { statusCode: 200, body: 'ok' };
   } catch (e) {

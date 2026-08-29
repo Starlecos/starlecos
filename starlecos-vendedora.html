@@ -674,6 +674,12 @@ async function descontarEstoque(itens) {
         body: JSON.stringify({ quantidade: nova, updated_at: new Date().toISOString() })
       });
       match.quantidade = nova;
+      // Empurra a quantidade nova pro ML e pra Shopify — venda manual, nenhum
+      // canal sabe da mudança sozinho.
+      fetch('/.netlify/functions/push-estoque', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku: match.sku })
+      }).catch(function(e) { console.error('Erro ao empurrar estoque:', e); });
     } catch(e) { console.error('Erro ao descontar estoque:', e); }
   }
 }

@@ -4141,6 +4141,12 @@ async function salvarQtdEPA(sku) {
     renderResumoEstoqueProdutoAcabado(_epaLista);
     renderTabelaEPA();
     notify('✅ Estoque atualizado!');
+    // Empurra a quantidade nova pro ML e pra Shopify — ajuste manual, nenhum
+    // canal sabe da mudança sozinho.
+    fetch('/.netlify/functions/push-estoque', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku })
+    }).catch(e => console.error('Erro ao empurrar estoque:', e));
   } catch(e) { notify('Erro ao atualizar', 'err'); }
 }
 

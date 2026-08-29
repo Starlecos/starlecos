@@ -95,6 +95,14 @@ exports.handler = async function(event) {
       const sku = await buscarSkuItem(accessToken, itemId, variationId);
       if (!sku) { console.warn('Item sem SKU, ignorando:', itemId, variationId); continue; }
       await aplicarMovimento('mercado_livre', String(order.id), sku, sinal * (oi.quantity || 1), motivo);
+      // Empurra a quantidade nova pra Shopify (o ML já ajusta a própria
+      // contagem sozinho quando o pedido é pago/cancelado).
+      try {
+        await fetch('https://ubiquitous-youtiao-3a8ab4.netlify.app/.netlify/functions/push-estoque', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sku, ignorar_canal: 'mercado_livre' })
+        });
+      } catch (e) { console.error('Erro ao empurrar estoque pra Shopify:', e.message); }
     }
 
     return { statusCode: 200, body: 'ok' };
