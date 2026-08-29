@@ -1,9 +1,10 @@
 // Webhook do Mercado Livre (tópico orders_v2) — baixa/devolve estoque em
-// tempo real, mesmo com o Financeiro fechado. Função "background" (sufixo
-// -background no nome): a Netlify já responde rápido pro ML sozinha e deixa
-// essa função rodar até 15min em segundo plano — importante porque o ML
-// exige resposta rápida do callback e nós ainda precisamos renovar token +
-// buscar o pedido + buscar SKU de cada item, o que não cabe em <500ms.
+// tempo real, mesmo com o Financeiro fechado. Função síncrona normal (o
+// sufixo -background não funcionou de verdade nesse plano do Netlify —
+// respondia 202 mas não executava a lógica). Como o processamento (renovar
+// token + buscar pedido + buscar SKU de cada item) pode passar dos ~500ms
+// que o ML recomenda, é possível que o ML reenvie a notificação — sem
+// problema, o sistema é idempotente (aplicar_movimento_estoque não duplica).
 //
 // Token do ML é por sessão de vendedor (não por app, diferente da Shopify),
 // então guardamos o refresh_token (rotativo — o ML troca ele a cada
