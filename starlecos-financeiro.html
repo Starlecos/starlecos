@@ -1082,7 +1082,7 @@
     <button class="tab-btn" onclick="showTab('mercadoLivre')">🛒 Mercado Livre</button>
     <button class="tab-btn" onclick="showTab('shopee')">🛍️ Shopee</button>
     <button class="tab-btn" onclick="showTab('shopify')">🏪 Shopify</button>
-    <button class="tab-btn" onclick="showTab('mercadoads')">📢 Mercado Ads</button>
+    <button class="tab-btn" onclick="showTab('mercadoads');carregarAcoesAds()">📢 Mercado Ads</button>
     <button class="tab-btn" onclick="showTab('promocoes');carregarPromocoesML()">🎯 Promoções ML</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
     <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
@@ -1597,6 +1597,32 @@
         </thead>
         <tbody id="bodyMercadoAdsAnuncios">
           <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-card" style="margin-top:20px" id="cardFilaAcoesAds">
+      <div class="table-header">
+        <span class="table-header-title">🚦 Fila de Ações — pausar/ativar/orçamento/lance</span>
+        <span class="table-total" id="totalAcoesAdsPendentes">0 pendente(s)</span>
+      </div>
+      <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
+        Sugerido pelo <code>starlecos-mercadoads</code> ou criado manualmente. Aprovar aqui só grava a decisão — quem aplica de verdade no Mercado Ads é o script-ponte (Tampermonkey). Pausar/Ativar já é automático; Orçamento/Lance ainda precisam ser aplicados manualmente por enquanto (execução automática pendente).
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Anúncio/Campanha</th>
+            <th>Atual → Novo</th>
+            <th>Motivo</th>
+            <th>Origem</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="bodyAcoesAds">
+          <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🚦</div><p>Nenhuma ação na fila ainda</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -3490,6 +3516,12 @@ async function sincronizarMercadoAds() {
       }
     }
 
+    // 5. Confere de verdade as ações de pausar/ativar que o script-ponte
+    // aplicou (não confia só no 200 da escrita — mesma lição aprendida com
+    // as Promoções ML: usa o dado real que acabou de sincronizar, que já
+    // tem o status atual de cada ad_group_id, pra confirmar ou não)
+    await conferirAcoesAdsAguardando(anuncios);
+
     if (errosPersistencia.length) {
       notify('⚠️ Dados carregados na tela, mas FALHOU ao gravar no histórico: ' + errosPersistencia.join(', ') + '. Veja o console (F12) para detalhes — nada foi salvo pro Jarvis/agentes analisarem depois.', 'err');
     } else {
@@ -3501,6 +3533,34 @@ async function sincronizarMercadoAds() {
   } finally {
     btn.disabled = false; btn.textContent = textoOriginal;
   }
+}
+
+// Cruza ml_ads_acoes (status='aguardando_verificacao', aplicadas pelo
+// script-ponte via cookie de sessão) contra o dado real recém-sincronizado
+// (via API pública OAuth) — só essa tela tem o token OAuth pra ler de
+// verdade, o script-ponte não tem acesso a ele.
+async function conferirAcoesAdsAguardando(anuncios) {
+  let pendentes;
+  try {
+    pendentes = await sbGet('ml_ads_acoes', 'select=*&status=eq.aguardando_verificacao');
+  } catch (e) { return; }
+  if (!pendentes.length) return;
+
+  const porAdGroup = {};
+  anuncios.forEach(ad => { porAdGroup[ad.ad_group_id] = ad; });
+  const esperado = { pausar: 'paused', ativar: 'active' };
+
+  for (const acao of pendentes) {
+    const ad = porAdGroup[acao.ad_group_id];
+    const alvo = esperado[acao.tipo];
+    if (ad && alvo && ad.status === alvo) {
+      await sbPatch('ml_ads_acoes', 'id=eq.' + acao.id, { status: 'aplicado', aplicado_em: new Date().toISOString() });
+    } else if (ad && alvo) {
+      await sbPatch('ml_ads_acoes', 'id=eq.' + acao.id, { status: 'erro', erro_msg: 'depois de aplicar, status real do ad_group é "' + ad.status + '" (esperado "' + alvo + '")' });
+    }
+    // se o ad_group não aparecer nesse sync, deixa como está — tenta de novo no próximo "Buscar Performance"
+  }
+  if (pendentes.length) carregarAcoesAds();
 }
 
 async function buscarTodosAnuncios(advertiser, metricas, de, ate) {
@@ -4206,6 +4266,81 @@ async function excluirSkuEPA(sku) {
     renderTabelaEPA();
     notify('Removido.');
   } catch(e) { notify('Erro ao remover', 'err'); }
+}
+
+// ====== FILA DE AÇÕES MERCADO ADS ======
+let _acoesAdsLista = [];
+
+async function carregarAcoesAds() {
+  try {
+    _acoesAdsLista = await sbGet('ml_ads_acoes', 'select=*&order=criado_em.desc');
+    renderTabelaAcoesAds();
+  } catch (e) {
+    console.error('Erro ao carregar fila de ações Mercado Ads:', e);
+  }
+}
+
+function renderTabelaAcoesAds() {
+  const tbody = document.getElementById('bodyAcoesAds');
+  if (!tbody) return;
+  const pendentes = _acoesAdsLista.filter(a => a.status === 'pendente').length;
+  document.getElementById('totalAcoesAdsPendentes').textContent = pendentes + ' pendente(s)';
+
+  if (!_acoesAdsLista.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🚦</div><p>Nenhuma ação na fila ainda</p></div></td></tr>';
+    return;
+  }
+
+  const tipoLabel = { pausar: '⏸️ Pausar', ativar: '▶️ Ativar', orcamento: '💰 Orçamento', lance: '🎯 Lance/ROAS' };
+  const statusInfo = {
+    pendente: { label: '🟡 Pendente', cor: 'var(--amber)' },
+    aprovado: { label: '🔵 Aprovado — aguardando aplicar', cor: '#3B82F6' },
+    recusado: { label: '⚪ Recusado', cor: 'var(--muted)' },
+    aguardando_verificacao: { label: '🟠 Aplicado — aguardando confirmação (clique Buscar Performance)', cor: 'var(--amber)' },
+    aplicado: { label: '🟢 Aplicado (confirmado)', cor: 'var(--jade)' },
+    erro: { label: '🔴 Erro', cor: 'var(--rose)' }
+  };
+
+  tbody.innerHTML = _acoesAdsLista.map(a => {
+    const info = statusInfo[a.status] || { label: a.status, cor: 'var(--muted)' };
+    const acoes = a.status === 'pendente'
+      ? `<button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="aprovarAcaoAds(${a.id})">✓ Aprovar</button>
+         <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="recusarAcaoAds(${a.id})">✕ Recusar</button>`
+      : (a.status === 'erro' ? `<span style="font-size:11px;color:var(--rose)" title="${a.erro_msg || ''}">${(a.erro_msg || '').slice(0, 60)}</span>` : '—');
+    const deValor = a.valor_atual != null ? a.valor_atual : '—';
+    const paraValor = a.valor_novo != null ? a.valor_novo : '—';
+    const valores = (a.tipo === 'orcamento' || a.tipo === 'lance') ? `${deValor} → ${paraValor}` : '—';
+
+    return `<tr>
+      <td>${tipoLabel[a.tipo] || a.tipo}</td>
+      <td style="font-size:12px">${a.titulo || a.item_id || a.ad_group_id || a.campanha_id || '—'}</td>
+      <td style="font-size:12px">${valores}</td>
+      <td style="font-size:12px;max-width:220px">${a.motivo || '—'}</td>
+      <td style="font-size:11px;color:var(--muted)">${a.origem}</td>
+      <td style="color:${info.cor};font-size:12px;font-weight:600">${info.label}</td>
+      <td>${acoes}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function aprovarAcaoAds(id) {
+  try {
+    await sbPatch('ml_ads_acoes', 'id=eq.' + id, { status: 'aprovado', decidido_em: new Date().toISOString() });
+    const item = _acoesAdsLista.find(a => a.id === id);
+    if (item) item.status = 'aprovado';
+    renderTabelaAcoesAds();
+    notify('✅ Aprovado! Aplica no próximo ciclo do script-ponte (só pausar/ativar são automáticos por enquanto).');
+  } catch (e) { notify('Erro ao aprovar', 'err'); }
+}
+
+async function recusarAcaoAds(id) {
+  try {
+    await sbPatch('ml_ads_acoes', 'id=eq.' + id, { status: 'recusado', decidido_em: new Date().toISOString() });
+    const item = _acoesAdsLista.find(a => a.id === id);
+    if (item) item.status = 'recusado';
+    renderTabelaAcoesAds();
+    notify('Recusado.');
+  } catch (e) { notify('Erro ao recusar', 'err'); }
 }
 
 // ====== PROMOÇÕES ML ======
