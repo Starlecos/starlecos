@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Starlecos - Ponte de Promoções ML
 // @namespace    starlecos
-// @version      1.4
+// @version      1.5
 // @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
 // @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
 // @run-at       document-start
@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '1.4'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
+  const VERSAO = '1.5'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
   const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
   const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
   const CICLO_MS = 25000; // 25s entre sincronizações
@@ -297,21 +297,28 @@
         const modalJson = await modalRes.json();
         const dp = modalJson.data.data.defaultParams;
         const urlCallbackModal = modalJson.data.data.urlCallback;
+        // "price" não vem dentro de defaultParams — vem de finalPrice.value
+        // (confirmado numa captura real; usar dp.price manda o campo faltando)
+        const precoFinal = modalJson.data.data.finalPrice ? modalJson.data.data.finalPrice.value : dp.price;
 
         const confirmRes = await fetchOriginal('https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/confirm-from-modal', {
           method: 'POST',
           credentials: 'include',
           headers: { ...headersCapturados, 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            // corpo alinhado byte-a-byte com uma captura real (DevTools) de
+            // um "Participar" que funcionou de verdade — sem cardIdApplied
+            // (não existe no corpo real) e sem inventar rankingInfo (vem
+            // pronto em defaultParams.rankingInfo, é isso que resolveu o
+            // "não foi possível adicionar" que a gente tomava antes)
             resource_elements: {
               itemCbt: dp.itemCbt ?? false,
               listPrice: dp.listPrice,
               promotionId: dp.promotionId,
               suggestedPercentage: dp.suggestedPercentage,
-              rankingInfo: { rankingScore: 0, rankingPosition: row.position, rankingVersion: '1.0', bestCandidate: false },
-              position: row.position,
-              candidateQuantity: row.candidate_quantity,
-              cardIdApplied: row.card_id_aplicado,
+              rankingInfo: dp.rankingInfo,
+              position: dp.position,
+              candidateQuantity: dp.candidateQuantity,
               tags: dp.tags || [],
               eventIds: [],
               isRealtime: dp.isRealtime ?? false,
@@ -320,7 +327,7 @@
               pricePercentage: null,
               pricePrimePercentage: null,
               pricePrime: null,
-              price: dp.price,
+              price: precoFinal,
               tycChecked: false,
               addItemToCampaignCheck: false,
               recoCampaignId: null
