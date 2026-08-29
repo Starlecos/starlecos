@@ -1,0 +1,292 @@
+// ==UserScript==
+// @name         Starlecos - Ponte de Promoções ML
+// @namespace    starlecos
+// @version      1.0
+// @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
+// @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
+// @run-at       document-start
+// @grant        GM_xmlhttpRequest
+// @connect      pfaounkchpyfhlsdailo.supabase.co
+// ==/UserScript==
+
+(function () {
+  'use strict';
+
+  const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
+  const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
+  const CICLO_MS = 25000; // 25s entre sincronizações
+
+  // ---------- captura os headers reais que a própria página do ML usa ----------
+  // (csrf token e afins são gerados por sessão — em vez de tentar adivinhar de
+  // onde vêm, intercepta o primeiro fetch real que a página faz pra API de
+  // promoções e reusa os mesmos headers pras nossas próprias chamadas)
+  const headersCapturados = {};
+  const fetchOriginal = window.fetch;
+  window.fetch = function (input, init) {
+    try {
+      const url = typeof input === 'string' ? input : (input && input.url);
+      if (url && url.includes('/anuncios/lista/promos/api/')) {
+        const h = (init && init.headers) || (input && input.headers);
+        if (h) {
+          const obj = h instanceof Headers ? Object.fromEntries(h.entries()) : h;
+          Object.assign(headersCapturados, obj);
+        }
+      }
+    } catch (e) { /* nunca deixa a captura quebrar a página real do ML */ }
+    return fetchOriginal.apply(this, arguments);
+  };
+
+  function headersProntos() {
+    return !!headersCapturados['x-csrf-token'];
+  }
+
+  function badge(texto) {
+    let el = document.getElementById('starlecos-ponte-badge');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'starlecos-ponte-badge';
+      el.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:99999;background:#111;color:#0f0;font:12px monospace;padding:8px 12px;border-radius:8px;opacity:0.85;max-width:320px;box-shadow:0 2px 10px rgba(0,0,0,.3)';
+      document.body.appendChild(el);
+    }
+    el.textContent = '🔗 Starlecos: ' + texto;
+  }
+
+  // ---------- Supabase via GM_xmlhttpRequest (não sofre CSP da página do ML) ----------
+  function sb(method, path, body) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method,
+        url: SUPABASE_URL + '/rest/v1/' + path,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': ANON_KEY,
+          'Authorization': 'Bearer ' + ANON_KEY,
+          'Prefer': method === 'POST' ? 'return=minimal,resolution=merge-duplicates' : (method === 'PATCH' ? 'return=minimal' : '')
+        },
+        data: body ? JSON.stringify(body) : undefined,
+        onload: (res) => {
+          if (res.status >= 200 && res.status < 300) {
+            try { resolve(res.responseText ? JSON.parse(res.responseText) : null); }
+            catch (e) { resolve(null); }
+          } else reject(new Error('Supabase ' + res.status + ': ' + res.responseText));
+        },
+        onerror: (e) => reject(new Error('Supabase erro de rede: ' + JSON.stringify(e)))
+      });
+    });
+  }
+
+  // ---------- parser da lista (mesma lógica validada em Node contra dado real) ----------
+  function encontrarNos(obj, pred, resultados) {
+    if (obj === null || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) { obj.forEach(o => encontrarNos(o, pred, resultados)); return; }
+    if (pred(obj)) resultados.push(obj);
+    Object.values(obj).forEach(v => encontrarNos(v, pred, resultados));
+  }
+  function acharUm(obj, pred) {
+    if (obj === null || typeof obj !== 'object') return undefined;
+    if (Array.isArray(obj)) {
+      for (const o of obj) { const r = acharUm(o, pred); if (r !== undefined) return r; }
+      return undefined;
+    }
+    if (pred(obj)) return obj;
+    for (const v of Object.values(obj)) {
+      const r = acharUm(v, pred);
+      if (r !== undefined) return r;
+    }
+    return undefined;
+  }
+  function paraNumero(txt) {
+    if (txt == null) return null;
+    return parseFloat(String(txt).replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
+  }
+
+  function parseLista(dados) {
+    const rowGroups = [];
+    encontrarNos(dados, o => o.uiType === 'row_group' && typeof o.id === 'string', rowGroups);
+
+    const extraidos = [];
+    for (const rg of rowGroups) {
+      const itemIdNum = rg.id.replace('row_group-MLB', '').replace('row_group-', '');
+      const itemId = itemIdNum.startsWith('MLB') ? itemIdNum : 'MLB' + itemIdNum;
+
+      const desc = acharUm(rg, o => o.uiType === 'description_refresh');
+      const descData = desc ? desc.data : {};
+      const titulo = descData.title;
+      const precoOriginalTxt = descData.price;
+      const foto = (descData.pictures || [])[0];
+      const urlProduto = descData.url;
+
+      const promoListNode = acharUm(rg, o => o.promotionList);
+      const pl = promoListNode ? promoListNode.promotionList : null;
+      const todasCaixas = pl ? [...(pl.promotionBoxes || []), ...(pl.collapsibleRows || [])] : [];
+
+      for (const caixa of todasCaixas) {
+        if (caixa.itemStatus !== 'eligible') continue;
+
+        let btnCol = null, chargesCol = null, descontoCol = null, nomeCol = null, precoFinalCol = null;
+        for (const col of caixa.columns || []) {
+          for (const line of col.lines || []) {
+            if (line.type === 'button') btnCol = line;
+            if (line.type === 'charges') chargesCol = line;
+            if (line.secondaryText && line.primaryText) descontoCol = line;
+          }
+        }
+        nomeCol = caixa.columns?.[0]?.lines?.[1]?.primaryText?.content || caixa.columns?.[0]?.lines?.[0]?.primaryText?.content;
+        precoFinalCol = caixa.columns?.[2]?.lines?.[0]?.primaryText?.content;
+
+        if (!btnCol || !btnCol.button) continue;
+        const button = btnCol.button;
+        const urlCallback = button.urlCallback || '';
+        const track = (btnCol.tracks || []).find(t => t.data && t.data.event_data);
+        const ev = track ? track.data.event_data : {};
+
+        if (ev.promo_type !== 'tier') continue; // só tier por enquanto — único fluxo validado ponta a ponta
+
+        const params = new URLSearchParams(urlCallback);
+
+        extraidos.push({
+          item_id: itemId,
+          titulo,
+          foto,
+          url_produto: urlProduto,
+          preco_original: paraNumero(precoOriginalTxt),
+          preco_final: paraNumero(precoFinalCol),
+          desconto_percentual: descontoCol ? paraNumero(String(descontoCol.secondaryText.content).replace('(', '').replace('%)', '')) : null,
+          voce_recebe: chargesCol ? (chargesCol.totalCharges.amount ?? paraNumero(chargesCol.totalCharges.value)) : null,
+          promocao_nome: nomeCol,
+          promotion_id: ev.promo_id || params.get('promoId'),
+          sub_type: ev.promo_sub_type || params.get('subType'),
+          card_id_aplicado: ev.card_type || params.get('cardApplied'),
+          position: params.get('position') ? parseInt(params.get('position')) : null,
+          candidate_quantity: params.get('candidateQuantity') ? parseInt(params.get('candidateQuantity')) : null,
+          url_callback: urlCallback,
+          detectado_em: new Date().toISOString()
+        });
+      }
+    }
+    return extraidos;
+  }
+
+  // ---------- busca a lista real (paginada) direto da API do ML ----------
+  async function buscarListaCompleta() {
+    let todos = [];
+    for (let pagina = 1; pagina <= 15; pagina++) {
+      const url = 'https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/items/refresh?page=' + pagina + '&sort=&search=&filters=&tab=promotions&viewId=promos';
+      const res = await fetchOriginal(url, { credentials: 'include', headers: headersCapturados });
+      if (!res.ok) break;
+      const dados = await res.json();
+      const extraidos = parseLista(dados);
+      const rowGroupsNaPagina = [];
+      encontrarNos(dados, o => o.uiType === 'row_group', rowGroupsNaPagina);
+      todos = todos.concat(extraidos);
+      if (rowGroupsNaPagina.length === 0) break; // acabaram as páginas
+    }
+    return todos;
+  }
+
+  // ---------- sincroniza a lista pro Supabase (nunca sobrescreve status já decidido) ----------
+  async function sincronizarLista() {
+    const itens = await buscarListaCompleta();
+    if (!itens.length) return 0;
+    // omite status/decidido_em/aplicado_em do payload de propósito: o upsert
+    // (merge-duplicates) só atualiza as colunas presentes no corpo, então uma
+    // promoção já aprovada/recusada/aplicada não volta pra "pendente" sozinha.
+    await sb('POST', 'ml_promocoes?on_conflict=item_id,promotion_id', itens);
+    return itens.length;
+  }
+
+  // ---------- aplica de verdade as que o Enzo aprovou no Financeiro ----------
+  async function aplicarAprovadas() {
+    const pendentes = await sb('GET', 'ml_promocoes?status=eq.aprovado&select=*');
+    if (!pendentes || !pendentes.length) return 0;
+
+    let aplicadas = 0;
+    for (const row of pendentes) {
+      try {
+        const modalRes = await fetchOriginal('https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/modal-ondemand', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { ...headersCapturados, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            urlCallback: row.url_callback,
+            itemId: row.item_id.replace('MLB', ''),
+            viewId: 'promos',
+            actionType: 'create'
+          })
+        });
+        if (!modalRes.ok) throw new Error('modal-ondemand falhou: ' + modalRes.status);
+        const modalJson = await modalRes.json();
+        const dp = modalJson.data.data.defaultParams;
+        const urlCallbackModal = modalJson.data.data.urlCallback;
+
+        const confirmRes = await fetchOriginal('https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/confirm-from-modal', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { ...headersCapturados, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resource_elements: {
+              itemCbt: dp.itemCbt ?? false,
+              listPrice: dp.listPrice,
+              promotionId: dp.promotionId,
+              suggestedPercentage: dp.suggestedPercentage,
+              rankingInfo: { rankingScore: 0, rankingPosition: row.position, rankingVersion: '1.0', bestCandidate: false },
+              position: row.position,
+              candidateQuantity: row.candidate_quantity,
+              cardIdApplied: row.card_id_aplicado,
+              tags: dp.tags || [],
+              eventIds: [],
+              isRealtime: dp.isRealtime ?? false,
+              isSmartFallback: dp.isSmartFallback ?? false,
+              signature: dp.signature,
+              pricePercentage: null,
+              pricePrimePercentage: null,
+              pricePrime: null,
+              price: dp.price,
+              tycChecked: false,
+              addItemToCampaignCheck: false,
+              recoCampaignId: null
+            },
+            urlCallback: urlCallbackModal,
+            impersonalized: false,
+            viewId: 'promos',
+            itemId: row.item_id,
+            actionType: 'create'
+          })
+        });
+        if (!confirmRes.ok) {
+          const txt = await confirmRes.text();
+          throw new Error('confirm-from-modal falhou: ' + confirmRes.status + ' ' + txt.slice(0, 300));
+        }
+
+        await sb('PATCH', 'ml_promocoes?id=eq.' + row.id, { status: 'aplicado', aplicado_em: new Date().toISOString() });
+        aplicadas++;
+      } catch (e) {
+        await sb('PATCH', 'ml_promocoes?id=eq.' + row.id, { status: 'erro', erro_msg: String(e.message || e).slice(0, 500) });
+      }
+    }
+    return aplicadas;
+  }
+
+  // ---------- loop principal ----------
+  async function ciclo() {
+    if (!headersProntos()) {
+      badge('aguardando a página carregar a lista de promoções...');
+      return;
+    }
+    try {
+      badge('sincronizando...');
+      const n = await sincronizarLista();
+      const aplicadas = await aplicarAprovadas();
+      badge(n + ' promoções sincronizadas' + (aplicadas ? ' · ' + aplicadas + ' aplicada(s) agora' : '') + ' · ' + new Date().toLocaleTimeString('pt-BR'));
+    } catch (e) {
+      badge('erro: ' + String(e.message || e).slice(0, 200));
+      console.error('[Starlecos ponte]', e);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    badge('iniciando...');
+    setInterval(ciclo, CICLO_MS);
+    setTimeout(ciclo, 3000); // dá um tempinho pra página real fazer o primeiro fetch e capturarmos os headers
+  });
+})();

@@ -1083,6 +1083,7 @@
     <button class="tab-btn" onclick="showTab('shopee')">🛍️ Shopee</button>
     <button class="tab-btn" onclick="showTab('shopify')">🏪 Shopify</button>
     <button class="tab-btn" onclick="showTab('mercadoads')">📢 Mercado Ads</button>
+    <button class="tab-btn" onclick="showTab('promocoes');carregarPromocoesML()">🎯 Promoções ML</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
     <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
     <button class="tab-btn" onclick="showTab('estoque');carregarEstoque()">📦 Estoque</button>
@@ -1596,6 +1597,39 @@
         </thead>
         <tbody id="bodyMercadoAdsAnuncios">
           <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== PROMOÇÕES ML ====== -->
+  <div class="tab-panel" id="panel-promocoes">
+    <div class="section-header">
+      <div class="section-title">🎯 Promoções ML <span class="section-badge">Sugeridas pelo Mercado Livre</span></div>
+    </div>
+    <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
+      Sincronizado automaticamente por um script-ponte rodando no navegador (precisa da aba de Promoções do Mercado Livre aberta de vez em quando pra sincronizar). Aprove ou recuse aqui — a aplicação real no ML acontece sozinha no próximo ciclo do script-ponte.
+    </div>
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Promoções pendentes e histórico</span>
+        <span class="table-total" id="totalPromocoesPendentes">0 pendente(s)</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Produto</th>
+            <th>Promoção</th>
+            <th>De / Por</th>
+            <th>Desconto</th>
+            <th>Você recebe</th>
+            <th>Detectado em</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="bodyPromocoesML">
+          <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -2579,6 +2613,12 @@ async function sbUpsert(table, data) {
     method: 'POST',
     headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=merge-duplicates' },
     body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+async function sbPatch(table, filter, data) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + filter, {
+    method: 'PATCH', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' }, body: JSON.stringify(data)
   });
   if (!res.ok) throw new Error(await res.text());
 }
@@ -4166,6 +4206,80 @@ async function excluirSkuEPA(sku) {
     renderTabelaEPA();
     notify('Removido.');
   } catch(e) { notify('Erro ao remover', 'err'); }
+}
+
+// ====== PROMOÇÕES ML ======
+let _promocoesLista = [];
+
+async function carregarPromocoesML() {
+  try {
+    _promocoesLista = await sbGet('ml_promocoes', 'select=*&order=detectado_em.desc');
+    renderTabelaPromocoes();
+  } catch (e) {
+    console.error('Erro ao carregar promoções ML:', e);
+    notify('Erro ao carregar promoções', 'err');
+  }
+}
+
+function renderTabelaPromocoes() {
+  const tbody = document.getElementById('bodyPromocoesML');
+  const pendentes = _promocoesLista.filter(p => p.status === 'pendente').length;
+  document.getElementById('totalPromocoesPendentes').textContent = pendentes + ' pendente(s)';
+
+  if (!_promocoesLista.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda</p></div></td></tr>';
+    return;
+  }
+
+  const statusInfo = {
+    pendente: { label: '🟡 Pendente', cor: 'var(--amber)' },
+    aprovado: { label: '🔵 Aprovado — aguardando aplicar', cor: '#3B82F6' },
+    recusado: { label: '⚪ Recusado', cor: 'var(--muted)' },
+    aplicado: { label: '🟢 Aplicado no ML', cor: 'var(--jade)' },
+    erro: { label: '🔴 Erro ao aplicar', cor: 'var(--rose)' }
+  };
+
+  tbody.innerHTML = _promocoesLista.map(p => {
+    const info = statusInfo[p.status] || { label: p.status, cor: 'var(--muted)' };
+    const acoes = p.status === 'pendente'
+      ? `<button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="aprovarPromocao(${p.id})">✓ Aprovar</button>
+         <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="recusarPromocao(${p.id})">✕ Recusar</button>`
+      : (p.status === 'erro' ? `<span style="font-size:11px;color:var(--rose)" title="${p.erro_msg || ''}">${(p.erro_msg || '').slice(0, 60)}</span>` : '—');
+
+    return `<tr>
+      <td style="display:flex;align-items:center;gap:8px">
+        ${p.foto ? `<img src="${p.foto}" style="width:36px;height:36px;object-fit:cover;border-radius:6px">` : ''}
+        <a href="${p.url_produto || '#'}" target="_blank" style="font-size:12px;max-width:220px;display:inline-block">${p.titulo || p.item_id}</a>
+      </td>
+      <td style="font-size:12px">${p.promocao_nome || '—'}</td>
+      <td style="font-size:12px">${fmt(p.preco_original)} → <strong>${fmt(p.preco_final)}</strong></td>
+      <td>${p.desconto_percentual != null ? p.desconto_percentual + '%' : '—'}</td>
+      <td class="val-pos">${fmt(p.voce_recebe)}</td>
+      <td style="font-size:11px;color:var(--muted)">${p.detectado_em ? new Date(p.detectado_em).toLocaleString('pt-BR') : '—'}</td>
+      <td style="color:${info.cor};font-size:12px;font-weight:600">${info.label}</td>
+      <td>${acoes}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function aprovarPromocao(id) {
+  try {
+    await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'aprovado', decidido_em: new Date().toISOString() });
+    const item = _promocoesLista.find(p => p.id === id);
+    if (item) item.status = 'aprovado';
+    renderTabelaPromocoes();
+    notify('✅ Aprovado! Aplica no ML no próximo ciclo do script-ponte.');
+  } catch (e) { notify('Erro ao aprovar', 'err'); }
+}
+
+async function recusarPromocao(id) {
+  try {
+    await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'recusado', decidido_em: new Date().toISOString() });
+    const item = _promocoesLista.find(p => p.id === id);
+    if (item) item.status = 'recusado';
+    renderTabelaPromocoes();
+    notify('Recusado.');
+  } catch (e) { notify('Erro ao recusar', 'err'); }
 }
 
 async function cadastrarSkuEPA() {
