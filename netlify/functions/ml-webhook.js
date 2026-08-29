@@ -72,6 +72,13 @@ async function aplicarMovimento(canal, pedidoId, sku, delta, motivo) {
 exports.handler = async function(event) {
   try {
     const body = JSON.parse(event.body || '{}');
+    if (body.topic === 'debug') {
+      return { statusCode: 200, body: JSON.stringify({
+        temServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        temClientSecret: !!process.env.ML_CLIENT_SECRET,
+        clientSecretLen: (process.env.ML_CLIENT_SECRET || '').length
+      }) };
+    }
     if (body.topic !== 'orders_v2' || !body.resource) {
       return { statusCode: 200, body: 'ignorado' };
     }
