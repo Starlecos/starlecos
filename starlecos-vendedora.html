@@ -658,36 +658,13 @@ async function carregarEstoqueProdutos() {
 
 function normEP(s) { return (s||'').trim().toLowerCase(); }
 
-async function descontarEstoque(itens) {
-  for (var i = 0; i < itens.length; i++) {
-    var it = itens[i];
-    var match = _estoqueProdutos.find(function(e) {
-      return normEP(e.produto) === normEP(it.produto) &&
-             normEP(e.tamanho) === normEP(it.tamanho) &&
-             normEP(e.estampa) === normEP(it.estampa);
-    });
-    if (!match) continue;
-    var nova = Math.max(0, (match.quantidade||0) - (it.qtd||0));
-    try {
-      await fetch(SUPABASE_URL + '/rest/v1/estoque_produtos?sku=eq.' + encodeURIComponent(match.sku), {
-        method: 'PATCH', headers: { ...HEADERS, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ quantidade: nova, updated_at: new Date().toISOString() })
-      });
-      match.quantidade = nova;
-      // Empurra a quantidade nova pro ML e pra Shopify — venda manual, nenhum
-      // canal sabe da mudança sozinho.
-      fetch('/.netlify/functions/push-estoque', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sku: match.sku })
-      }).catch(function(e) { console.error('Erro ao empurrar estoque:', e); });
-    } catch(e) { console.error('Erro ao descontar estoque:', e); }
-  }
-}
-
-// Devolve estoque de um pedido excluído — usa a mesma função atômica dos
-// webhooks (aplicar_movimento_estoque) pra não devolver duas vezes se o
-// exclusão for clicada mais de uma vez.
-async function devolverEstoque(itens, pedidoId) {
+// Aplica um movimento de estoque (desconto na venda, devolução no
+// cancelamento) via a mesma função atômica dos webhooks
+// (aplicar_movimento_estoque) — evita a corrida de calcular o valor novo
+// a partir do número em cache no navegador, que pode estar desatualizado
+// se o estoque mudou em outro lugar (ML, Shopify, Financeiro) enquanto a
+// aba da Vendas estava aberta.
+async function movimentarEstoque(itens, pedidoId, sinal, motivo) {
   for (var i = 0; i < itens.length; i++) {
     var it = itens[i];
     var match = _estoqueProdutos.find(function(e) {
@@ -699,27 +676,39 @@ async function devolverEstoque(itens, pedidoId) {
     try {
       await fetch(SUPABASE_URL + '/rest/v1/rpc/aplicar_movimento_estoque', {
         method: 'POST', headers: { ...HEADERS, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ p_canal: 'vendas', p_pedido_id: String(pedidoId), p_sku: match.sku, p_delta: (it.qtd||0), p_motivo: 'cancelamento' })
+        body: JSON.stringify({ p_canal: 'vendas', p_pedido_id: String(pedidoId), p_sku: match.sku, p_delta: sinal * (it.qtd||0), p_motivo: motivo })
       });
-      match.quantidade = (match.quantidade||0) + (it.qtd||0);
+      match.quantidade = Math.max(0, (match.quantidade||0) + sinal * (it.qtd||0));
+      // Empurra a quantidade nova pro ML e pra Shopify — venda manual, nenhum
+      // canal sabe da mudança sozinho.
       fetch('/.netlify/functions/push-estoque', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sku: match.sku })
       }).catch(function(e) { console.error('Erro ao empurrar estoque:', e); });
-    } catch(e) { console.error('Erro ao devolver estoque:', e); }
+    } catch(e) { console.error('Erro ao movimentar estoque:', e); }
   }
 }
+function descontarEstoque(itens, pedidoId) { return movimentarEstoque(itens, pedidoId, -1, 'venda'); }
+function devolverEstoque(itens, pedidoId)  { return movimentarEstoque(itens, pedidoId, 1, 'cancelamento'); }
 
 // =============================================
 // ABA ESTOQUE (produtos acabados)
 // =============================================
-function mostrarAbaPrincipal(nome) {
+async function mostrarAbaPrincipal(nome) {
   var ehVenda = nome === 'venda';
   document.getElementById('abaVenda').style.display = ehVenda ? '' : 'none';
   document.getElementById('abaEstoqueTab').style.display = ehVenda ? 'none' : '';
   document.getElementById('tabBtnVenda').classList.toggle('active', ehVenda);
   document.getElementById('tabBtnEstoqueTab').classList.toggle('active', !ehVenda);
-  if (!ehVenda) { renderResumoChips(); renderEstoqueTab(); }
+  if (!ehVenda) {
+    // Recarrega do banco toda vez que abre — a Vendas lê a mesma tabela
+    // central que ML/Shopify/Financeiro mexem, então sem isso a aba mostra
+    // número desatualizado se ficar aberta enquanto o estoque muda em
+    // outro lugar.
+    await carregarEstoqueProdutos();
+    renderResumoChips();
+    renderEstoqueTab();
+  }
 }
 
 function renderResumoChips() {
@@ -909,7 +898,7 @@ async function registrarVenda() {
   try {
     await sbInsert('vendas', { id, data, vendedora, cliente, itens: validos, subtotal, frete, total, canal, pagamento, status, obs });
     try { localStorage.setItem('starlecos_vendedora_nome', vendedora); } catch(e) {}
-    if (status !== 'Cancelado') descontarEstoque(validos);
+    if (status !== 'Cancelado') descontarEstoque(validos, id);
 
     var nomes = validos.map(function(i){ return i.qtd+'x '+i.produto; }).join(', ');
     var box = document.getElementById('successBox');
