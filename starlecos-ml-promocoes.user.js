@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Starlecos - Ponte de Promoções ML
 // @namespace    starlecos
-// @version      1.3
+// @version      1.4
 // @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
 // @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
 // @run-at       document-start
@@ -12,6 +12,7 @@
 (function () {
   'use strict';
 
+  const VERSAO = '1.4'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
   const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
   const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
   const CICLO_MS = 25000; // 25s entre sincronizações
@@ -73,7 +74,7 @@
       el.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:99999;background:#111;color:#0f0;font:12px monospace;padding:8px 12px;border-radius:8px;opacity:0.85;max-width:320px;box-shadow:0 2px 10px rgba(0,0,0,.3)';
       document.body.appendChild(el);
     }
-    el.textContent = '🔗 Starlecos: ' + texto;
+    el.textContent = '🔗 Starlecos v' + VERSAO + ': ' + texto;
   }
 
   // ---------- Supabase via GM_xmlhttpRequest (não sofre CSP da página do ML) ----------
@@ -228,10 +229,15 @@
   // (o confirm-from-modal pode responder 200 sem realmente aplicar nada —
   // já vimos esse tipo de falso-positivo antes nesse projeto, com a escrita
   // de SKU no ML. Não confia só no status HTTP: busca a lista de novo e olha
-  // o itemStatus real da promoção pra esse item.)
-  function acharCaixaPromo(dados, itemIdNum, promotionId) {
+  // o itemStatus real da promoção pra esse item.
+  // IMPORTANTE: promotion_id é o ID da CAMPANHA (ex: "P-MLB17923006"),
+  // compartilhado por dezenas de itens diferentes — não é único por item.
+  // Por isso o match do item precisa ser EXATO (não .includes(), que já
+  // causou um falso-positivo real: pegou o row_group de outro item cujo ID
+  // continha os mesmos dígitos como substring).
+  function acharCaixaPromo(dados, itemIdExato, promotionId) {
     const rowGroups = [];
-    encontrarNos(dados, o => o.uiType === 'row_group' && typeof o.id === 'string' && o.id.includes(itemIdNum), rowGroups);
+    encontrarNos(dados, o => o.uiType === 'row_group' && o.id === ('row_group-' + itemIdExato), rowGroups);
     if (!rowGroups.length) return null;
     const promoListNode = acharUm(rowGroups[0], o => o.promotionList);
     const pl = promoListNode ? promoListNode.promotionList : null;
@@ -249,13 +255,22 @@
     if (Object.prototype.hasOwnProperty.call(obj, chave)) resultados.push(obj[chave]);
     Object.values(obj).forEach(v => acharTodos(v, chave, resultados));
   }
-  async function statusRealNoML(itemIdNum, promotionId) {
-    const url = 'https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/items/refresh?page=1&sort=&search=' + itemIdNum + '&filters=&tab=promotions&viewId=promos';
-    const res = await fetchOriginal(url, { credentials: 'include', headers: headersCapturados });
-    if (!res.ok) return null; // não deu pra confirmar — trata como incerto
-    const dados = await res.json();
-    const caixa = acharCaixaPromo(dados, itemIdNum, promotionId);
-    return caixa ? caixa.itemStatus : null; // null = não achou mais essa promoção pra esse item
+  async function statusRealNoML(itemId, promotionId) {
+    // não confia no parâmetro "search" pra filtrar por item (nunca validamos
+    // se ele realmente filtra por ID) — busca a lista completa, paginada
+    // igual buscarListaCompleta, e casa o item por ID exato.
+    for (let pagina = 1; pagina <= 15; pagina++) {
+      const url = 'https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/items/refresh?page=' + pagina + '&sort=&search=&filters=&tab=promotions&viewId=promos';
+      const res = await fetchOriginal(url, { credentials: 'include', headers: headersCapturados });
+      if (!res.ok) return null; // não deu pra confirmar — trata como incerto
+      const dados = await res.json();
+      const caixa = acharCaixaPromo(dados, itemId, promotionId);
+      if (caixa) return caixa.itemStatus;
+      const rowGroupsNaPagina = [];
+      encontrarNos(dados, o => o.uiType === 'row_group', rowGroupsNaPagina);
+      if (rowGroupsNaPagina.length === 0) break; // acabaram as páginas
+    }
+    return null; // não achou essa promoção pra esse item em nenhuma página
   }
 
   // ---------- aplica de verdade as que o Enzo aprovou no Financeiro ----------
@@ -324,7 +339,7 @@
 
         // espera um instante e confere de verdade — não confia só no 200
         await new Promise(r => setTimeout(r, 2000));
-        const statusReal = await statusRealNoML(itemIdNum, row.promotion_id);
+        const statusReal = await statusRealNoML(row.item_id, row.promotion_id);
 
         if (statusReal === 'active') {
           await sb('PATCH', 'ml_promocoes?id=eq.' + row.id, { status: 'aplicado', aplicado_em: new Date().toISOString() });
