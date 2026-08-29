@@ -4151,8 +4151,15 @@ async function salvarQtdEPA(sku) {
 }
 
 async function excluirSkuEPA(sku) {
-  if (!confirm('Remover o SKU "' + sku + '" do estoque?')) return;
+  if (!confirm('Remover o SKU "' + sku + '" do estoque? Isso zera a quantidade disponível no Mercado Livre e na Shopify também.')) return;
   try {
+    // Zera nos canais antes de apagar daqui — depois de excluído não tem
+    // mais linha no estoque interno pra function ler o valor.
+    fetch('/.netlify/functions/push-estoque', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku, quantidade: 0 })
+    }).catch(e => console.error('Erro ao zerar estoque nos canais:', e));
+
     await fetch(SUPABASE_URL + '/rest/v1/estoque_produtos?sku=eq.' + encodeURIComponent(sku), { method: 'DELETE', headers: SB_HEADERS });
     _epaLista = _epaLista.filter(r => r.sku !== sku);
     renderResumoEstoqueProdutoAcabado(_epaLista);

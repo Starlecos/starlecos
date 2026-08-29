@@ -100,10 +100,18 @@ exports.handler = async function(event) {
     const { sku, ignorar_canal } = body;
     if (!sku) return { statusCode: 400, headers, body: JSON.stringify({ error: 'sku obrigatório' }) };
 
-    const estoqueRes = await fetch(SUPABASE_URL + '/rest/v1/estoque_produtos?sku=eq.' + encodeURIComponent(sku) + '&select=quantidade', { headers: anonHeaders() });
-    const estoqueRows = await estoqueRes.json();
-    if (!estoqueRows.length) return { statusCode: 404, headers, body: JSON.stringify({ error: 'SKU não encontrado no estoque' }) };
-    const quantidade = estoqueRows[0].quantidade || 0;
+    // Se vier uma quantidade explícita (ex: 0 ao excluir o SKU do estoque),
+    // usa ela em vez de ler do banco — depois de excluído não tem mais
+    // linha pra ler, e o objetivo ali é zerar nos canais mesmo.
+    let quantidade;
+    if (typeof body.quantidade === 'number') {
+      quantidade = body.quantidade;
+    } else {
+      const estoqueRes = await fetch(SUPABASE_URL + '/rest/v1/estoque_produtos?sku=eq.' + encodeURIComponent(sku) + '&select=quantidade', { headers: anonHeaders() });
+      const estoqueRows = await estoqueRes.json();
+      if (!estoqueRows.length) return { statusCode: 404, headers, body: JSON.stringify({ error: 'SKU não encontrado no estoque' }) };
+      quantidade = estoqueRows[0].quantidade || 0;
+    }
 
     const mapRes = await fetch(SUPABASE_URL + '/rest/v1/sku_canal_map?sku=eq.' + encodeURIComponent(sku) + '&select=*', { headers: anonHeaders() });
     const mapRows = await mapRes.json();
