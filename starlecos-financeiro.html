@@ -3456,16 +3456,22 @@ async function sincronizarMercadoAds() {
     const errosPersistencia = [];
     if (campanhas.length) {
       const agora = new Date().toISOString();
-      const linhas = campanhas.map(c => ({
-        campanha_id: c.id, campanha_nome: c.name, status: c.status, budget: c.budget,
-        acos_target: c.acos_target, roas_target: c.roas_target,
-        periodo_de: de, periodo_ate: ate,
-        clicks: c.metrics.clicks, prints: c.metrics.prints, custo: c.metrics.cost,
-        receita_direta: c.metrics.direct_amount, receita_indireta: c.metrics.total_amount - c.metrics.direct_amount,
-        receita_total: c.metrics.total_amount, unidades_total: c.metrics.units_quantity,
-        acos_real: c.metrics.acos, cvr: c.metrics.cvr, roas_real: c.metrics.roas,
-        sincronizado_em: agora
-      }));
+      const linhas = campanhas.map(c => {
+        const cm = c.metrics || {};
+        // "?? null"/"?? 0" em tudo — mesma correção aplicada em
+        // linhasAnuncios logo abaixo, mesmo risco de PGRST102 se alguma
+        // campanha vier sem acos_target/roas_target definido
+        return {
+          campanha_id: c.id ?? null, campanha_nome: c.name ?? null, status: c.status ?? null, budget: c.budget ?? null,
+          acos_target: c.acos_target ?? null, roas_target: c.roas_target ?? null,
+          periodo_de: de, periodo_ate: ate,
+          clicks: cm.clicks ?? 0, prints: cm.prints ?? 0, custo: cm.cost ?? 0,
+          receita_direta: cm.direct_amount ?? 0, receita_indireta: (cm.total_amount ?? 0) - (cm.direct_amount ?? 0),
+          receita_total: cm.total_amount ?? 0, unidades_total: cm.units_quantity ?? 0,
+          acos_real: cm.acos ?? 0, cvr: cm.cvr ?? 0, roas_real: cm.roas ?? 0,
+          sincronizado_em: agora
+        };
+      });
       const res = await fetch(SUPABASE_URL + '/rest/v1/mercadoads_campanhas', {
         method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' }, body: JSON.stringify(linhas)
       });
@@ -3486,16 +3492,22 @@ async function sincronizarMercadoAds() {
       const agora2 = new Date().toISOString();
       const linhasAnuncios = anuncios.map(ad => {
         const m = ad.metrics || {};
+        // toda chave usa "?? null" — se algum campo vier undefined da API
+        // (anúncio sem family_name, sem title, etc.) o JSON.stringify some
+        // com a chave inteira do objeto, e o Supabase rejeita o lote todo
+        // com PGRST102 "All object keys must match" (já visto nesse projeto
+        // antes, achado de novo em 30/08/2026 — explicava campanhas
+        // inteiras "sumindo" da sincronização por anúncio)
         return {
-          item_id: ad.item_id, campanha_id: ad.campaign_id, ad_group_id: ad.ad_group_id,
-          titulo: ad.title, status: ad.status, price: ad.price,
-          family_id: ad.family_id ? String(ad.family_id) : null, family_name: ad.family_name,
-          permalink: ad.permalink, thumbnail: ad.thumbnail,
+          item_id: ad.item_id ?? null, campanha_id: ad.campaign_id ?? null, ad_group_id: ad.ad_group_id ?? null,
+          titulo: ad.title ?? null, status: ad.status ?? null, price: ad.price ?? null,
+          family_id: ad.family_id ? String(ad.family_id) : null, family_name: ad.family_name ?? null,
+          permalink: ad.permalink ?? null, thumbnail: ad.thumbnail ?? null,
           periodo_de: de, periodo_ate: ate,
-          clicks: m.clicks||0, prints: m.prints||0, custo: m.cost||0,
-          receita_direta: m.direct_amount||0, receita_indireta: (m.total_amount||0) - (m.direct_amount||0),
-          receita_total: m.total_amount||0, unidades_total: m.units_quantity||0,
-          acos_real: m.acos||0, cvr: m.cvr||0, roas_real: m.roas||0,
+          clicks: m.clicks ?? 0, prints: m.prints ?? 0, custo: m.cost ?? 0,
+          receita_direta: m.direct_amount ?? 0, receita_indireta: (m.total_amount ?? 0) - (m.direct_amount ?? 0),
+          receita_total: m.total_amount ?? 0, unidades_total: m.units_quantity ?? 0,
+          acos_real: m.acos ?? 0, cvr: m.cvr ?? 0, roas_real: m.roas ?? 0,
           classificacao: classificarAnuncio(ad, campanhasMap),
           sincronizado_em: agora2
         };
