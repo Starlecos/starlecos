@@ -3580,7 +3580,6 @@ async function buscarTodosAnuncios(advertiser, metricas, de, ate) {
   let offset = 0;
   let total = Infinity;
   const anuncios = [];
-  let pagina = 0;
   while (offset < total) {
     const data = await fetchML_Ads(
       '/marketplace/advertising/' + advertiser.site_id + '/advertisers/' + advertiser.advertiser_id + '/product_ads/ads/search',
@@ -3589,16 +3588,9 @@ async function buscarTodosAnuncios(advertiser, metricas, de, ate) {
     const results = data.results || [];
     anuncios.push(...results);
     total = (data.paging && typeof data.paging.total === 'number') ? data.paging.total : results.length;
-    // diagnóstico: 5 das 7 campanhas nomeadas nunca aparecem nesse sync
-    // (achado real em 30/08/2026) — loga o paging bruto e os campaign_id
-    // distintos de cada página pra achar se é filtro/paginação/limite da API
-    console.log('[diag ads/search] página', pagina, '| offset', offset, '| paging bruto:', data.paging, '| resultados nessa página:', results.length,
-      '| campaign_ids distintos nessa página:', [...new Set(results.map(r => r.campaign_id))]);
-    pagina++;
     offset += limit;
     if (!results.length) break;
   }
-  console.log('[diag ads/search] TOTAL final:', anuncios.length, '| campaign_ids distintos no total:', [...new Set(anuncios.map(a => a.campaign_id))]);
   return anuncios;
 }
 
