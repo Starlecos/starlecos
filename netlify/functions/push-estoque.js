@@ -40,8 +40,7 @@ async function obterTokenML() {
   return tokenData.access_token;
 }
 
-async function empurrarML(itemId, variationId, quantidade) {
-  const accessToken = await obterTokenML();
+async function empurrarML(accessToken, itemId, variationId, quantidade) {
   const path = variationId ? '/items/' + itemId + '/variations/' + variationId : '/items/' + itemId;
   const res = await fetch('https://api.mercadolibre.com' + path, {
     method: 'PUT',
@@ -113,19 +112,38 @@ exports.handler = async function(event) {
       quantidade = estoqueRows[0].quantidade || 0;
     }
 
-    const mapRes = await fetch(SUPABASE_URL + '/rest/v1/sku_canal_map?sku=eq.' + encodeURIComponent(sku) + '&select=*', { headers: anonHeaders() });
-    const mapRows = await mapRes.json();
-    if (!mapRows.length) return { statusCode: 200, headers, body: JSON.stringify({ aviso: 'SKU sem mapeamento de canal, nada pra empurrar' }) };
-    const map = mapRows[0];
+    // um SKU pode apontar pra VÁRIOS anúncios no ML (anúncios duplicados
+    // reais na conta — mesmo produto, item_id diferente; achado em
+    // 30/08/2026 com o par Safari/Pequeno Príncipe). Shopify continua 1:1.
+    const mlRes = await fetch(SUPABASE_URL + '/rest/v1/sku_ml_listagens?sku=eq.' + encodeURIComponent(sku) + '&select=ml_item_id,ml_variation_id', { headers: anonHeaders() });
+    const mlListagens = await mlRes.json();
+    const shopifyRes = await fetch(SUPABASE_URL + '/rest/v1/sku_canal_map?sku=eq.' + encodeURIComponent(sku) + '&select=shopify_variant_id', { headers: anonHeaders() });
+    const shopifyRows = await shopifyRes.json();
+    const shopifyVariantId = shopifyRows[0] && shopifyRows[0].shopify_variant_id;
 
-    const resultado = { sku, quantidade, ml: null, shopify: null };
-
-    if (ignorar_canal !== 'mercado_livre' && map.ml_item_id) {
-      try { resultado.ml = await empurrarML(map.ml_item_id, map.ml_variation_id, quantidade); }
-      catch (e) { resultado.ml = { ok: false, erro: e.message }; }
+    if (!mlListagens.length && !shopifyVariantId) {
+      return { statusCode: 200, headers, body: JSON.stringify({ aviso: 'SKU sem mapeamento de canal, nada pra empurrar' }) };
     }
-    if (ignorar_canal !== 'shopify' && map.shopify_variant_id) {
-      try { resultado.shopify = await empurrarShopify(map.shopify_variant_id, quantidade); }
+
+    const resultado = { sku, quantidade, ml: [], shopify: null };
+
+    if (ignorar_canal !== 'mercado_livre' && mlListagens.length) {
+      let accessToken;
+      try { accessToken = await obterTokenML(); }
+      catch (e) { resultado.ml.push({ ok: false, erro: e.message }); accessToken = null; }
+      if (accessToken) {
+        for (const l of mlListagens) {
+          try {
+            const r = await empurrarML(accessToken, l.ml_item_id, l.ml_variation_id, quantidade);
+            resultado.ml.push({ ml_item_id: l.ml_item_id, ml_variation_id: l.ml_variation_id, ...r });
+          } catch (e) {
+            resultado.ml.push({ ml_item_id: l.ml_item_id, ml_variation_id: l.ml_variation_id, ok: false, erro: e.message });
+          }
+        }
+      }
+    }
+    if (ignorar_canal !== 'shopify' && shopifyVariantId) {
+      try { resultado.shopify = await empurrarShopify(shopifyVariantId, quantidade); }
       catch (e) { resultado.shopify = { ok: false, erro: e.message }; }
     }
 
