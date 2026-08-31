@@ -48,7 +48,20 @@ async function empurrarML(accessToken, itemId, variationId, quantidade) {
     body: JSON.stringify({ available_quantity: quantidade })
   });
   const data = await res.json();
-  return { ok: res.ok, status: res.status, data: res.ok ? null : data };
+  if (!res.ok) return { ok: false, status: res.status, data };
+
+  // não confia só no 200 — já vimos esse tipo de falso-positivo antes nesse
+  // projeto (escrita de SKU e de promoção respondendo sucesso sem aplicar
+  // de verdade). A resposta do PUT normalmente já traz o valor resultante;
+  // se não trouxer por algum motivo, confere com um GET de verdade.
+  let valorReal = data.available_quantity;
+  if (typeof valorReal !== 'number') {
+    const confRes = await fetch('https://api.mercadolibre.com' + path, { headers: { Authorization: 'Bearer ' + accessToken } });
+    const confData = await confRes.json();
+    valorReal = confData.available_quantity;
+  }
+  const confirmado = valorReal === quantidade;
+  return { ok: confirmado, status: res.status, confirmado, valor_real: valorReal, esperado: quantidade, data: confirmado ? null : data };
 }
 
 async function obterTokenShopify(store, clientId, clientSecret) {
