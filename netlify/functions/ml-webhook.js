@@ -95,14 +95,16 @@ exports.handler = async function(event) {
       const sku = await buscarSkuItem(accessToken, itemId, variationId);
       if (!sku) { console.warn('Item sem SKU, ignorando:', itemId, variationId); continue; }
       await aplicarMovimento('mercado_livre', String(order.id), sku, sinal * (oi.quantity || 1), motivo);
-      // Empurra a quantidade nova pra Shopify (o ML já ajusta a própria
-      // contagem sozinho quando o pedido é pago/cancelado).
+      // Empurra a quantidade nova pra Shopify e pra qualquer OUTRO anúncio
+      // de ML do mesmo SKU (anúncios duplicados — achado em 30/08/2026: um
+      // SKU pode ter vários anúncios reais no ML, e só o item_id que
+      // realmente vendeu se ajusta sozinho, os "irmãos" não).
       try {
         await fetch('https://ubiquitous-youtiao-3a8ab4.netlify.app/.netlify/functions/push-estoque', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sku, ignorar_canal: 'mercado_livre' })
+          body: JSON.stringify({ sku, ignorar_ml_item_id: itemId })
         });
-      } catch (e) { console.error('Erro ao empurrar estoque pra Shopify:', e.message); }
+      } catch (e) { console.error('Erro ao empurrar estoque:', e.message); }
     }
 
     return { statusCode: 200, body: 'ok' };

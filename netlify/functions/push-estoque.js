@@ -1,9 +1,18 @@
 // Empurra a quantidade atual do estoque interno (fonte da verdade) pros
-// canais externos. Recebe { sku, ignorar_canal } via POST — ignorar_canal
-// é 'mercado_livre' ou 'shopify' quando quem chamou já é o próprio webhook
-// daquele canal (esse já se atualiza sozinho quando uma venda acontece lá,
-// só precisa avisar o OUTRO canal). Sem ignorar_canal, empurra pros dois
-// (usado pela Vendas/Financeiro, onde nenhum canal sabe da mudança sozinho).
+// canais externos. Recebe { sku, ignorar_canal, ignorar_ml_item_id } via
+// POST — ignorar_canal é 'mercado_livre' ou 'shopify' quando quem chamou já
+// é o próprio webhook daquele canal (esse já se atualiza sozinho quando uma
+// venda acontece lá, só precisa avisar o OUTRO canal). Sem ignorar_canal,
+// empurra pros dois (usado pela Vendas/Financeiro, onde nenhum canal sabe
+// da mudança sozinho).
+//
+// ignorar_ml_item_id (mais específico que ignorar_canal='mercado_livre'):
+// um SKU pode ter VÁRIOS anúncios reais no ML (duplicatas — achado em
+// 30/08/2026). Quando um pedido real acontece num item_id específico, ESSE
+// item já se atualiza sozinho, mas os "irmãos" duplicados do mesmo SKU NÃO
+// — ignorar_canal='mercado_livre' pulava o ML inteiro e deixava os irmãos
+// desatualizados. Usar ignorar_ml_item_id em vez disso empurra pra todo
+// mundo, exceto o item que já se ajustou sozinho.
 const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
 const ML_APP_ID = '6624742243995383';
@@ -120,7 +129,7 @@ exports.handler = async function(event) {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { sku, ignorar_canal } = body;
+    const { sku, ignorar_canal, ignorar_ml_item_id } = body;
     if (!sku) return { statusCode: 400, headers, body: JSON.stringify({ error: 'sku obrigatório' }) };
 
     // Se vier uma quantidade explícita (ex: 0 ao excluir o SKU do estoque),
@@ -140,7 +149,8 @@ exports.handler = async function(event) {
     // reais na conta — mesmo produto, item_id diferente; achado em
     // 30/08/2026 com o par Safari/Pequeno Príncipe). Shopify continua 1:1.
     const mlRes = await fetch(SUPABASE_URL + '/rest/v1/sku_ml_listagens?sku=eq.' + encodeURIComponent(sku) + '&select=ml_item_id,ml_variation_id', { headers: anonHeaders() });
-    const mlListagens = await mlRes.json();
+    let mlListagens = await mlRes.json();
+    if (ignorar_ml_item_id) mlListagens = mlListagens.filter(l => l.ml_item_id !== ignorar_ml_item_id);
     const shopifyRes = await fetch(SUPABASE_URL + '/rest/v1/sku_canal_map?sku=eq.' + encodeURIComponent(sku) + '&select=shopify_variant_id', { headers: anonHeaders() });
     const shopifyRows = await shopifyRes.json();
     const shopifyVariantId = shopifyRows[0] && shopifyRows[0].shopify_variant_id;
