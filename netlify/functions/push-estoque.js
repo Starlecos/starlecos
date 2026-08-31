@@ -17,11 +17,22 @@ function anonHeaders() {
 }
 
 async function obterTokenML() {
-  const res = await fetch(SUPABASE_URL + '/rest/v1/ml_auth_token?id=eq.1&select=refresh_token', { headers: svcHeaders() });
+  const res = await fetch(SUPABASE_URL + '/rest/v1/ml_auth_token?id=eq.1&select=refresh_token,access_token,atualizado_em', { headers: svcHeaders() });
   const rows = await res.json();
-  const refreshToken = rows[0] && rows[0].refresh_token;
-  if (!refreshToken) throw new Error('Nenhum refresh_token salvo em ml_auth_token');
+  const row = rows[0];
+  if (!row || !row.refresh_token) throw new Error('Nenhum refresh_token salvo em ml_auth_token');
 
+  // reusa o access_token guardado se ainda estiver válido — token do ML dura
+  // 6h, renovar em toda chamada é desnecessário e deixa cada push lento
+  // (achado real em 30/08/2026: renovar em toda chamada tornou o push em
+  // massa extremamente lento, provável rate-limit do próprio ML por excesso
+  // de renovação)
+  if (row.access_token && row.atualizado_em) {
+    const idadeMs = Date.now() - new Date(row.atualizado_em).getTime();
+    if (idadeMs < 5 * 60 * 60 * 1000) return row.access_token; // menos de 5h, ainda válido
+  }
+
+  const refreshToken = row.refresh_token;
   const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
