@@ -1840,6 +1840,7 @@
   <div class="tab-panel" id="panel-estoqueProdutoAcabado">
     <div class="section-header">
       <div class="section-title">🏷️ Estoque de Produto Acabado</div>
+      <button class="btn-export" onclick="exportarEstoqueCSV()">⬇ Exportar Excel</button>
     </div>
 
     <div style="background:var(--sky-light);border:1px solid #A9CBEA;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#0F4A80">
@@ -3965,6 +3966,25 @@ function exportarCSV() {
   a.click();
   URL.revokeObjectURL(url);
   notify('✅ CSV exportado com sucesso!');
+}
+
+// Exporta o estoque completo de produto acabado (todos os SKUs, não só o
+// filtro atual da tela) — abre direto no Excel.
+function exportarEstoqueCSV() {
+  if (!_epaLista || !_epaLista.length) { notify('Estoque ainda não carregado — abre a aba Estoque Produto Acabado primeiro.', 'err'); return; }
+  const rows = [['SKU','Produto','Estampa','Tamanho','Quantidade']];
+  _epaLista.forEach(v => rows.push([v.sku, v.produto, v.estampa || '', v.tamanho || '', v.quantidade || 0]));
+
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const bom = String.fromCharCode(0xFEFF);
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `starlecos_estoque_${hoje()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  notify('✅ Estoque exportado (' + _epaLista.length + ' SKUs)!');
 }
 // =============================================
 // CALENDÁRIO DE COMPROMISSOS
