@@ -1953,8 +1953,8 @@
         <span class="table-header-title">📊 Por produto</span>
       </div>
       <table>
-        <thead><tr><th>Produto</th><th>SKUs cadastrados</th><th>SKUs com estoque</th><th>SKUs zerados</th><th>Peças em estoque</th></tr></thead>
-        <tbody id="epaTabelaProdutos"><tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Carregando...</p></div></td></tr></tbody>
+        <thead><tr><th>Produto</th><th>SKUs cadastrados</th><th>SKUs com estoque</th><th>SKUs zerados</th><th>Peças em estoque</th><th>Custo unit.</th><th>Custo total</th><th>Venda unit.</th><th>Venda total</th></tr></thead>
+        <tbody id="epaTabelaProdutos"><tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Carregando...</p></div></td></tr></tbody>
       </table>
     </div>
 
@@ -4210,6 +4210,27 @@ const PRODUTOS_EPA = [
   { group: '👕 Blusas', items: ['Blusa Feminino Liso','Blusa Feminino Estampado','Blusa Feminino Estampado Manga Princesa','Blusa Feminino Liso Manga Princesa','Blusa Masculino Liso','Blusa Masculino Estampado'] },
   { group: '✨ Acessórios', items: ['Faixa de Cabelo','Touca'] }
 ];
+// Custo e preço de venda unitário fixos por produto (definidos pelo Enzo em
+// 05/09/2026) — usados só pra compor o valor de estoque na tabela "Por
+// produto", não mudam por estampa/tamanho.
+const CUSTO_VENDA_EPA = {
+  'Blusa Feminino Estampado': { custo: 34, venda: 80 },
+  'Blusa Feminino Estampado Manga Princesa': { custo: 34, venda: 80 },
+  'Blusa Feminino Liso': { custo: 26, venda: 60 },
+  'Blusa Feminino Liso Manga Princesa': { custo: 26, venda: 60 },
+  'Blusa Masculino Estampado': { custo: 34, venda: 80 },
+  'Blusa Masculino Liso': { custo: 26, venda: 60 },
+  'Calça Feminino': { custo: 34, venda: 60 },
+  'Calça Masculino': { custo: 34, venda: 60 },
+  'Faixa de Cabelo': { custo: 8, venda: 25 },
+  'Jaleco Estampado Feminino': { custo: 65, venda: 170 },
+  'Jaleco Estampado Feminino Botões': { custo: 65, venda: 170 },
+  'Jaleco Estampado Masculino': { custo: 65, venda: 170 },
+  'Jaleco Liso Feminino': { custo: 34, venda: 80 },
+  'Jaleco Liso Masculino': { custo: 50, venda: 150 },
+  'Jaleco S/Manga Feminino': { custo: 34, venda: 80 },
+  'Touca': { custo: 8, venda: 40 }
+};
 function buildProdutoOptionsEPA(rotuloVazio) {
   let opts = `<option value="">${rotuloVazio}</option>`;
   PRODUTOS_EPA.forEach(g => {
@@ -4627,9 +4648,14 @@ function renderResumoEstoqueProdutoAcabado(lista) {
   document.getElementById('epaTabelaProdutos').innerHTML = produtos.length
     ? produtos.map(p => {
         const r = porProduto[p];
-        return `<tr><td style="font-weight:600">${p}</td><td>${r.skus}</td><td class="val-pos">${r.comEstoque}</td><td class="val-neg">${r.zerados}</td><td style="font-weight:700">${r.pecas} un</td></tr>`;
+        const cv = CUSTO_VENDA_EPA[p];
+        const custoUnit = cv ? fmt(cv.custo) : '—';
+        const custoTotal = cv ? fmt(cv.custo * r.pecas) : '—';
+        const vendaUnit = cv ? fmt(cv.venda) : '—';
+        const vendaTotal = cv ? fmt(cv.venda * r.pecas) : '—';
+        return `<tr><td style="font-weight:600">${p}</td><td>${r.skus}</td><td class="val-pos">${r.comEstoque}</td><td class="val-neg">${r.zerados}</td><td style="font-weight:700">${r.pecas} un</td><td>${custoUnit}</td><td>${custoTotal}</td><td>${vendaUnit}</td><td class="val-pos" style="font-weight:600">${vendaTotal}</td></tr>`;
       }).join('')
-    : `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Nenhum SKU cadastrado</p></div></td></tr>`;
+    : `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Nenhum SKU cadastrado</p></div></td></tr>`;
 
   baixos.sort((a,b) => (a.quantidade||0) - (b.quantidade||0));
   document.getElementById('epaTotalBaixo').textContent = baixos.length + ' SKUs';
