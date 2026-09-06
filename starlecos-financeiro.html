@@ -1084,6 +1084,7 @@
     <button class="tab-btn" onclick="showTab('shopify')">🏪 Shopify</button>
     <button class="tab-btn" onclick="showTab('mercadoads');carregarAcoesAds()">📢 Mercado Ads</button>
     <button class="tab-btn" onclick="showTab('promocoes');carregarPromocoesML()">🎯 Promoções ML</button>
+    <button class="tab-btn" onclick="showTab('anunciosFila');carregarAnunciosFila()">🆕 Novos Anúncios</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
     <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
     <button class="tab-btn" onclick="showTab('estoque');carregarEstoque()">📦 Estoque</button>
@@ -1656,6 +1657,39 @@
         </thead>
         <tbody id="bodyPromocoesML">
           <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== NOVOS ANÚNCIOS ====== -->
+  <div class="tab-panel" id="panel-anunciosFila">
+    <div class="section-header">
+      <div class="section-title">🆕 Novos Anúncios <span class="section-badge">Fila do watcher local</span></div>
+    </div>
+    <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
+      Detectado automaticamente quando você salva fotos + dados.txt numa pasta (watcher local). Depois que o jarvis gera título/descrição, revise aqui antes de aprovar — a publicação real no ML/Shopify ainda é manual (Fase 2 dessa automação não está pronta).
+    </div>
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-header-title">Anúncios aguardando revisão</span>
+        <span class="table-total" id="totalAnunciosFilaPendentes">0 aguardando aprovação</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Produto / Estampa</th>
+            <th>Fotos</th>
+            <th>Título Clássico</th>
+            <th>Título Premium</th>
+            <th>Preço Cl. / Prem.</th>
+            <th>Atacado</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="bodyAnunciosFila">
+          <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🆕</div><p>Nenhum anúncio novo na fila ainda</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -4173,7 +4207,7 @@ const PRODUTOS_EPA = [
   { group: '🥼 Jalecos Femininos', items: ['Jaleco Estampado Feminino','Jaleco Liso Feminino','Jaleco Estampado Feminino Botões','Jaleco S/Manga Feminino'] },
   { group: '🥼 Jalecos Masculinos', items: ['Jaleco Estampado Masculino','Jaleco Liso Masculino'] },
   { group: '👖 Calças', items: ['Calça Feminino','Calça Masculino'] },
-  { group: '👕 Blusas', items: ['Blusa Feminino Liso','Blusa Feminino Estampado','Blusa Masculino Liso','Blusa Masculino Estampado'] },
+  { group: '👕 Blusas', items: ['Blusa Feminino Liso','Blusa Feminino Estampado','Blusa Feminino Estampado Manga Princesa','Blusa Feminino Liso Manga Princesa','Blusa Masculino Liso','Blusa Masculino Estampado'] },
   { group: '✨ Acessórios', items: ['Faixa de Cabelo','Touca'] }
 ];
 function buildProdutoOptionsEPA(rotuloVazio) {
@@ -4445,6 +4479,83 @@ async function recusarPromocao(id) {
     const item = _promocoesLista.find(p => p.id === id);
     if (item) item.status = 'recusado';
     renderTabelaPromocoes();
+    notify('Recusado.');
+  } catch (e) { notify('Erro ao recusar', 'err'); }
+}
+
+// =============================================
+// NOVOS ANÚNCIOS — fila do watcher local (Fase 1 da automação de criação de anúncio)
+// =============================================
+let _anunciosFilaLista = [];
+
+async function carregarAnunciosFila() {
+  try {
+    _anunciosFilaLista = await sbGet('anuncios_fila', 'select=*&order=criado_em.desc');
+    renderTabelaAnunciosFila();
+  } catch (e) {
+    console.error('Erro ao carregar fila de anúncios:', e);
+    notify('Erro ao carregar fila de anúncios', 'err');
+  }
+}
+
+function renderTabelaAnunciosFila() {
+  const tbody = document.getElementById('bodyAnunciosFila');
+  const aguardando = _anunciosFilaLista.filter(a => a.status === 'aguardando_aprovacao').length;
+  document.getElementById('totalAnunciosFilaPendentes').textContent = aguardando + ' aguardando aprovação';
+
+  if (!_anunciosFilaLista.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🆕</div><p>Nenhum anúncio novo na fila ainda</p></div></td></tr>';
+    return;
+  }
+
+  const statusInfo = {
+    pendente_conteudo: { label: '🟡 Aguardando jarvis gerar conteúdo', cor: 'var(--amber)' },
+    aguardando_aprovacao: { label: '🔵 Aguardando sua aprovação', cor: '#3B82F6' },
+    aprovado: { label: '🟢 Aprovado', cor: 'var(--jade)' },
+    recusado: { label: '⚪ Recusado', cor: 'var(--muted)' }
+  };
+
+  tbody.innerHTML = _anunciosFilaLista.map(a => {
+    const info = statusInfo[a.status] || { label: a.status, cor: 'var(--muted)' };
+    const fotos = Array.isArray(a.fotos_urls) ? a.fotos_urls : [];
+    const acoes = a.status === 'aguardando_aprovacao'
+      ? `<button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="aprovarAnuncioFila(${a.id})">✓ Aprovar</button>
+         <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="recusarAnuncioFila(${a.id})">✕ Recusar</button>`
+      : (a.status === 'recusado' ? `<span style="font-size:11px;color:var(--muted)" title="${a.motivo_recusa || ''}">${(a.motivo_recusa || '—').slice(0, 60)}</span>` : '—');
+
+    return `<tr>
+      <td style="display:flex;align-items:center;gap:8px">
+        ${fotos[0] ? `<img src="${fotos[0]}" style="width:36px;height:36px;object-fit:cover;border-radius:6px">` : ''}
+        <span style="font-size:12px;max-width:200px;display:inline-block">${a.produto} — ${a.estampa}${a.sku_base ? `<br><span style="color:var(--muted);font-size:10px">${a.sku_base}</span>` : ''}</span>
+      </td>
+      <td style="font-size:11px;color:var(--muted)">${fotos.length} foto(s)</td>
+      <td style="font-size:12px;max-width:220px">${a.titulo_classico || '—'}</td>
+      <td style="font-size:12px;max-width:220px">${a.titulo_premium || '—'}</td>
+      <td style="font-size:12px">${fmt(a.preco_classico)} / ${fmt(a.preco_premium)}</td>
+      <td style="font-size:11px;max-width:160px">${a.atacado_texto || '—'}</td>
+      <td style="color:${info.cor};font-size:12px;font-weight:600">${info.label}</td>
+      <td>${acoes}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function aprovarAnuncioFila(id) {
+  try {
+    await sbPatch('anuncios_fila', 'id=eq.' + id, { status: 'aprovado', decidido_em: new Date().toISOString() });
+    const item = _anunciosFilaLista.find(a => a.id === id);
+    if (item) item.status = 'aprovado';
+    renderTabelaAnunciosFila();
+    notify('✅ Aprovado! Publicação real no ML/Shopify ainda é manual (Fase 2 dessa automação).');
+  } catch (e) { notify('Erro ao aprovar', 'err'); }
+}
+
+async function recusarAnuncioFila(id) {
+  const motivo = prompt('Motivo da recusa (opcional):', '') || '';
+  try {
+    await sbPatch('anuncios_fila', 'id=eq.' + id, { status: 'recusado', motivo_recusa: motivo, decidido_em: new Date().toISOString() });
+    const item = _anunciosFilaLista.find(a => a.id === id);
+    if (item) { item.status = 'recusado'; item.motivo_recusa = motivo; }
+    renderTabelaAnunciosFila();
     notify('Recusado.');
   } catch (e) { notify('Erro ao recusar', 'err'); }
 }
