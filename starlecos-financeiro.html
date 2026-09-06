@@ -4645,17 +4645,24 @@ function renderResumoEstoqueProdutoAcabado(lista) {
     if ((v.quantidade||0) > 0) porProduto[p].comEstoque++; else porProduto[p].zerados++;
   });
   const produtos = Object.keys(porProduto).sort();
-  document.getElementById('epaTabelaProdutos').innerHTML = produtos.length
-    ? produtos.map(p => {
-        const r = porProduto[p];
-        const cv = CUSTO_VENDA_EPA[p];
-        const custoUnit = cv ? fmt(cv.custo) : '—';
-        const custoTotal = cv ? fmt(cv.custo * r.pecas) : '—';
-        const vendaUnit = cv ? fmt(cv.venda) : '—';
-        const vendaTotal = cv ? fmt(cv.venda * r.pecas) : '—';
-        return `<tr><td style="font-weight:600">${p}</td><td>${r.skus}</td><td class="val-pos">${r.comEstoque}</td><td class="val-neg">${r.zerados}</td><td style="font-weight:700">${r.pecas} un</td><td>${custoUnit}</td><td>${custoTotal}</td><td>${vendaUnit}</td><td class="val-pos" style="font-weight:600">${vendaTotal}</td></tr>`;
-      }).join('')
-    : `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Nenhum SKU cadastrado</p></div></td></tr>`;
+  if (!produtos.length) {
+    document.getElementById('epaTabelaProdutos').innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Nenhum SKU cadastrado</p></div></td></tr>`;
+  } else {
+    let totSkus = 0, totComEstoque = 0, totZerados = 0, totPecas = 0, totCusto = 0, totVenda = 0;
+    const linhas = produtos.map(p => {
+      const r = porProduto[p];
+      const cv = CUSTO_VENDA_EPA[p];
+      const custoTotalNum = cv ? cv.custo * r.pecas : 0;
+      const vendaTotalNum = cv ? cv.venda * r.pecas : 0;
+      totSkus += r.skus; totComEstoque += r.comEstoque; totZerados += r.zerados; totPecas += r.pecas;
+      totCusto += custoTotalNum; totVenda += vendaTotalNum;
+      const custoUnit = cv ? fmt(cv.custo) : '—';
+      const vendaUnit = cv ? fmt(cv.venda) : '—';
+      return `<tr><td style="font-weight:600">${p}</td><td>${r.skus}</td><td class="val-pos">${r.comEstoque}</td><td class="val-neg">${r.zerados}</td><td style="font-weight:700">${r.pecas} un</td><td>${custoUnit}</td><td>${cv ? fmt(custoTotalNum) : '—'}</td><td>${vendaUnit}</td><td class="val-pos" style="font-weight:600">${cv ? fmt(vendaTotalNum) : '—'}</td></tr>`;
+    }).join('');
+    const linhaTotal = `<tr style="background:#FAFBFD;border-top:2px solid var(--border)"><td style="font-weight:700">TOTAL</td><td style="font-weight:700">${totSkus}</td><td class="val-pos" style="font-weight:700">${totComEstoque}</td><td class="val-neg" style="font-weight:700">${totZerados}</td><td style="font-weight:700">${totPecas} un</td><td>—</td><td style="font-weight:700">${fmt(totCusto)}</td><td>—</td><td class="val-pos" style="font-weight:700">${fmt(totVenda)}</td></tr>`;
+    document.getElementById('epaTabelaProdutos').innerHTML = linhas + linhaTotal;
+  }
 
   baixos.sort((a,b) => (a.quantidade||0) - (b.quantidade||0));
   document.getElementById('epaTotalBaixo').textContent = baixos.length + ' SKUs';
