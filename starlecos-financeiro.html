@@ -4231,6 +4231,10 @@ const CUSTO_VENDA_EPA = {
   'Jaleco S/Manga Feminino': { custo: 34, venda: 80 },
   'Touca': { custo: 8, venda: 40 }
 };
+// G1-G4 são estoque à parte, sem variação no anúncio publicado — não contam
+// como "zerado" (não é falta real do que está anunciado, é grade estendida
+// sob demanda). Ver modelo-criacao-anuncio.md, etapa 3.
+const TAMANHOS_SEM_ANUNCIO_EPA = ['G1', 'G2', 'G3', 'G4'];
 function buildProdutoOptionsEPA(rotuloVazio) {
   let opts = `<option value="">${rotuloVazio}</option>`;
   PRODUTOS_EPA.forEach(g => {
@@ -4607,7 +4611,8 @@ async function cadastrarSkuEPA() {
 function renderResumoEstoqueProdutoAcabado(lista) {
   const totalSkus  = lista.length;
   const totalPecas = lista.reduce((a,v) => a + (v.quantidade||0), 0);
-  const zerados    = lista.filter(v => (v.quantidade||0) === 0).length;
+  const comEstoque = lista.filter(v => (v.quantidade||0) > 0).length;
+  const zerados    = lista.filter(v => (v.quantidade||0) === 0 && !TAMANHOS_SEM_ANUNCIO_EPA.includes(v.tamanho)).length;
   const baixos     = lista.filter(v => (v.quantidade||0) > 0 && (v.quantidade||0) <= 3);
 
   document.getElementById('epaResumoCards').innerHTML = `
@@ -4615,7 +4620,7 @@ function renderResumoEstoqueProdutoAcabado(lista) {
       <div class="sum-icon">🏷️</div>
       <div class="sum-label">SKUs Cadastrados</div>
       <div class="sum-value">${totalSkus}</div>
-      <div class="sum-sub">${totalSkus - zerados} com estoque</div>
+      <div class="sum-sub">${comEstoque} com estoque</div>
     </div>
     <div class="sum-card receita">
       <div class="sum-icon">📦</div>
@@ -4642,7 +4647,8 @@ function renderResumoEstoqueProdutoAcabado(lista) {
     if (!porProduto[p]) porProduto[p] = { skus: 0, comEstoque: 0, zerados: 0, pecas: 0 };
     porProduto[p].skus++;
     porProduto[p].pecas += (v.quantidade||0);
-    if ((v.quantidade||0) > 0) porProduto[p].comEstoque++; else porProduto[p].zerados++;
+    if ((v.quantidade||0) > 0) porProduto[p].comEstoque++;
+    else if (!TAMANHOS_SEM_ANUNCIO_EPA.includes(v.tamanho)) porProduto[p].zerados++;
   });
   const produtos = Object.keys(porProduto).sort();
   if (!produtos.length) {
