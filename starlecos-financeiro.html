@@ -4479,7 +4479,7 @@ function renderTabelaPromocoes() {
         ${p.foto ? `<img src="${p.foto}" style="width:36px;height:36px;object-fit:cover;border-radius:6px">` : ''}
         <a href="${p.url_produto || '#'}" target="_blank" style="font-size:12px;max-width:220px;display:inline-block">${p.titulo || p.item_id}</a>
       </td>
-      <td style="font-size:12px">${p.promocao_nome || '—'}</td>
+      <td style="font-size:12px">${p.promocao_nome || '—'}${p.promo_type && p.promo_type !== 'tier' ? `<br><span style="font-size:10px;color:var(--amber)" title="Aplicação automática ainda não validada pra esse tipo — participe manual pelo painel do ML">⚠️ ${p.promo_type} (manual)</span>` : ''}</td>
       <td style="font-size:12px">${fmt(p.preco_original)} → <strong>${fmt(p.preco_final)}</strong></td>
       <td>${p.desconto_percentual != null ? p.desconto_percentual + '%' : '—'}</td>
       <td class="val-pos">${fmt(p.voce_recebe)}</td>

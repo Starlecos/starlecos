@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '1.5'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
+  const VERSAO = '1.6'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
   const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
   const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
   const CICLO_MS = 25000; // 25s entre sincronizações
@@ -166,7 +166,11 @@
         const track = (btnCol.tracks || []).find(t => t.data && t.data.event_data);
         const ev = track ? track.data.event_data : {};
 
-        if (ev.promo_type !== 'tier') continue; // só tier por enquanto — único fluxo validado ponta a ponta
+        // Sincroniza QUALQUER tipo (visibilidade no Financeiro) — só o
+        // "tier" tem a aplicação automática validada ponta a ponta.
+        // Tipos novos (ex: evento "9.9", "Oferta relâmpago") aparecem pra
+        // revisão, mas aplicarAprovadas() recusa aplicar sozinho o que não
+        // for "tier" até a gente capturar e validar o payload real deles.
 
         const params = new URLSearchParams(urlCallback);
 
@@ -181,6 +185,7 @@
           voce_recebe: chargesCol ? (chargesCol.totalCharges.amount ?? paraNumero(chargesCol.totalCharges.value)) : null,
           promocao_nome: nomeCol,
           promotion_id: ev.promo_id || params.get('promoId'),
+          promo_type: ev.promo_type || null,
           sub_type: ev.promo_sub_type || params.get('subType'),
           card_id_aplicado: ev.card_type || params.get('cardApplied'),
           position: params.get('position') ? parseInt(params.get('position')) : null,
@@ -281,6 +286,13 @@
     let aplicadas = 0;
     for (const row of pendentes) {
       const itemIdNum = row.item_id.replace('MLB', '');
+      if (row.promo_type && row.promo_type !== 'tier') {
+        await sb('PATCH', 'ml_promocoes?id=eq.' + row.id, {
+          status: 'erro',
+          erro_msg: 'Tipo de promoção "' + row.promo_type + '" ainda não validado pra aplicar automaticamente — participe manualmente pelo painel do ML por enquanto.'
+        });
+        continue;
+      }
       try {
         const modalRes = await fetchOriginal('https://vendedores.mercadolivre.com.br/anuncios/lista/promos/api/modal-ondemand', {
           method: 'POST',
