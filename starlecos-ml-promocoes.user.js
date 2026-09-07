@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Starlecos - Ponte de Promoções ML
 // @namespace    starlecos
-// @version      1.7
+// @version      1.8
 // @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
 // @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
 // @run-at       document-start
@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '1.7'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
+  const VERSAO = '1.8'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
   const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
   const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
   const CICLO_MS = 25000; // 25s entre sincronizações
@@ -226,8 +226,18 @@
 
   // ---------- sincroniza a lista pro Supabase (nunca sobrescreve status já decidido) ----------
   async function sincronizarLista() {
-    const itens = await buscarListaCompleta();
-    if (!itens.length) return 0;
+    const brutos = await buscarListaCompleta();
+    if (!brutos.length) return 0;
+    // Com tipos de promoção novos (evento "9.9" etc.), duas caixas do MESMO
+    // item às vezes vêm sem promotion_id (ou repetido) — como a chave de
+    // conflito é (item_id, promotion_id), duas linhas iguais no mesmo lote
+    // fazem o "ON CONFLICT DO UPDATE" tentar atualizar a mesma linha 2x, e o
+    // Postgres recusa o lote inteiro (erro 21000). Deduplica por essa chave
+    // antes de mandar — fica só uma versão pra revisão, melhor que travar
+    // a sincronização toda.
+    const porChave = new Map();
+    brutos.forEach(item => porChave.set(item.item_id + '|' + (item.promotion_id || ''), item));
+    const itens = Array.from(porChave.values());
     // omite status/decidido_em/aplicado_em do payload de propósito: o upsert
     // (merge-duplicates) só atualiza as colunas presentes no corpo, então uma
     // promoção já aprovada/recusada/aplicada não volta pra "pendente" sozinha.
