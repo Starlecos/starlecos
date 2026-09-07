@@ -4482,7 +4482,7 @@ function renderTabelaPromocoes() {
       <td style="font-size:12px">${p.promocao_nome || '—'}${p.promo_type && p.promo_type !== 'tier' ? `<br><span style="font-size:10px;color:var(--amber)" title="Aplicação automática ainda não validada pra esse tipo — participe manual pelo painel do ML">⚠️ ${p.promo_type} (manual)</span>` : ''}</td>
       <td style="font-size:12px">${fmt(p.preco_original)} → <strong>${fmt(p.preco_final)}</strong></td>
       <td>${p.desconto_percentual != null ? p.desconto_percentual + '%' : '—'}</td>
-      <td class="val-pos">${fmt(p.voce_recebe)}</td>
+      <td class="val-pos">${p.voce_recebe != null ? fmt(p.voce_recebe) : '—'}</td>
       <td style="font-size:11px;color:var(--muted)">${p.detectado_em ? new Date(p.detectado_em).toLocaleString('pt-BR') : '—'}</td>
       <td style="color:${info.cor};font-size:12px;font-weight:600">${info.label}</td>
       <td>${acoes}</td>

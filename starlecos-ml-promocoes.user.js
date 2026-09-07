@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Starlecos - Ponte de Promoções ML
 // @namespace    starlecos
-// @version      1.8
+// @version      1.9
 // @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
 // @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
 // @run-at       document-start
@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '1.8'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
+  const VERSAO = '1.9'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
   const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
   const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
   const CICLO_MS = 25000; // 25s entre sincronizações
@@ -132,9 +132,6 @@
 
     const extraidos = [];
     for (const rg of rowGroups) {
-      const itemIdNum = rg.id.replace('row_group-MLB', '').replace('row_group-', '');
-      const itemId = itemIdNum.startsWith('MLB') ? itemIdNum : 'MLB' + itemIdNum;
-
       const desc = acharUm(rg, o => o.uiType === 'description_refresh');
       const descData = desc ? desc.data : {};
       // nunca deixar undefined aqui — o Supabase manda várias linhas de uma
@@ -146,6 +143,18 @@
       const precoOriginalTxt = descData.price ?? null;
       const foto = (descData.pictures || [])[0] ?? null;
       const urlProduto = descData.url ?? null;
+
+      // O "tier" sempre usa row_group-MLB<dígitos> (id real do anúncio).
+      // Cartão de evento (ex: "9.9") às vezes usa um id interno diferente
+      // (ex: "row_group-TR...") que NÃO é o anúncio — achado real em
+      // 07/09/2026 (sincronizou item_id "MLBTR..." que não existe de
+      // verdade). Nesse caso tenta achar o MLB real na URL do produto; se
+      // não achar, ignora o cartão (melhor não sincronizar do que
+      // sincronizar um item_id que não dá pra conferir/aplicar depois).
+      const direto = String(rg.id || '').match(/^row_group-(MLB\d+)$/);
+      const daUrl = !direto && String(urlProduto || '').match(/MLB-?(\d{9,})/i);
+      const itemId = direto ? direto[1] : (daUrl ? 'MLB' + daUrl[1] : null);
+      if (!itemId) continue;
 
       const promoListNode = acharUm(rg, o => o.promotionList);
       const pl = promoListNode ? promoListNode.promotionList : null;
