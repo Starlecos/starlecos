@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Starlecos - Ponte de Promoções ML
 // @namespace    starlecos
-// @version      2.0
+// @version      2.1
 // @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
 // @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
 // @run-at       document-start
@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '2.0'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
+  const VERSAO = '2.1'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
   const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
   const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
   const CICLO_MS = 25000; // 25s entre sincronizações
@@ -221,7 +221,15 @@
           desconto_percentual: descontoCol ? paraNumero(String(descontoCol.secondaryText.content).replace('(', '').replace('%)', '')) : descontoPercentualFamilia,
           voce_recebe: chargesCol ? (chargesCol.totalCharges.amount ?? paraNumero(chargesCol.totalCharges.value)) : (recebeValorTxt != null ? paraNumero(recebeValorTxt) : null),
           promocao_nome: nomeCol,
-          promotion_id: ev.promo_id || params.get('promoId'),
+          // NUNCA deixar null aqui — a chave de conflito do upsert é
+          // (item_id, promotion_id), e o Postgres trata NULL como
+          // diferente de qualquer outro NULL (inclusive ele mesmo), então
+          // duas linhas com promotion_id null pro MESMO item_id nunca
+          // colidem: cada ciclo de 25s criava uma linha NOVA em vez de
+          // atualizar a existente. Achado real em 07/09/2026 — "Oferta
+          // relâmpago" ("lightning") não vem com promo_id, e isso gerou
+          // mais de 300 linhas duplicadas do mesmo item numa tarde só.
+          promotion_id: ev.promo_id || params.get('promoId') || ('NOID-' + (ev.promo_type || 'x')),
           promo_type: ehFamilia ? 'family' : (ev.promo_type || null),
           sub_type: ev.promo_sub_type || params.get('subType'),
           card_id_aplicado: ev.card_type || params.get('cardApplied'),
