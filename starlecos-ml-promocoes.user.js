@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Starlecos - Ponte de Promoções ML
 // @namespace    starlecos
-// @version      1.9
+// @version      2.0
 // @description  Sincroniza promoções sugeridas pelo Mercado Livre pro Financeiro Starlecos, e aplica as que o Enzo aprovar por lá.
 // @match        https://vendedores.mercadolivre.com.br/anuncios/lista/promos*
 // @run-at       document-start
@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '1.9'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
+  const VERSAO = '2.0'; // mostrado no badge — ajuda a confirmar qual versão está rodando de verdade
   const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
   const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYW91bmtjaHB5Zmhsc2RhaWxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTYyOTEsImV4cCI6MjA5ODIzMjI5MX0.Xq9Q79fXxQpI52RbMMxM8AeCH__FNYxANt57a_ViQjA';
   const CICLO_MS = 25000; // 25s entre sincronizações
@@ -146,15 +146,21 @@
 
       // O "tier" sempre usa row_group-MLB<dígitos> (id real do anúncio).
       // Cartão de evento (ex: "9.9") às vezes usa um id interno diferente
-      // (ex: "row_group-TR...") que NÃO é o anúncio — achado real em
-      // 07/09/2026 (sincronizou item_id "MLBTR..." que não existe de
-      // verdade). Nesse caso tenta achar o MLB real na URL do produto; se
-      // não achar, ignora o cartão (melhor não sincronizar do que
-      // sincronizar um item_id que não dá pra conferir/aplicar depois).
+      // (ex: "row_group-TR<family_id>") que agrupa VÁRIOS anúncios reais
+      // (uma família de tamanhos/variações) — achado real em 07/09/2026
+      // (capturei o payload completo: o card não expõe os MLB individuais,
+      // só o family_id; a ação "Participar" é em massa pra família
+      // inteira via endpoint novo /massive/batch, cujo corpo eu não
+      // consegui capturar ainda — ver modelo-criacao-anuncio.md/README se
+      // precisar retomar essa investigação). Por ora: sincroniza como
+      // "FAMILY-<id>" só pra aparecer no Financeiro pra revisão (nunca
+      // pra aplicar sozinho — ver promo_type mais abaixo).
       const direto = String(rg.id || '').match(/^row_group-(MLB\d+)$/);
       const daUrl = !direto && String(urlProduto || '').match(/MLB-?(\d{9,})/i);
-      const itemId = direto ? direto[1] : (daUrl ? 'MLB' + daUrl[1] : null);
+      const daFamilia = !direto && !daUrl && String(rg.id || '').match(/^row_group-TR(\d+)$/);
+      const itemId = direto ? direto[1] : (daUrl ? 'MLB' + daUrl[1] : (daFamilia ? 'FAMILY-' + daFamilia[1] : null));
       if (!itemId) continue;
+      const ehFamilia = !direto && !daUrl;
 
       const promoListNode = acharUm(rg, o => o.promotionList);
       const pl = promoListNode ? promoListNode.promotionList : null;
@@ -174,6 +180,15 @@
         nomeCol = caixa.columns?.[0]?.lines?.[1]?.primaryText?.content || caixa.columns?.[0]?.lines?.[0]?.primaryText?.content || null;
         precoFinalCol = caixa.columns?.[2]?.lines?.[0]?.primaryText?.content;
 
+        // Cartão de família não tem linha "type:charges" nem
+        // secondaryText+primaryText pro desconto (por isso ficava tudo
+        // "—" antes) — mas tem o VALOR do desconto e o "você recebe" em
+        // colunas fixas (confirmado numa captura real em 07/09/2026):
+        // [1] = valor do desconto, [3] = você recebe. É só uma
+        // aproximação (não uma aplicação), suficiente pra revisão.
+        const descontoValorTxt = (ehFamilia && !descontoCol) ? caixa.columns?.[1]?.lines?.[0]?.primaryText?.content : null;
+        const recebeValorTxt = (ehFamilia && !chargesCol) ? caixa.columns?.[3]?.lines?.[0]?.primaryText?.content : null;
+
         if (!btnCol || !btnCol.button) continue;
         const button = btnCol.button;
         const urlCallback = button.urlCallback || '';
@@ -188,6 +203,14 @@
 
         const params = new URLSearchParams(urlCallback);
 
+        // Desconto % aproximado pra família: valor do desconto ÷ preço
+        // original (mesma ponta mínima da faixa que preco_original/
+        // preco_final já usam via paraNumero — consistente, não é exato
+        // pros outros tamanhos da família, só uma referência).
+        const descontoValorAprox = descontoValorTxt != null ? paraNumero(descontoValorTxt) : null;
+        const precoOriginalAprox = paraNumero(precoOriginalTxt);
+        const descontoPercentualFamilia = (descontoValorAprox != null && precoOriginalAprox) ? Math.round(descontoValorAprox / precoOriginalAprox * 100) : null;
+
         extraidos.push({
           item_id: itemId,
           titulo,
@@ -195,11 +218,11 @@
           url_produto: urlProduto,
           preco_original: paraNumero(precoOriginalTxt),
           preco_final: paraNumero(precoFinalCol),
-          desconto_percentual: descontoCol ? paraNumero(String(descontoCol.secondaryText.content).replace('(', '').replace('%)', '')) : null,
-          voce_recebe: chargesCol ? (chargesCol.totalCharges.amount ?? paraNumero(chargesCol.totalCharges.value)) : null,
+          desconto_percentual: descontoCol ? paraNumero(String(descontoCol.secondaryText.content).replace('(', '').replace('%)', '')) : descontoPercentualFamilia,
+          voce_recebe: chargesCol ? (chargesCol.totalCharges.amount ?? paraNumero(chargesCol.totalCharges.value)) : (recebeValorTxt != null ? paraNumero(recebeValorTxt) : null),
           promocao_nome: nomeCol,
           promotion_id: ev.promo_id || params.get('promoId'),
-          promo_type: ev.promo_type || null,
+          promo_type: ehFamilia ? 'family' : (ev.promo_type || null),
           sub_type: ev.promo_sub_type || params.get('subType'),
           card_id_aplicado: ev.card_type || params.get('cardApplied'),
           position: params.get('position') ? parseInt(params.get('position')) : null,
