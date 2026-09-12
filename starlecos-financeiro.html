@@ -4548,6 +4548,7 @@ async function sincronizarPromocoesML() {
     }
 
     const candidatos = [];
+    const todasPromosPorId = {}; // pra reconciliar pendentes já decididas fora do sistema (item 47)
     const falharam = [];
     const LOTE = 10;
     for (let i = 0; i < todosIds.length; i += LOTE) {
@@ -4556,6 +4557,7 @@ async function sincronizarPromocoesML() {
       const resultados = await Promise.all(lote.map(id => buscarPromosDoItem(id, 0)));
       resultados.forEach(res => {
         if (res.erro) { falharam.push(res.id); return; }
+        todasPromosPorId[res.id] = res.promos;
         res.promos.forEach(p => { if (p.status === 'candidate') candidatos.push({ item_id: res.id, promo: p }); });
       });
     }
@@ -4564,9 +4566,42 @@ async function sincronizarPromocoesML() {
       console.warn('Itens que falharam mesmo com retry (não verificados):', falharam);
     }
 
+    // Reconciliação: pendentes nossas que o Enzo já aprovou direto no
+    // painel do ML (fora do Financeiro) ficam presas em "pendente" pra
+    // sempre se ninguém checar de novo. Reconfere status real de cada
+    // pendente cujo item foi escaneado agora e corrige sozinho.
+    statusEl.textContent = 'Reconciliando pendentes com o estado real no ML...';
+    let reconciliadas = 0;
+    try {
+      const pendentesAtuais = await sbGet('ml_promocoes', 'select=id,item_id,promo_type,promotion_id&status=eq.pendente');
+      for (const row of pendentesAtuais) {
+        const promos = todasPromosPorId[row.item_id];
+        if (!promos) continue; // item não escaneado nessa rodada (falhou ou não é MLB válido)
+        const tipoOficial = PROMO_TYPE_UPPER[row.promo_type] || (row.promo_type || '').toUpperCase();
+        const entradas = promos.filter(p => p.type === tipoOficial);
+        let match = null;
+        if (row.promotion_id && !row.promotion_id.startsWith('NOID-')) {
+          match = entradas.find(p => (p.id === row.promotion_id || p.ref_id === row.promotion_id) && p.status !== 'candidate');
+        }
+        if (!match) match = entradas.find(p => p.status !== 'candidate');
+        if (match) {
+          await sbPatch('ml_promocoes', 'id=eq.' + row.id, {
+            status: 'aplicado', decidido_em: new Date().toISOString(), aplicado_em: new Date().toISOString(),
+            preco_final: match.price != null ? match.price : undefined
+          });
+          reconciliadas++;
+        }
+      }
+    } catch (e) { console.warn('Erro na reconciliação de pendentes:', e); }
+
     if (!candidatos.length) {
       statusEl.textContent = 'Nenhuma candidata nova.';
-      notify('Nenhuma promoção candidata encontrada.' + (falharam.length ? ` (${falharam.length} não verificados, ver console)` : ''));
+      if (reconciliadas) await carregarPromocoesML();
+      notify(
+        (reconciliadas ? `🔄 ${reconciliadas} pendente(s) já estavam aplicadas no ML — atualizado. ` : '') +
+        'Nenhuma promoção candidata nova encontrada.' +
+        (falharam.length ? ` (${falharam.length} não verificados, ver console)` : '')
+      );
       return;
     }
 
@@ -4621,7 +4656,7 @@ async function sincronizarPromocoesML() {
 
     await carregarPromocoesML();
     statusEl.textContent = '';
-    notify(`✅ ${linhas.length} promoção(ões) candidata(s) encontrada(s)!`);
+    notify(`✅ ${linhas.length} candidata(s) nova(s)!` + (reconciliadas ? ` 🔄 ${reconciliadas} pendente(s) antiga(s) já estavam aplicadas no ML — atualizado.` : ''));
   } catch (e) {
     console.error(e);
     statusEl.textContent = '';
