@@ -1082,7 +1082,7 @@
     <button class="tab-btn" onclick="showTab('mercadoLivre')">🛒 Mercado Livre</button>
     <button class="tab-btn" onclick="showTab('shopee')">🛍️ Shopee</button>
     <button class="tab-btn" onclick="showTab('shopify')">🏪 Shopify</button>
-    <button class="tab-btn" onclick="showTab('mercadoads');carregarQuadroAdsDoBanco()">📢 Mercado Ads</button>
+    <button class="tab-btn" onclick="showTab('mercadoads');carregarQuadroCampanhasDoBanco()">📢 Mercado Ads</button>
     <button class="tab-btn" onclick="showTab('promocoes');carregarPromocoesML()">🎯 Promoções ML</button>
     <button class="tab-btn" onclick="showTab('anunciosFila');carregarAnunciosFila()">🆕 Novos Anúncios</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
@@ -1549,10 +1549,32 @@
 
     <div class="summary-grid" id="adsResumoCards" style="margin-bottom:20px"></div>
 
-    <div class="table-card">
+    <div class="table-card" id="cardQuadroCampanhas">
       <div class="table-header">
-        <span class="table-header-title">Campanhas — período consultado</span>
+        <span class="table-header-title">Campanhas — performance e ação recomendada</span>
         <span class="table-total" id="totalAdsCusto">R$ 0,00 investido</span>
+      </div>
+      <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
+        Classificação automática (heurística) por CAMPANHA: ALERTA_SEM_CONVERSAO = gastou &gt;R$3 sem venda · MANTER_OBSERVANDO = menos de 10 cliques no período · ESCALAR/OTIMIZAR_LANCES/ROLLBACK comparam ACOS real contra o ACOS alvo. "Análise" e "Ação" vêm do <code>starlecos-mercadoads</code> (framework oficial de esteiras/estágios, cruzando com o histórico de estoque pra separar queda por ruptura de queda por mídia) — valores concretos de ROAS alvo/orçamento pra você ajustar direto no painel do ML.
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
+        <div class="field" style="margin-bottom:0"><label>Classificação</label>
+          <select id="ads_filtro_classificacao" onchange="renderQuadroCampanhas()">
+            <option value="">— Todas —</option>
+            <option value="ROLLBACK">🔴 ROLLBACK</option>
+            <option value="OTIMIZAR_LANCES">🟠 OTIMIZAR_LANCES</option>
+            <option value="ALERTA_SEM_CONVERSAO">🔴 ALERTA_SEM_CONVERSAO</option>
+            <option value="ESCALAR">🟢 ESCALAR</option>
+            <option value="MANTER_OBSERVANDO">⚪ MANTER_OBSERVANDO</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0"><label>Tem ação recomendada?</label>
+          <select id="ads_filtro_acao_status" onchange="renderQuadroCampanhas()">
+            <option value="">— Todos —</option>
+            <option value="sem_acao">— Sem ação recomendada —</option>
+            <option value="com_acao">Com ação recomendada</option>
+          </select>
+        </div>
       </div>
       <table>
         <thead>
@@ -1566,59 +1588,13 @@
             <th>Custo</th>
             <th>Receita</th>
             <th>Unid.</th>
-          </tr>
-        </thead>
-        <tbody id="bodyMercadoAds">
-          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="table-card" style="margin-top:20px" id="cardQuadroAds">
-      <div class="table-header">
-        <span class="table-header-title">📋 Anúncios — performance e ação recomendada</span>
-        <span class="table-total" id="totalAdsAnuncios">0 anúncio(s)</span>
-      </div>
-      <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
-        Classificação automática (heurística): ALERTA_SEM_CONVERSAO = gastou &gt;R$3 sem venda · MANTER_OBSERVANDO = menos de 10 cliques no período · ESCALAR/OTIMIZAR_LANCES/ROLLBACK comparam ACOS real contra o ACOS alvo da campanha ML atual. "Análise" e "Ação" vêm do <code>starlecos-mercadoads</code> seguindo o framework oficial (esteiras/estágios) — aplicação é manual, você decide e executa direto no painel do ML.
-      </div>
-      <div class="form-row" style="grid-template-columns:1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
-        <div class="field" style="margin-bottom:0"><label>Classificação</label>
-          <select id="ads_filtro_classificacao" onchange="renderQuadroAds()">
-            <option value="">— Todas —</option>
-            <option value="ROLLBACK">🔴 ROLLBACK</option>
-            <option value="OTIMIZAR_LANCES">🟠 OTIMIZAR_LANCES</option>
-            <option value="ALERTA_SEM_CONVERSAO">🔴 ALERTA_SEM_CONVERSAO</option>
-            <option value="ESCALAR">🟢 ESCALAR</option>
-            <option value="MANTER_OBSERVANDO">⚪ MANTER_OBSERVANDO</option>
-          </select>
-        </div>
-        <div class="field" style="margin-bottom:0"><label>Tem ação recomendada?</label>
-          <select id="ads_filtro_acao_status" onchange="renderQuadroAds()">
-            <option value="">— Todos —</option>
-            <option value="sem_acao">— Sem ação recomendada —</option>
-            <option value="com_acao">Com ação recomendada</option>
-          </select>
-        </div>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Anúncio</th>
-            <th>Campanha ML</th>
-            <th>ACOS</th>
-            <th>ROAS</th>
-            <th>Cliques</th>
-            <th>Custo</th>
-            <th>Receita</th>
-            <th>Unid.</th>
             <th>Classificação</th>
             <th>Análise</th>
             <th>Ação</th>
           </tr>
         </thead>
-        <tbody id="bodyQuadroAds">
-          <tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
+        <tbody id="bodyMercadoAds">
+          <tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -3502,7 +3478,7 @@ async function sincronizarMercadoAds() {
     );
     const campanhas = campData.results || [];
 
-    renderMercadoAds(campanhas, de, ate);
+    await montarQuadroCampanhas(campanhas, de, ate);
 
     // 3. Salvar snapshot no Supabase (histórico — sempre insere, não sobrescreve)
     const errosPersistencia = [];
@@ -3538,7 +3514,6 @@ async function sincronizarMercadoAds() {
     const campanhasMap = {};
     campanhas.forEach(c => { campanhasMap[c.id] = c; });
     const anuncios = await buscarTodosAnuncios(advertiser, metricas, de, ate);
-    await montarQuadroAds(anuncios, campanhasMap);
 
     if (anuncios.length) {
       const agora2 = new Date().toISOString();
@@ -3624,9 +3599,6 @@ async function conferirAcoesAdsAguardando(anuncios, campanhasMap) {
     }
     // se o ad_group não aparecer nesse sync, deixa como está — tenta de novo no próximo "Buscar Performance"
   }
-  // refaz o quadro (in-memory, sem nova chamada à API do ML) pra refletir
-  // o status atualizado das ações que acabaram de ser confirmadas/erradas
-  if (pendentes.length) await montarQuadroAds(anuncios, campanhasMap);
 }
 
 async function buscarTodosAnuncios(advertiser, metricas, de, ate) {
@@ -3669,131 +3641,89 @@ const CLASSIFICACAO_BADGE = {
   ALERTA_SEM_CONVERSAO: 'badge-red', MANTER_OBSERVANDO: 'badge-gray'
 };
 
-// ====== QUADRO ÚNICO: performance + ação recomendada, por anúncio ======
-// Junta mercadoads_anuncios (performance) com ml_ads_acoes (fila de
-// pausar/ativar/orçamento/lance) num só registro por ad_group_id, pra não
-// precisar olhar 2 tabelas separadas pra saber o que fazer com cada anúncio.
-let _quadroAdsLista = [];
+// Heurística de apoio, agora por CAMPANHA (não por anúncio/ad_group) — a
+// leitura fina (framework oficial de esteiras + cruzamento com estoque) é
+// do agente starlecos-mercadoads, que escreve em ml_ads_acoes.
+function classificarCampanha(c) {
+  const m = c.metrics || {};
+  const custo = m.cost || 0;
+  const unidades = m.units_quantity || 0;
+  const clicks = m.clicks || 0;
+  const acos = m.acos || 0;
+  if (custo > 3 && unidades === 0) return 'ALERTA_SEM_CONVERSAO';
+  if (clicks < 10) return 'MANTER_OBSERVANDO';
+  const acosAlvo = c.acos_target || 10;
+  if (acos <= acosAlvo) return 'ESCALAR';
+  if (acos <= acosAlvo * 2) return 'OTIMIZAR_LANCES';
+  return 'ROLLBACK';
+}
 
-function acaoMaisRelevante(acoesDoAdGroup) {
-  // prioriza o que ainda precisa de decisão/acompanhamento sobre o que já
-  // foi recusado/aplicado há tempos
-  const prioridade = { pendente: 0, aprovado: 1, aguardando_verificacao: 2, erro: 3, aplicado: 4, recusado: 5 };
-  return [...acoesDoAdGroup].sort((a, b) => (prioridade[a.status] ?? 9) - (prioridade[b.status] ?? 9))[0];
+// ====== QUADRO ÚNICO: performance + ação recomendada, por CAMPANHA ======
+// Junta mercadoads_campanhas (performance) com ml_ads_acoes (fila de
+// orçamento/ROAS alvo — ações de nível de campanha, não de anúncio
+// individual) num só registro por campanha, com todas as ações
+// pendentes/recomendadas daquela campanha juntas (uma campanha pode
+// precisar de ajuste de orçamento E de ROAS alvo ao mesmo tempo).
+let _quadroCampanhasLista = [];
+
+function acoesDaCampanha(acoesPorCampanha, campanhaId) {
+  return (acoesPorCampanha[campanhaId] || []).filter(a => !a.ad_group_id);
 }
 
 // Monta o quadro a partir de um sync fresco (dado que acabou de vir da API do ML)
-async function montarQuadroAds(anuncios, campanhasMap) {
+async function montarQuadroCampanhas(campanhas, de, ate) {
   let acoes = [];
   try { acoes = await sbGet('ml_ads_acoes', 'select=*&order=criado_em.desc'); } catch (e) {}
-  const acoesPorAdGroup = {};
-  acoes.forEach(a => { if (a.ad_group_id) (acoesPorAdGroup[a.ad_group_id] = acoesPorAdGroup[a.ad_group_id] || []).push(a); });
+  const acoesPorCampanha = {};
+  acoes.forEach(a => { if (a.campanha_id) (acoesPorCampanha[a.campanha_id] = acoesPorCampanha[a.campanha_id] || []).push(a); });
 
-  _quadroAdsLista = anuncios.map(ad => {
-    const m = ad.metrics || {};
-    const camp = campanhasMap[ad.campaign_id];
+  _quadroCampanhasLista = campanhas.map(c => {
+    const m = c.metrics || {};
     return {
-      item_id: ad.item_id, ad_group_id: ad.ad_group_id, campaign_id: ad.campaign_id,
-      titulo: ad.title || ad.item_id, campanhaNome: camp ? camp.name : ad.campaign_id,
-      acos: m.acos || 0, roas: m.roas || 0, clicks: m.clicks || 0, custo: m.cost || 0,
+      campanha_id: c.id, nome: c.name, status: c.status, budget: c.budget || 0,
+      acosTarget: c.acos_target || 0, roasTarget: c.roas_target || 0,
+      acos: m.acos || 0, roas: m.roas || 0, custo: m.cost || 0,
       receita: m.total_amount || 0, unidades: m.units_quantity || 0,
-      acosTarget: (camp && camp.acos_target) || null,
-      classe: classificarAnuncio(ad, campanhasMap),
-      acao: acoesPorAdGroup[ad.ad_group_id] ? acaoMaisRelevante(acoesPorAdGroup[ad.ad_group_id]) : null
+      classe: classificarCampanha(c),
+      acoes: acoesDaCampanha(acoesPorCampanha, c.id)
     };
   });
-  renderQuadroAds();
+  renderQuadroCampanhas(de, ate);
 }
 
 // Carrega do banco (última sincronização salva) — pra abrir a aba já com
 // dado real sem precisar clicar "Buscar Performance" de novo toda vez.
-async function carregarQuadroAdsDoBanco() {
+async function carregarQuadroCampanhasDoBanco() {
   try {
-    const ultimo = await sbGet('mercadoads_anuncios', 'select=sincronizado_em&order=sincronizado_em.desc&limit=1');
-    if (!ultimo.length) { _quadroAdsLista = []; renderQuadroAds(); return; }
-    const [snapshot, campanhasRows, acoes] = await Promise.all([
-      sbGet('mercadoads_anuncios', 'select=*&sincronizado_em=eq.' + encodeURIComponent(ultimo[0].sincronizado_em)),
-      sbGet('mercadoads_campanhas', 'select=campanha_id,campanha_nome&order=sincronizado_em.desc&limit=300'),
+    const ultimo = await sbGet('mercadoads_campanhas', 'select=sincronizado_em&order=sincronizado_em.desc&limit=1');
+    if (!ultimo.length) { _quadroCampanhasLista = []; renderQuadroCampanhas(); return; }
+    const [snapshot, acoes] = await Promise.all([
+      sbGet('mercadoads_campanhas', 'select=*&sincronizado_em=eq.' + encodeURIComponent(ultimo[0].sincronizado_em)),
       sbGet('ml_ads_acoes', 'select=*&order=criado_em.desc').catch(() => [])
     ]);
-    const nomePorCampanha = {};
-    campanhasRows.forEach(c => { if (!(c.campanha_id in nomePorCampanha)) nomePorCampanha[c.campanha_id] = c.campanha_nome; });
-    const acoesPorAdGroup = {};
-    acoes.forEach(a => { if (a.ad_group_id) (acoesPorAdGroup[a.ad_group_id] = acoesPorAdGroup[a.ad_group_id] || []).push(a); });
+    const acoesPorCampanha = {};
+    acoes.forEach(a => { if (a.campanha_id) (acoesPorCampanha[a.campanha_id] = acoesPorCampanha[a.campanha_id] || []).push(a); });
 
-    _quadroAdsLista = snapshot.map(row => ({
-      item_id: row.item_id, ad_group_id: row.ad_group_id, campaign_id: row.campanha_id,
-      titulo: row.titulo || row.item_id, campanhaNome: nomePorCampanha[row.campanha_id] || row.campanha_id,
-      acos: row.acos_real || 0, roas: row.roas_real || 0, clicks: row.clicks || 0, custo: row.custo || 0,
-      receita: row.receita_total || 0, unidades: row.unidades_total || 0, acosTarget: null,
-      classe: row.classificacao,
-      acao: acoesPorAdGroup[row.ad_group_id] ? acaoMaisRelevante(acoesPorAdGroup[row.ad_group_id]) : null
+    _quadroCampanhasLista = snapshot.map(row => ({
+      campanha_id: row.campanha_id, nome: row.campanha_nome, status: row.status, budget: row.budget || 0,
+      acosTarget: row.acos_target || 0, roasTarget: row.roas_target || 0,
+      acos: row.acos_real || 0, roas: row.roas_real || 0, custo: row.custo || 0,
+      receita: row.receita_total || 0, unidades: row.unidades_total || 0,
+      classe: classificarCampanha({ metrics: { cost: row.custo, units_quantity: row.unidades_total, clicks: row.clicks, acos: row.acos_real }, acos_target: row.acos_target }),
+      acoes: acoesDaCampanha(acoesPorCampanha, row.campanha_id)
     }));
-    renderQuadroAds();
-  } catch (e) { console.error('Erro ao carregar quadro Ads do banco:', e); }
+    const per = snapshot[0] || {};
+    renderQuadroCampanhas(per.periodo_de, per.periodo_ate);
+  } catch (e) { console.error('Erro ao carregar quadro de campanhas do banco:', e); }
 }
 
-function renderQuadroAds() {
-  const body = document.getElementById('bodyQuadroAds');
-  if (!body) return;
-  document.getElementById('totalAdsAnuncios').textContent = _quadroAdsLista.length + ' anúncio(s)';
-
-  if (!_quadroAdsLista.length) {
-    body.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>';
-    return;
-  }
-
-  const filtroClasse = document.getElementById('ads_filtro_classificacao').value;
-  const filtroAcaoStatus = document.getElementById('ads_filtro_acao_status').value;
-  const lista = _quadroAdsLista.filter(r => {
-    if (filtroClasse && r.classe !== filtroClasse) return false;
-    if (filtroAcaoStatus === 'sem_acao' && r.acao) return false;
-    if (filtroAcaoStatus === 'com_acao' && !r.acao) return false;
-    return true;
-  });
-
-  if (!lista.length) {
-    body.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhum anúncio com esse filtro</p></div></td></tr>';
-    return;
-  }
-
-  const tipoLabel = { pausar: '⏸️ Pausar', ativar: '▶️ Ativar', orcamento: '💰 Orçamento', lance: '🎯 Lance/ROAS' };
-
-  body.innerHTML = [...lista].sort((a, b) => b.custo - a.custo).map(r => {
-    const badge = CLASSIFICACAO_BADGE[r.classe] || 'badge-gray';
-    const a = r.acao;
-    // Análise = o diagnóstico (motivo, texto livre do starlecos-mercadoads);
-    // Ação = o que fazer, de forma estruturada e curta (tipo + valor atual → novo).
-    let analiseTexto = '—';
-    let acaoTexto = '—';
-    if (a) {
-      analiseTexto = a.motivo || '—';
-      const deValor = a.valor_atual != null ? a.valor_atual : '—';
-      const paraValor = a.valor_novo != null ? a.valor_novo : '—';
-      const valores = (a.tipo === 'orcamento' || a.tipo === 'lance') ? ` (${deValor} → ${paraValor})` : '';
-      acaoTexto = `${tipoLabel[a.tipo] || a.tipo}${valores}`;
-    }
-    return `<tr>
-      <td style="font-weight:600;max-width:280px">${r.titulo}</td>
-      <td style="color:var(--muted);font-size:12px">${r.campanhaNome}</td>
-      <td class="${r.acos <= (r.acosTarget || 999) ? 'val-pos' : 'val-neg'}">${r.acos.toFixed(1)}%</td>
-      <td><strong>${r.roas.toFixed(2)}x</strong></td>
-      <td>${r.clicks}</td>
-      <td class="val-neg">${fmt(r.custo)}</td>
-      <td class="val-pos">${fmt(r.receita)}</td>
-      <td>${r.unidades}</td>
-      <td><span class="badge ${badge}">${r.classe}</span></td>
-      <td style="font-size:12px;max-width:320px;white-space:pre-wrap">${analiseTexto}</td>
-      <td style="font-size:12px;max-width:180px;font-weight:600">${acaoTexto}</td>
-    </tr>`;
-  }).join('');
-}
-
-function renderMercadoAds(campanhas, de, ate) {
+function renderQuadroCampanhas(de, ate) {
   const body = document.getElementById('bodyMercadoAds');
-  const custoTotal   = campanhas.reduce((a,c) => a + (c.metrics.cost||0), 0);
-  const receitaTotal = campanhas.reduce((a,c) => a + (c.metrics.total_amount||0), 0);
-  const unidadesTotal = campanhas.reduce((a,c) => a + (c.metrics.units_quantity||0), 0);
+  if (!body) return;
+
+  const custoTotal = _quadroCampanhasLista.reduce((a, c) => a + c.custo, 0);
+  const receitaTotal = _quadroCampanhasLista.reduce((a, c) => a + c.receita, 0);
+  const unidadesTotal = _quadroCampanhasLista.reduce((a, c) => a + c.unidades, 0);
   const acosGeral = custoTotal > 0 ? (custoTotal / receitaTotal * 100) : 0;
   const roasGeral = custoTotal > 0 ? (receitaTotal / custoTotal) : 0;
 
@@ -3803,7 +3733,7 @@ function renderMercadoAds(campanhas, de, ate) {
       <div class="sum-icon">💸</div>
       <div class="sum-label">Investido no Período</div>
       <div class="sum-value">${fmt(custoTotal)}</div>
-      <div class="sum-sub">${fmtData(de)} a ${fmtData(ate)}</div>
+      <div class="sum-sub">${de ? fmtData(de) + ' a ' + fmtData(ate) : '—'}</div>
     </div>
     <div class="sum-card receita">
       <div class="sum-icon">💰</div>
@@ -3821,26 +3751,61 @@ function renderMercadoAds(campanhas, de, ate) {
       <div class="sum-icon">🎯</div>
       <div class="sum-label">ROAS Geral</div>
       <div class="sum-value">${roasGeral.toFixed(2)}x</div>
-      <div class="sum-sub">${campanhas.length} campanha(s)</div>
+      <div class="sum-sub">${_quadroCampanhasLista.length} campanha(s)</div>
     </div>`;
 
-  if (!campanhas.length) {
-    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Nenhuma campanha encontrada no período</p></div></td></tr>';
+  if (!_quadroCampanhasLista.length) {
+    body.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>';
     return;
   }
 
-  body.innerHTML = [...campanhas].sort((a,b) => (b.metrics.cost||0) - (a.metrics.cost||0)).map(c => `
-    <tr>
-      <td style="font-weight:600">${c.name}</td>
-      <td><span class="badge ${c.status==='active'?'badge-green':'badge-red'}">${c.status==='active'?'Ativa':'Pausada'}</span></td>
-      <td>${fmt(c.budget||0)}</td>
-      <td style="color:var(--muted)">${(c.acos_target||0).toFixed(1)}%</td>
-      <td class="${c.metrics.acos <= (c.acos_target||999) ? 'val-pos' : 'val-neg'}">${(c.metrics.acos||0).toFixed(1)}%</td>
-      <td class="${c.metrics.roas >= (c.roas_target||0) ? 'val-pos' : 'val-neg'}"><strong>${(c.metrics.roas||0).toFixed(2)}x</strong></td>
-      <td class="val-neg">${fmt(c.metrics.cost||0)}</td>
-      <td class="val-pos">${fmt(c.metrics.total_amount||0)}</td>
-      <td>${c.metrics.units_quantity||0}</td>
-    </tr>`).join('');
+  const filtroClasse = document.getElementById('ads_filtro_classificacao').value;
+  const filtroAcaoStatus = document.getElementById('ads_filtro_acao_status').value;
+  const lista = _quadroCampanhasLista.filter(r => {
+    if (filtroClasse && r.classe !== filtroClasse) return false;
+    if (filtroAcaoStatus === 'sem_acao' && r.acoes.length) return false;
+    if (filtroAcaoStatus === 'com_acao' && !r.acoes.length) return false;
+    return true;
+  });
+
+  if (!lista.length) {
+    body.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhuma campanha com esse filtro</p></div></td></tr>';
+    return;
+  }
+
+  const tipoLabel = { orcamento: '💰 Orçamento', roas_alvo: '🎯 ROAS Alvo', lance: '🎯 Lance/ROAS' };
+
+  body.innerHTML = [...lista].sort((a, b) => b.custo - a.custo).map(r => {
+    const badge = CLASSIFICACAO_BADGE[r.classe] || 'badge-gray';
+    // Análise = diagnóstico completo (motivo de cada ação, texto livre do
+    // starlecos-mercadoads); Ação = valores concretos, curto e estruturado
+    // (ex: "🎯 ROAS Alvo: 5,00x → 8,00x"), uma campanha pode ter mais de
+    // uma ação ao mesmo tempo (orçamento e ROAS alvo, por exemplo).
+    let analiseTexto = '—';
+    let acaoTexto = '—';
+    if (r.acoes.length) {
+      analiseTexto = r.acoes.map(a => a.motivo).filter(Boolean).join('<br><br>') || '—';
+      acaoTexto = r.acoes.map(a => {
+        const de_ = a.valor_atual != null ? a.valor_atual : '—';
+        const para = a.valor_novo != null ? a.valor_novo : '—';
+        return `${tipoLabel[a.tipo] || a.tipo}: ${de_} → ${para}`;
+      }).join('<br>');
+    }
+    return `<tr>
+      <td style="font-weight:600">${r.nome}</td>
+      <td><span class="badge ${r.status === 'active' ? 'badge-green' : 'badge-red'}">${r.status === 'active' ? 'Ativa' : 'Pausada'}</span></td>
+      <td>${fmt(r.budget)}</td>
+      <td style="color:var(--muted)">${r.acosTarget.toFixed(1)}%</td>
+      <td class="${r.acos <= (r.acosTarget || 999) ? 'val-pos' : 'val-neg'}">${r.acos.toFixed(1)}%</td>
+      <td class="${r.roas >= r.roasTarget ? 'val-pos' : 'val-neg'}"><strong>${r.roas.toFixed(2)}x</strong></td>
+      <td class="val-neg">${fmt(r.custo)}</td>
+      <td class="val-pos">${fmt(r.receita)}</td>
+      <td>${r.unidades}</td>
+      <td><span class="badge ${badge}">${r.classe}</span></td>
+      <td style="font-size:12px;max-width:340px;white-space:pre-wrap">${analiseTexto}</td>
+      <td style="font-size:12px;max-width:200px;font-weight:600">${acaoTexto}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ====== CONTAS PAGAS ======
