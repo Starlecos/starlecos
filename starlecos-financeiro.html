@@ -1580,7 +1580,7 @@
         <span class="table-total" id="totalAdsAnuncios">0 anúncio(s)</span>
       </div>
       <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
-        Classificação automática (heurística): ALERTA_SEM_CONVERSAO = gastou &gt;R$3 sem venda · MANTER_OBSERVANDO = menos de 10 cliques no período · ESCALAR/OTIMIZAR_LANCES/ROLLBACK comparam ACOS real contra o ACOS alvo da campanha ML atual. A coluna "Ação" mostra o que o <code>starlecos-mercadoads</code> (ou você manualmente) colocou na fila pra esse anúncio — Aprovar aqui aplica direto no ML quando é pausar/ativar; orçamento/lance ainda são manuais.
+        Classificação automática (heurística): ALERTA_SEM_CONVERSAO = gastou &gt;R$3 sem venda · MANTER_OBSERVANDO = menos de 10 cliques no período · ESCALAR/OTIMIZAR_LANCES/ROLLBACK comparam ACOS real contra o ACOS alvo da campanha ML atual. "Análise" e "Ação" vêm do <code>starlecos-mercadoads</code> seguindo o framework oficial (esteiras/estágios) — aplicação é manual, você decide e executa direto no painel do ML.
       </div>
       <div class="form-row" style="grid-template-columns:1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
         <div class="field" style="margin-bottom:0"><label>Classificação</label>
@@ -1593,16 +1593,11 @@
             <option value="MANTER_OBSERVANDO">⚪ MANTER_OBSERVANDO</option>
           </select>
         </div>
-        <div class="field" style="margin-bottom:0"><label>Status da ação</label>
+        <div class="field" style="margin-bottom:0"><label>Tem ação recomendada?</label>
           <select id="ads_filtro_acao_status" onchange="renderQuadroAds()">
             <option value="">— Todos —</option>
-            <option value="sem_acao">— Sem ação na fila —</option>
-            <option value="pendente">🟡 Pendente</option>
-            <option value="aprovado">🔵 Aprovado — aguardando aplicar</option>
-            <option value="aguardando_verificacao">🟠 Aguardando confirmação</option>
-            <option value="aplicado">🟢 Aplicado</option>
-            <option value="recusado">⚪ Recusado</option>
-            <option value="erro">🔴 Erro</option>
+            <option value="sem_acao">— Sem ação recomendada —</option>
+            <option value="com_acao">Com ação recomendada</option>
           </select>
         </div>
       </div>
@@ -1618,13 +1613,12 @@
             <th>Receita</th>
             <th>Unid.</th>
             <th>Classificação</th>
-            <th>Ação recomendada</th>
-            <th>Status</th>
-            <th>Ações</th>
+            <th>Análise</th>
+            <th>Ação</th>
           </tr>
         </thead>
         <tbody id="bodyQuadroAds">
-          <tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
+          <tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -3745,7 +3739,7 @@ function renderQuadroAds() {
   document.getElementById('totalAdsAnuncios').textContent = _quadroAdsLista.length + ' anúncio(s)';
 
   if (!_quadroAdsLista.length) {
-    body.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>';
+    body.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>';
     return;
   }
 
@@ -3754,42 +3748,30 @@ function renderQuadroAds() {
   const lista = _quadroAdsLista.filter(r => {
     if (filtroClasse && r.classe !== filtroClasse) return false;
     if (filtroAcaoStatus === 'sem_acao' && r.acao) return false;
-    if (filtroAcaoStatus && filtroAcaoStatus !== 'sem_acao' && (!r.acao || r.acao.status !== filtroAcaoStatus)) return false;
+    if (filtroAcaoStatus === 'com_acao' && !r.acao) return false;
     return true;
   });
 
   if (!lista.length) {
-    body.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhum anúncio com esse filtro</p></div></td></tr>';
+    body.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhum anúncio com esse filtro</p></div></td></tr>';
     return;
   }
 
   const tipoLabel = { pausar: '⏸️ Pausar', ativar: '▶️ Ativar', orcamento: '💰 Orçamento', lance: '🎯 Lance/ROAS' };
-  const statusInfo = {
-    pendente: { label: '🟡 Pendente', cor: 'var(--amber)' },
-    aprovado: { label: '🔵 Aprovado — aguardando aplicar', cor: '#3B82F6' },
-    recusado: { label: '⚪ Recusado', cor: 'var(--muted)' },
-    aguardando_verificacao: { label: '🟠 Aguardando confirmação', cor: 'var(--amber)' },
-    aplicado: { label: '🟢 Aplicado', cor: 'var(--jade)' },
-    erro: { label: '🔴 Erro', cor: 'var(--rose)' }
-  };
 
   body.innerHTML = [...lista].sort((a, b) => b.custo - a.custo).map(r => {
     const badge = CLASSIFICACAO_BADGE[r.classe] || 'badge-gray';
     const a = r.acao;
+    // Análise = o diagnóstico (motivo, texto livre do starlecos-mercadoads);
+    // Ação = o que fazer, de forma estruturada e curta (tipo + valor atual → novo).
+    let analiseTexto = '—';
     let acaoTexto = '—';
-    let statusTexto = '<span style="color:var(--muted);font-size:12px">sem ação na fila</span>';
-    let botoes = '—';
     if (a) {
+      analiseTexto = a.motivo || '—';
       const deValor = a.valor_atual != null ? a.valor_atual : '—';
       const paraValor = a.valor_novo != null ? a.valor_novo : '—';
       const valores = (a.tipo === 'orcamento' || a.tipo === 'lance') ? ` (${deValor} → ${paraValor})` : '';
-      acaoTexto = `${tipoLabel[a.tipo] || a.tipo}${valores}<br><span style="font-size:11px;color:var(--muted)">${a.motivo || ''}</span>`;
-      const info = statusInfo[a.status] || { label: a.status, cor: 'var(--muted)' };
-      statusTexto = `<span style="color:${info.cor};font-weight:600">${info.label}</span>`;
-      botoes = a.status === 'pendente'
-        ? `<button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="aprovarAcaoAds(${a.id})">✓ Aprovar</button>
-           <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="recusarAcaoAds(${a.id})">✕ Recusar</button>`
-        : (a.status === 'erro' ? `<span style="font-size:11px;color:var(--rose)" title="${a.erro_msg || ''}">${(a.erro_msg || '').slice(0, 60)}</span>` : '—');
+      acaoTexto = `${tipoLabel[a.tipo] || a.tipo}${valores}`;
     }
     return `<tr>
       <td style="font-weight:600;max-width:280px">${r.titulo}</td>
@@ -3801,9 +3783,8 @@ function renderQuadroAds() {
       <td class="val-pos">${fmt(r.receita)}</td>
       <td>${r.unidades}</td>
       <td><span class="badge ${badge}">${r.classe}</span></td>
-      <td style="font-size:12px;max-width:200px">${acaoTexto}</td>
-      <td style="font-size:12px">${statusTexto}</td>
-      <td>${botoes}</td>
+      <td style="font-size:12px;max-width:320px;white-space:pre-wrap">${analiseTexto}</td>
+      <td style="font-size:12px;max-width:180px;font-weight:600">${acaoTexto}</td>
     </tr>`;
   }).join('');
 }
@@ -4501,27 +4482,6 @@ async function excluirSkuEPA(sku) {
     renderTabelaEPA();
     notify('Removido.');
   } catch(e) { notify('Erro ao remover', 'err'); }
-}
-
-// ====== AÇÕES MERCADO ADS (Aprovar/Recusar dentro do quadro único) ======
-async function aprovarAcaoAds(id) {
-  try {
-    await sbPatch('ml_ads_acoes', 'id=eq.' + id, { status: 'aprovado', decidido_em: new Date().toISOString() });
-    const r = _quadroAdsLista.find(r => r.acao && r.acao.id === id);
-    if (r) r.acao.status = 'aprovado';
-    renderQuadroAds();
-    notify('✅ Aprovado! Aplica no próximo ciclo do script-ponte (só pausar/ativar são automáticos por enquanto).');
-  } catch (e) { notify('Erro ao aprovar', 'err'); }
-}
-
-async function recusarAcaoAds(id) {
-  try {
-    await sbPatch('ml_ads_acoes', 'id=eq.' + id, { status: 'recusado', decidido_em: new Date().toISOString() });
-    const r = _quadroAdsLista.find(r => r.acao && r.acao.id === id);
-    if (r) r.acao.status = 'recusado';
-    renderQuadroAds();
-    notify('Recusado.');
-  } catch (e) { notify('Erro ao recusar', 'err'); }
 }
 
 // ====== PROMOÇÕES ML — via API oficial /seller-promotions (ml-promocoes.js) ======
