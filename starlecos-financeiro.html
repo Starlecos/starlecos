@@ -3736,7 +3736,7 @@ function renderMercadoAds(campanhas, de, ate) {
 }
 
 // ====== CONTAS PAGAS ======
-function addContaPaga() {
+async function addContaPaga() {
   const data = document.getElementById('cp_data').value;
   const descricao = document.getElementById('cp_descricao').value.trim();
   const categoria = document.getElementById('cp_categoria').value;
@@ -3749,7 +3749,15 @@ function addContaPaga() {
     notify('Preencha: data, descrição e valor.', 'err'); return;
   }
 
-  dados.contasPagas.push({ id: Date.now(), data, descricao, categoria, valor, pagamento, fornecedor, comprovante });
+  const nova = { id: Date.now(), data, descricao, categoria, valor, pagamento, fornecedor, comprovante };
+  try {
+    await sbInsert('contas_pagas', nova);
+  } catch (e) {
+    console.error('Erro ao salvar despesa no Supabase:', e);
+    notify('⚠️ Erro ao salvar no Supabase — despesa NÃO registrada. Tente de novo.', 'err');
+    return;
+  }
+  dados.contasPagas.push(nova);
   salvar();
   document.getElementById('cp_descricao').value = '';
   document.getElementById('cp_valor').value = '';
@@ -3791,6 +3799,13 @@ async function del(colecao, id) {
       await carregarVendasOnline();
       notify('Registro removido.');
     } catch(e) { notify('Erro ao remover', 'err'); }
+  } else if (colecao === 'contasPagas') {
+    try {
+      await sbDelete('contas_pagas', 'id=eq.' + id);
+      dados.contasPagas = dados.contasPagas.filter(v => v.id !== id);
+      salvar();
+      notify('Registro removido.');
+    } catch(e) { notify('Erro ao remover do Supabase', 'err'); }
   } else {
     dados[colecao] = dados[colecao].filter(v => v.id !== id);
     salvar();
