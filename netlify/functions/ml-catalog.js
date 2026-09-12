@@ -77,7 +77,7 @@ exports.handler = async function(event) {
     if (params.action === 'bulk') {
       const ids = (params.ids || '').split(',').filter(Boolean);
       if (!ids.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'ids obrigatório' }) };
-      const url = 'https://api.mercadolibre.com/items?ids=' + ids.join(',') + '&attributes=id,title,status,sub_status,variations';
+      const url = 'https://api.mercadolibre.com/items?ids=' + ids.join(',') + '&attributes=id,title,status,sub_status,variations,thumbnail,permalink';
       const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
       const data = await res.json();
       return { statusCode: res.status, headers, body: JSON.stringify(data) };

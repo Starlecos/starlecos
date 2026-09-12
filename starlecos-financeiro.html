@@ -1635,7 +1635,11 @@
       <div class="section-title">🎯 Promoções ML <span class="section-badge">Sugeridas pelo Mercado Livre</span></div>
     </div>
     <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
-      Sincronizado automaticamente por um script-ponte rodando no navegador (precisa da aba de Promoções do Mercado Livre aberta de vez em quando pra sincronizar). Aprove ou recuse aqui — a aplicação real no ML acontece sozinha no próximo ciclo do script-ponte.
+      Via API oficial do Mercado Livre (sem navegador/Tampermonkey). Clique em "🔄 Buscar Promoções" pra checar candidatas novas (DEAL, Co-participação, Desconto Individual, Oferta Relâmpago) em todo o catálogo. Aprovar aplica na hora, direto — não depende de nenhum ciclo externo.
+    </div>
+    <div style="padding:0 16px 10px">
+      <button class="btn-add jade" id="btnSyncPromocoes" onclick="sincronizarPromocoesML()">🔄 Buscar Promoções</button>
+      <span id="syncPromocoesStatus" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
     </div>
     <div class="table-card">
       <div class="table-header">
@@ -4451,8 +4455,27 @@ async function recusarAcaoAds(id) {
   } catch (e) { notify('Erro ao recusar', 'err'); }
 }
 
-// ====== PROMOÇÕES ML ======
+// ====== PROMOÇÕES ML — via API oficial /seller-promotions (ml-promocoes.js) ======
 let _promocoesLista = [];
+
+const PROMO_TYPE_LABEL = {
+  deal: 'Campanha Tradicional', tier: 'Campanha Tradicional',
+  marketplace_campaign: 'Co-participação',
+  price_discount: 'Desconto Individual',
+  lightning: 'Oferta Relâmpago',
+  volume: 'Desconto por Quantidade',
+  seller_campaign: 'Campanha do Vendedor',
+  pre_negotiated: 'Pré-acordado', smart: 'Co-participação Automatizada',
+  price_matching: 'Preço Competitivo', unhealthy_stock: 'Liquidação Estoque Full',
+  seller_coupon_campaign: 'Cupom do Vendedor'
+};
+const PROMO_TYPE_UPPER = {
+  deal: 'DEAL', tier: 'DEAL', marketplace_campaign: 'MARKETPLACE_CAMPAIGN',
+  price_discount: 'PRICE_DISCOUNT', lightning: 'LIGHTNING', volume: 'VOLUME',
+  seller_campaign: 'SELLER_CAMPAIGN', pre_negotiated: 'PRE_NEGOTIATED', smart: 'SMART',
+  price_matching: 'PRICE_MATCHING', unhealthy_stock: 'UNHEALTHY_STOCK',
+  seller_coupon_campaign: 'SELLER_COUPON_CAMPAIGN'
+};
 
 async function carregarPromocoesML() {
   try {
@@ -4464,19 +4487,107 @@ async function carregarPromocoesML() {
   }
 }
 
+// Varre todo o catálogo (ativos + pausados) via API oficial do ML e insere
+// candidatas novas em ml_promocoes — substitui a raspagem via Tampermonkey.
+async function sincronizarPromocoesML() {
+  const btn = document.getElementById('btnSyncPromocoes');
+  const statusEl = document.getElementById('syncPromocoesStatus');
+  btn.disabled = true;
+  try {
+    statusEl.textContent = 'Buscando catálogo...';
+    const [ativos, pausados] = await Promise.all([
+      fetch('/.netlify/functions/ml-catalog?action=search&status=active').then(r => r.json()),
+      fetch('/.netlify/functions/ml-catalog?action=search&status=paused').then(r => r.json())
+    ]);
+    const todosIds = [...(ativos.ids || []), ...(pausados.ids || [])];
+
+    const candidatos = [];
+    const LOTE = 12;
+    for (let i = 0; i < todosIds.length; i += LOTE) {
+      const lote = todosIds.slice(i, i + LOTE);
+      statusEl.textContent = `Verificando ${Math.min(i + LOTE, todosIds.length)}/${todosIds.length}...`;
+      const resultados = await Promise.all(lote.map(async id => {
+        try {
+          const r = await fetch('/.netlify/functions/ml-promocoes?action=item&item_id=' + id);
+          if (!r.ok) return null;
+          return { id, promos: await r.json() };
+        } catch (e) { return null; }
+      }));
+      resultados.forEach(res => {
+        if (!res || !Array.isArray(res.promos)) return;
+        res.promos.forEach(p => { if (p.status === 'candidate') candidatos.push({ item_id: res.id, promo: p }); });
+      });
+    }
+
+    if (!candidatos.length) {
+      statusEl.textContent = 'Nenhuma candidata nova.';
+      notify('Nenhuma promoção candidata encontrada.');
+      return;
+    }
+
+    statusEl.textContent = `Buscando dados de ${new Set(candidatos.map(c => c.item_id)).size} anúncio(s)...`;
+    const idsUnicos = [...new Set(candidatos.map(c => c.item_id))];
+    const infoPorId = {};
+    for (let i = 0; i < idsUnicos.length; i += 20) {
+      const lote = idsUnicos.slice(i, i + 20);
+      const r = await fetch('/.netlify/functions/ml-catalog?action=bulk&ids=' + lote.join(','));
+      const data = await r.json();
+      (data || []).forEach(e => { if (e.body) infoPorId[e.body.id] = e.body; });
+    }
+
+    const linhas = candidatos.map(c => {
+      const info = infoPorId[c.item_id] || {};
+      const p = c.promo;
+      const tipo = (p.type || '').toLowerCase();
+      const promotionId = p.id || p.ref_id || ('NOID-' + tipo);
+      let nome = p.name || PROMO_TYPE_LABEL[tipo] || p.type;
+      let candidateQuantity = null;
+      if (tipo === 'lightning' && p.stock) {
+        nome += ` (estoque ${p.stock.min}–${p.stock.max})`;
+        candidateQuantity = p.stock.min;
+      }
+      const precoFinal = p.suggested_discounted_price != null ? p.suggested_discounted_price : (p.price || null);
+      const descontoPct = (precoFinal != null && p.original_price)
+        ? Math.round((1 - precoFinal / p.original_price) * 1000) / 10 : null;
+      return {
+        item_id: c.item_id, titulo: info.title || c.item_id, foto: info.thumbnail || null,
+        url_produto: info.permalink || null, promocao_nome: nome, promotion_id: promotionId,
+        promo_type: tipo, preco_original: p.original_price != null ? p.original_price : null,
+        preco_final: precoFinal, desconto_percentual: descontoPct, candidate_quantity: candidateQuantity,
+        status: 'pendente', detectado_em: new Date().toISOString()
+      };
+    });
+
+    statusEl.textContent = `Salvando ${linhas.length} promoção(ões)...`;
+    await fetch(SUPABASE_URL + '/rest/v1/ml_promocoes', {
+      method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=ignore-duplicates' },
+      body: JSON.stringify(linhas)
+    });
+
+    await carregarPromocoesML();
+    statusEl.textContent = '';
+    notify(`✅ ${linhas.length} promoção(ões) candidata(s) encontrada(s)!`);
+  } catch (e) {
+    console.error(e);
+    statusEl.textContent = '';
+    notify('Erro ao buscar promoções: ' + (e.message || e), 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function renderTabelaPromocoes() {
   const tbody = document.getElementById('bodyPromocoesML');
   const pendentes = _promocoesLista.filter(p => p.status === 'pendente').length;
   document.getElementById('totalPromocoesPendentes').textContent = pendentes + ' pendente(s)';
 
   if (!_promocoesLista.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda — clique em "Buscar Promoções"</p></div></td></tr>';
     return;
   }
 
   const statusInfo = {
     pendente: { label: '🟡 Pendente', cor: 'var(--amber)' },
-    aprovado: { label: '🔵 Aprovado — aguardando aplicar', cor: '#3B82F6' },
     recusado: { label: '⚪ Recusado', cor: 'var(--muted)' },
     aplicado: { label: '🟢 Aplicado no ML', cor: 'var(--jade)' },
     erro: { label: '🔴 Erro ao aplicar', cor: 'var(--rose)' }
@@ -4494,7 +4605,7 @@ function renderTabelaPromocoes() {
         ${p.foto ? `<img src="${p.foto}" style="width:36px;height:36px;object-fit:cover;border-radius:6px">` : ''}
         <a href="${p.url_produto || '#'}" target="_blank" style="font-size:12px;max-width:220px;display:inline-block">${p.titulo || p.item_id}</a>
       </td>
-      <td style="font-size:12px">${p.promocao_nome || '—'}${p.promo_type && p.promo_type !== 'tier' ? `<br><span style="font-size:10px;color:var(--amber)" title="Aplicação automática ainda não validada pra esse tipo — participe manual pelo painel do ML">⚠️ ${p.promo_type} (manual)</span>` : ''}</td>
+      <td style="font-size:12px">${p.promocao_nome || PROMO_TYPE_LABEL[p.promo_type] || p.promo_type || '—'}</td>
       <td style="font-size:12px">${fmt(p.preco_original)} → <strong>${fmt(p.preco_final)}</strong></td>
       <td>${p.desconto_percentual != null ? p.desconto_percentual + '%' : '—'}</td>
       <td class="val-pos">${p.voce_recebe != null ? fmt(p.voce_recebe) : '—'}</td>
@@ -4505,14 +4616,69 @@ function renderTabelaPromocoes() {
   }).join('');
 }
 
+// Aprovar re-confere o dado ao vivo no ML antes de aplicar (nunca confia só
+// no preço sugerido detectado na última sincronização — pode ter mudado ou
+// a candidatura pode ter expirado) e aplica na hora via API oficial.
 async function aprovarPromocao(id) {
+  const item = _promocoesLista.find(p => p.id === id);
+  if (!item) return;
+  if (!/^MLB\d+$/.test(item.item_id)) {
+    notify('⚠️ Registro de formato antigo (raspagem descontinuada) — recuse e deixe a busca nova recriar.', 'err');
+    return;
+  }
+  const tipoOficial = PROMO_TYPE_UPPER[item.promo_type] || (item.promo_type || '').toUpperCase();
   try {
-    await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'aprovado', decidido_em: new Date().toISOString() });
-    const item = _promocoesLista.find(p => p.id === id);
-    if (item) item.status = 'aprovado';
+    notify('Conferindo dado atual no ML...');
+    const r = await fetch('/.netlify/functions/ml-promocoes?action=item&item_id=' + item.item_id);
+    const promos = await r.json();
+    if (!Array.isArray(promos)) throw new Error('Resposta inesperada do ML');
+
+    let atual = promos.find(p => p.type === tipoOficial && p.status === 'candidate' &&
+      (item.promotion_id && !item.promotion_id.startsWith('NOID-') ? (p.id === item.promotion_id || p.ref_id === item.promotion_id) : true));
+    if (!atual) {
+      await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'erro', erro_msg: 'Não é mais candidata no ML (expirou ou já foi decidida por outro caminho)', decidido_em: new Date().toISOString() });
+      item.status = 'erro'; item.erro_msg = 'Não é mais candidata no ML';
+      renderTabelaPromocoes();
+      notify('⚠️ Essa promoção não está mais disponível no ML.', 'err');
+      return;
+    }
+
+    const payload = { item_id: item.item_id, promotion_type: tipoOficial };
+    if (atual.id) payload.promotion_id = atual.id;
+    if (tipoOficial === 'LIGHTNING') {
+      payload.deal_price = atual.suggested_discounted_price;
+      payload.stock = (atual.stock && atual.stock.min) || item.candidate_quantity || 1;
+    } else if (tipoOficial === 'PRICE_DISCOUNT') {
+      payload.deal_price = atual.suggested_discounted_price;
+      payload.start_date = hoje() + 'T00:00:00';
+      const fim = new Date(); fim.setDate(fim.getDate() + 14);
+      payload.finish_date = dataBR(fim) + 'T00:00:00';
+    } else if (tipoOficial === 'DEAL') {
+      payload.deal_price = atual.suggested_discounted_price != null ? atual.suggested_discounted_price : atual.price;
+    }
+    // MARKETPLACE_CAMPAIGN, VOLUME, SELLER_CAMPAIGN etc: só promotion_id+tipo, o ML define o preço.
+
+    const resp = await fetch('/.netlify/functions/ml-promocoes?action=apply', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.message || data.error || JSON.stringify(data));
+
+    await sbPatch('ml_promocoes', 'id=eq.' + id, {
+      status: 'aplicado', decidido_em: new Date().toISOString(), aplicado_em: new Date().toISOString(),
+      preco_final: data.price != null ? data.price : item.preco_final
+    });
+    item.status = 'aplicado';
+    if (data.price != null) item.preco_final = data.price;
     renderTabelaPromocoes();
-    notify('✅ Aprovado! Aplica no ML no próximo ciclo do script-ponte.');
-  } catch (e) { notify('Erro ao aprovar', 'err'); }
+    notify('🟢 Aplicado no ML de verdade! Preço real: ' + fmt(data.price));
+  } catch (e) {
+    console.error(e);
+    await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'erro', erro_msg: String(e.message || e), decidido_em: new Date().toISOString() });
+    item.status = 'erro'; item.erro_msg = String(e.message || e);
+    renderTabelaPromocoes();
+    notify('🔴 Erro ao aplicar: ' + (e.message || e), 'err');
+  }
 }
 
 async function recusarPromocao(id) {
