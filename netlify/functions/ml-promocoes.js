@@ -102,10 +102,13 @@ exports.handler = async function(event) {
     if (params.action === 'apply' && event.httpMethod === 'POST') {
       const body = JSON.parse(event.body || '{}');
       const { item_id, promotion_id, promotion_type, deal_price, top_deal_price, start_date, finish_date } = body;
-      if (!item_id || !promotion_id || !promotion_type) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: 'item_id, promotion_id e promotion_type obrigatórios' }) };
+      // PRICE_DISCOUNT é desconto próprio (o vendedor cria, não entra numa
+      // campanha existente) — não tem promotion_id. Os demais tipos exigem.
+      if (!item_id || !promotion_type || (!promotion_id && promotion_type !== 'PRICE_DISCOUNT')) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'item_id e promotion_type obrigatórios (promotion_id também, exceto pra PRICE_DISCOUNT)' }) };
       }
-      const payload = { promotion_id, promotion_type };
+      const payload = { promotion_type };
+      if (promotion_id) payload.promotion_id = promotion_id;
       if (typeof deal_price === 'number') payload.deal_price = deal_price;
       if (typeof top_deal_price === 'number') payload.top_deal_price = top_deal_price;
       if (start_date) payload.start_date = start_date;
