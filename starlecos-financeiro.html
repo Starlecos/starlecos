@@ -4501,27 +4501,45 @@ async function sincronizarPromocoesML() {
     ]);
     const todosIds = [...(ativos.ids || []), ...(pausados.ids || [])];
 
+    // O ML às vezes responde "internal capacity constraints" sob paralelismo
+    // (achado testando 391 chamadas de uma vez) — reconsulta o item sozinho,
+    // mais devagar, em vez de simplesmente desistir dele.
+    async function buscarPromosDoItem(id, tentativa) {
+      try {
+        const r = await fetch('/.netlify/functions/ml-promocoes?action=item&item_id=' + id);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        if (!Array.isArray(data)) throw new Error(typeof data === 'string' ? data : JSON.stringify(data));
+        return { id, promos: data };
+      } catch (e) {
+        if (tentativa < 2) {
+          await new Promise(res => setTimeout(res, 800 * (tentativa + 1)));
+          return buscarPromosDoItem(id, tentativa + 1);
+        }
+        return { id, erro: e.message };
+      }
+    }
+
     const candidatos = [];
-    const LOTE = 12;
+    const falharam = [];
+    const LOTE = 10;
     for (let i = 0; i < todosIds.length; i += LOTE) {
       const lote = todosIds.slice(i, i + LOTE);
       statusEl.textContent = `Verificando ${Math.min(i + LOTE, todosIds.length)}/${todosIds.length}...`;
-      const resultados = await Promise.all(lote.map(async id => {
-        try {
-          const r = await fetch('/.netlify/functions/ml-promocoes?action=item&item_id=' + id);
-          if (!r.ok) return null;
-          return { id, promos: await r.json() };
-        } catch (e) { return null; }
-      }));
+      const resultados = await Promise.all(lote.map(id => buscarPromosDoItem(id, 0)));
       resultados.forEach(res => {
-        if (!res || !Array.isArray(res.promos)) return;
+        if (res.erro) { falharam.push(res.id); return; }
         res.promos.forEach(p => { if (p.status === 'candidate') candidatos.push({ item_id: res.id, promo: p }); });
       });
     }
 
+    if (falharam.length) {
+      console.warn('Itens que falharam mesmo com retry (não verificados):', falharam);
+    }
+
     if (!candidatos.length) {
       statusEl.textContent = 'Nenhuma candidata nova.';
-      notify('Nenhuma promoção candidata encontrada.');
+      notify('Nenhuma promoção candidata encontrada.' + (falharam.length ? ` (${falharam.length} não verificados, ver console)` : ''));
       return;
     }
 
@@ -4644,7 +4662,10 @@ async function aprovarPromocao(id) {
     }
 
     const payload = { item_id: item.item_id, promotion_type: tipoOficial };
-    if (atual.id) payload.promotion_id = atual.id;
+    // LIGHTNING e PRICE_DISCOUNT não usam promotion_id na doc oficial — o
+    // "id" que a Lightning devolve (LGH-MLB1000) é genérico, compartilhado
+    // por todo mundo, não identifica a candidatura específica desse item.
+    if (atual.id && tipoOficial !== 'LIGHTNING' && tipoOficial !== 'PRICE_DISCOUNT') payload.promotion_id = atual.id;
     if (tipoOficial === 'LIGHTNING') {
       payload.deal_price = atual.suggested_discounted_price;
       payload.stock = (atual.stock && atual.stock.min) || item.candidate_quantity || 1;
