@@ -4495,11 +4495,22 @@ async function sincronizarPromocoesML() {
   btn.disabled = true;
   try {
     statusEl.textContent = 'Buscando catálogo...';
-    const [ativos, pausados] = await Promise.all([
-      fetch('/.netlify/functions/ml-catalog?action=search&status=active').then(r => r.json()),
-      fetch('/.netlify/functions/ml-catalog?action=search&status=paused').then(r => r.json())
-    ]);
-    const todosIds = [...(ativos.ids || []), ...(pausados.ids || [])];
+    // Sequencial (não Promise.all): rodando as duas buscas em paralelo, uma
+    // pode falhar sob carga sem lançar erro — achado real (12/09/2026): a
+    // busca de "active" (326 itens) voltou vazia numa corrida em paralelo
+    // com "paused" e o código seguiu como se só existissem os 65 pausados.
+    async function buscarCatalogo(status, tentativa) {
+      const r = await fetch('/.netlify/functions/ml-catalog?action=search&status=' + status);
+      const data = r.ok ? await r.json() : null;
+      if (!data || !Array.isArray(data.ids)) {
+        if (tentativa < 2) { await new Promise(res => setTimeout(res, 1500)); return buscarCatalogo(status, tentativa + 1); }
+        throw new Error('Falha buscando catálogo (' + status + ') depois de 3 tentativas');
+      }
+      return data.ids;
+    }
+    const idsAtivos = await buscarCatalogo('active', 0);
+    const idsPausados = await buscarCatalogo('paused', 0);
+    const todosIds = [...idsAtivos, ...idsPausados];
 
     // O ML às vezes responde "internal capacity constraints" sob paralelismo
     // (achado testando 391 chamadas de uma vez) — reconsulta o item sozinho,
@@ -4577,10 +4588,20 @@ async function sincronizarPromocoesML() {
     });
 
     statusEl.textContent = `Salvando ${linhas.length} promoção(ões)...`;
-    await fetch(SUPABASE_URL + '/rest/v1/ml_promocoes', {
+    // on_conflict explícito é obrigatório aqui: a chave de conflito
+    // (item_id, promotion_id) não é a chave primária da tabela (é "id",
+    // identity), e sem isso o Postgres não sabe qual índice usar pra
+    // "ignore-duplicates" — achado real (12/09/2026): sem o parâmetro,
+    // qualquer linha que já existisse (ex: as recusadas na limpeza do
+    // Tampermonkey) dava 409 "duplicate key" e derrubava o insert inteiro.
+    const insertRes = await fetch(SUPABASE_URL + '/rest/v1/ml_promocoes?on_conflict=item_id,promotion_id', {
       method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=ignore-duplicates' },
       body: JSON.stringify(linhas)
     });
+    if (!insertRes.ok) {
+      const erroTexto = await insertRes.text();
+      throw new Error('Supabase recusou a gravação (HTTP ' + insertRes.status + '): ' + erroTexto.slice(0, 300));
+    }
 
     await carregarPromocoesML();
     statusEl.textContent = '';
