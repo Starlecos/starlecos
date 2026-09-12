@@ -1082,7 +1082,7 @@
     <button class="tab-btn" onclick="showTab('mercadoLivre')">🛒 Mercado Livre</button>
     <button class="tab-btn" onclick="showTab('shopee')">🛍️ Shopee</button>
     <button class="tab-btn" onclick="showTab('shopify')">🏪 Shopify</button>
-    <button class="tab-btn" onclick="showTab('mercadoads');carregarAcoesAds()">📢 Mercado Ads</button>
+    <button class="tab-btn" onclick="showTab('mercadoads');carregarQuadroAdsDoBanco()">📢 Mercado Ads</button>
     <button class="tab-btn" onclick="showTab('promocoes');carregarPromocoesML()">🎯 Promoções ML</button>
     <button class="tab-btn" onclick="showTab('anunciosFila');carregarAnunciosFila()">🆕 Novos Anúncios</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
@@ -1574,19 +1574,43 @@
       </table>
     </div>
 
-    <div class="table-card" style="margin-top:20px">
+    <div class="table-card" style="margin-top:20px" id="cardQuadroAds">
       <div class="table-header">
-        <span class="table-header-title">Anúncios individuais — classificação por ad_group (framework oficial Starlecos)</span>
+        <span class="table-header-title">📋 Anúncios — performance e ação recomendada</span>
         <span class="table-total" id="totalAdsAnuncios">0 anúncio(s)</span>
       </div>
       <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
-        Classificação automática (heurística): ALERTA_SEM_CONVERSAO = gastou &gt;R$3 sem venda · MANTER_OBSERVANDO = menos de 10 cliques no período · ESCALAR/OTIMIZAR_LANCES/ROLLBACK comparam ACOS real contra o ACOS alvo da campanha ML atual. Isso é um apoio inicial — a leitura fina (REVISAR_ANUNCIO, esteira de destino) é o <code>starlecos-mercadoads</code>.
+        Classificação automática (heurística): ALERTA_SEM_CONVERSAO = gastou &gt;R$3 sem venda · MANTER_OBSERVANDO = menos de 10 cliques no período · ESCALAR/OTIMIZAR_LANCES/ROLLBACK comparam ACOS real contra o ACOS alvo da campanha ML atual. A coluna "Ação" mostra o que o <code>starlecos-mercadoads</code> (ou você manualmente) colocou na fila pra esse anúncio — Aprovar aqui aplica direto no ML quando é pausar/ativar; orçamento/lance ainda são manuais.
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
+        <div class="field" style="margin-bottom:0"><label>Classificação</label>
+          <select id="ads_filtro_classificacao" onchange="renderQuadroAds()">
+            <option value="">— Todas —</option>
+            <option value="ROLLBACK">🔴 ROLLBACK</option>
+            <option value="OTIMIZAR_LANCES">🟠 OTIMIZAR_LANCES</option>
+            <option value="ALERTA_SEM_CONVERSAO">🔴 ALERTA_SEM_CONVERSAO</option>
+            <option value="ESCALAR">🟢 ESCALAR</option>
+            <option value="MANTER_OBSERVANDO">⚪ MANTER_OBSERVANDO</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0"><label>Status da ação</label>
+          <select id="ads_filtro_acao_status" onchange="renderQuadroAds()">
+            <option value="">— Todos —</option>
+            <option value="sem_acao">— Sem ação na fila —</option>
+            <option value="pendente">🟡 Pendente</option>
+            <option value="aprovado">🔵 Aprovado — aguardando aplicar</option>
+            <option value="aguardando_verificacao">🟠 Aguardando confirmação</option>
+            <option value="aplicado">🟢 Aplicado</option>
+            <option value="recusado">⚪ Recusado</option>
+            <option value="erro">🔴 Erro</option>
+          </select>
+        </div>
       </div>
       <table>
         <thead>
           <tr>
             <th>Anúncio</th>
-            <th>Campanha ML (id)</th>
+            <th>Campanha ML</th>
             <th>ACOS</th>
             <th>ROAS</th>
             <th>Cliques</th>
@@ -1594,36 +1618,13 @@
             <th>Receita</th>
             <th>Unid.</th>
             <th>Classificação</th>
-          </tr>
-        </thead>
-        <tbody id="bodyMercadoAdsAnuncios">
-          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="table-card" style="margin-top:20px" id="cardFilaAcoesAds">
-      <div class="table-header">
-        <span class="table-header-title">🚦 Fila de Ações — pausar/ativar/orçamento/lance</span>
-        <span class="table-total" id="totalAcoesAdsPendentes">0 pendente(s)</span>
-      </div>
-      <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
-        Sugerido pelo <code>starlecos-mercadoads</code> ou criado manualmente. Aprovar aqui só grava a decisão — quem aplica de verdade no Mercado Ads é o script-ponte (Tampermonkey). Pausar/Ativar já é automático; Orçamento/Lance ainda precisam ser aplicados manualmente por enquanto (execução automática pendente).
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Tipo</th>
-            <th>Anúncio/Campanha</th>
-            <th>Atual → Novo</th>
-            <th>Motivo</th>
-            <th>Origem</th>
+            <th>Ação recomendada</th>
             <th>Status</th>
             <th>Ações</th>
           </tr>
         </thead>
-        <tbody id="bodyAcoesAds">
-          <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🚦</div><p>Nenhuma ação na fila ainda</p></div></td></tr>
+        <tbody id="bodyQuadroAds">
+          <tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -3543,7 +3544,7 @@ async function sincronizarMercadoAds() {
     const campanhasMap = {};
     campanhas.forEach(c => { campanhasMap[c.id] = c; });
     const anuncios = await buscarTodosAnuncios(advertiser, metricas, de, ate);
-    renderMercadoAdsAnuncios(anuncios, campanhasMap);
+    await montarQuadroAds(anuncios, campanhasMap);
 
     if (anuncios.length) {
       const agora2 = new Date().toISOString();
@@ -3589,7 +3590,7 @@ async function sincronizarMercadoAds() {
     // aplicou (não confia só no 200 da escrita — mesma lição aprendida com
     // as Promoções ML: usa o dado real que acabou de sincronizar, que já
     // tem o status atual de cada ad_group_id, pra confirmar ou não)
-    await conferirAcoesAdsAguardando(anuncios);
+    await conferirAcoesAdsAguardando(anuncios, campanhasMap);
 
     if (errosPersistencia.length) {
       notify('⚠️ Dados carregados na tela, mas FALHOU ao gravar no histórico: ' + errosPersistencia.join(', ') + '. Veja o console (F12) para detalhes — nada foi salvo pro Jarvis/agentes analisarem depois.', 'err');
@@ -3608,7 +3609,7 @@ async function sincronizarMercadoAds() {
 // script-ponte via cookie de sessão) contra o dado real recém-sincronizado
 // (via API pública OAuth) — só essa tela tem o token OAuth pra ler de
 // verdade, o script-ponte não tem acesso a ele.
-async function conferirAcoesAdsAguardando(anuncios) {
+async function conferirAcoesAdsAguardando(anuncios, campanhasMap) {
   let pendentes;
   try {
     pendentes = await sbGet('ml_ads_acoes', 'select=*&status=eq.aguardando_verificacao');
@@ -3629,7 +3630,9 @@ async function conferirAcoesAdsAguardando(anuncios) {
     }
     // se o ad_group não aparecer nesse sync, deixa como está — tenta de novo no próximo "Buscar Performance"
   }
-  if (pendentes.length) carregarAcoesAds();
+  // refaz o quadro (in-memory, sem nova chamada à API do ML) pra refletir
+  // o status atualizado das ações que acabaram de ser confirmadas/erradas
+  if (pendentes.length) await montarQuadroAds(anuncios, campanhasMap);
 }
 
 async function buscarTodosAnuncios(advertiser, metricas, de, ate) {
@@ -3672,31 +3675,135 @@ const CLASSIFICACAO_BADGE = {
   ALERTA_SEM_CONVERSAO: 'badge-red', MANTER_OBSERVANDO: 'badge-gray'
 };
 
-function renderMercadoAdsAnuncios(anuncios, campanhasMap) {
-  const body = document.getElementById('bodyMercadoAdsAnuncios');
-  document.getElementById('totalAdsAnuncios').textContent = anuncios.length + ' anúncio(s)';
+// ====== QUADRO ÚNICO: performance + ação recomendada, por anúncio ======
+// Junta mercadoads_anuncios (performance) com ml_ads_acoes (fila de
+// pausar/ativar/orçamento/lance) num só registro por ad_group_id, pra não
+// precisar olhar 2 tabelas separadas pra saber o que fazer com cada anúncio.
+let _quadroAdsLista = [];
 
-  if (!anuncios.length) {
-    body.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📢</div><p>Nenhum anúncio encontrado no período</p></div></td></tr>';
+function acaoMaisRelevante(acoesDoAdGroup) {
+  // prioriza o que ainda precisa de decisão/acompanhamento sobre o que já
+  // foi recusado/aplicado há tempos
+  const prioridade = { pendente: 0, aprovado: 1, aguardando_verificacao: 2, erro: 3, aplicado: 4, recusado: 5 };
+  return [...acoesDoAdGroup].sort((a, b) => (prioridade[a.status] ?? 9) - (prioridade[b.status] ?? 9))[0];
+}
+
+// Monta o quadro a partir de um sync fresco (dado que acabou de vir da API do ML)
+async function montarQuadroAds(anuncios, campanhasMap) {
+  let acoes = [];
+  try { acoes = await sbGet('ml_ads_acoes', 'select=*&order=criado_em.desc'); } catch (e) {}
+  const acoesPorAdGroup = {};
+  acoes.forEach(a => { if (a.ad_group_id) (acoesPorAdGroup[a.ad_group_id] = acoesPorAdGroup[a.ad_group_id] || []).push(a); });
+
+  _quadroAdsLista = anuncios.map(ad => {
+    const m = ad.metrics || {};
+    const camp = campanhasMap[ad.campaign_id];
+    return {
+      item_id: ad.item_id, ad_group_id: ad.ad_group_id, campaign_id: ad.campaign_id,
+      titulo: ad.title || ad.item_id, campanhaNome: camp ? camp.name : ad.campaign_id,
+      acos: m.acos || 0, roas: m.roas || 0, clicks: m.clicks || 0, custo: m.cost || 0,
+      receita: m.total_amount || 0, unidades: m.units_quantity || 0,
+      acosTarget: (camp && camp.acos_target) || null,
+      classe: classificarAnuncio(ad, campanhasMap),
+      acao: acoesPorAdGroup[ad.ad_group_id] ? acaoMaisRelevante(acoesPorAdGroup[ad.ad_group_id]) : null
+    };
+  });
+  renderQuadroAds();
+}
+
+// Carrega do banco (última sincronização salva) — pra abrir a aba já com
+// dado real sem precisar clicar "Buscar Performance" de novo toda vez.
+async function carregarQuadroAdsDoBanco() {
+  try {
+    const ultimo = await sbGet('mercadoads_anuncios', 'select=sincronizado_em&order=sincronizado_em.desc&limit=1');
+    if (!ultimo.length) { _quadroAdsLista = []; renderQuadroAds(); return; }
+    const [snapshot, campanhasRows, acoes] = await Promise.all([
+      sbGet('mercadoads_anuncios', 'select=*&sincronizado_em=eq.' + encodeURIComponent(ultimo[0].sincronizado_em)),
+      sbGet('mercadoads_campanhas', 'select=campanha_id,campanha_nome&order=sincronizado_em.desc&limit=300'),
+      sbGet('ml_ads_acoes', 'select=*&order=criado_em.desc').catch(() => [])
+    ]);
+    const nomePorCampanha = {};
+    campanhasRows.forEach(c => { if (!(c.campanha_id in nomePorCampanha)) nomePorCampanha[c.campanha_id] = c.campanha_nome; });
+    const acoesPorAdGroup = {};
+    acoes.forEach(a => { if (a.ad_group_id) (acoesPorAdGroup[a.ad_group_id] = acoesPorAdGroup[a.ad_group_id] || []).push(a); });
+
+    _quadroAdsLista = snapshot.map(row => ({
+      item_id: row.item_id, ad_group_id: row.ad_group_id, campaign_id: row.campanha_id,
+      titulo: row.titulo || row.item_id, campanhaNome: nomePorCampanha[row.campanha_id] || row.campanha_id,
+      acos: row.acos_real || 0, roas: row.roas_real || 0, clicks: row.clicks || 0, custo: row.custo || 0,
+      receita: row.receita_total || 0, unidades: row.unidades_total || 0, acosTarget: null,
+      classe: row.classificacao,
+      acao: acoesPorAdGroup[row.ad_group_id] ? acaoMaisRelevante(acoesPorAdGroup[row.ad_group_id]) : null
+    }));
+    renderQuadroAds();
+  } catch (e) { console.error('Erro ao carregar quadro Ads do banco:', e); }
+}
+
+function renderQuadroAds() {
+  const body = document.getElementById('bodyQuadroAds');
+  if (!body) return;
+  document.getElementById('totalAdsAnuncios').textContent = _quadroAdsLista.length + ' anúncio(s)';
+
+  if (!_quadroAdsLista.length) {
+    body.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>';
     return;
   }
 
-  body.innerHTML = [...anuncios].sort((a,b) => (b.metrics.cost||0) - (a.metrics.cost||0)).map(ad => {
-    const m = ad.metrics || {};
-    const camp = campanhasMap[ad.campaign_id];
-    const classe = classificarAnuncio(ad, campanhasMap);
-    const badge = CLASSIFICACAO_BADGE[classe] || 'badge-gray';
-    return `
-    <tr>
-      <td style="font-weight:600;max-width:320px">${ad.title||ad.item_id}</td>
-      <td style="color:var(--muted);font-size:12px">${camp ? camp.name : ad.campaign_id}</td>
-      <td class="${m.acos <= ((camp&&camp.acos_target)||999) ? 'val-pos' : 'val-neg'}">${(m.acos||0).toFixed(1)}%</td>
-      <td><strong>${(m.roas||0).toFixed(2)}x</strong></td>
-      <td>${m.clicks||0}</td>
-      <td class="val-neg">${fmt(m.cost||0)}</td>
-      <td class="val-pos">${fmt(m.total_amount||0)}</td>
-      <td>${m.units_quantity||0}</td>
-      <td><span class="badge ${badge}">${classe}</span></td>
+  const filtroClasse = document.getElementById('ads_filtro_classificacao').value;
+  const filtroAcaoStatus = document.getElementById('ads_filtro_acao_status').value;
+  const lista = _quadroAdsLista.filter(r => {
+    if (filtroClasse && r.classe !== filtroClasse) return false;
+    if (filtroAcaoStatus === 'sem_acao' && r.acao) return false;
+    if (filtroAcaoStatus && filtroAcaoStatus !== 'sem_acao' && (!r.acao || r.acao.status !== filtroAcaoStatus)) return false;
+    return true;
+  });
+
+  if (!lista.length) {
+    body.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhum anúncio com esse filtro</p></div></td></tr>';
+    return;
+  }
+
+  const tipoLabel = { pausar: '⏸️ Pausar', ativar: '▶️ Ativar', orcamento: '💰 Orçamento', lance: '🎯 Lance/ROAS' };
+  const statusInfo = {
+    pendente: { label: '🟡 Pendente', cor: 'var(--amber)' },
+    aprovado: { label: '🔵 Aprovado — aguardando aplicar', cor: '#3B82F6' },
+    recusado: { label: '⚪ Recusado', cor: 'var(--muted)' },
+    aguardando_verificacao: { label: '🟠 Aguardando confirmação', cor: 'var(--amber)' },
+    aplicado: { label: '🟢 Aplicado', cor: 'var(--jade)' },
+    erro: { label: '🔴 Erro', cor: 'var(--rose)' }
+  };
+
+  body.innerHTML = [...lista].sort((a, b) => b.custo - a.custo).map(r => {
+    const badge = CLASSIFICACAO_BADGE[r.classe] || 'badge-gray';
+    const a = r.acao;
+    let acaoTexto = '—';
+    let statusTexto = '<span style="color:var(--muted);font-size:12px">sem ação na fila</span>';
+    let botoes = '—';
+    if (a) {
+      const deValor = a.valor_atual != null ? a.valor_atual : '—';
+      const paraValor = a.valor_novo != null ? a.valor_novo : '—';
+      const valores = (a.tipo === 'orcamento' || a.tipo === 'lance') ? ` (${deValor} → ${paraValor})` : '';
+      acaoTexto = `${tipoLabel[a.tipo] || a.tipo}${valores}<br><span style="font-size:11px;color:var(--muted)">${a.motivo || ''}</span>`;
+      const info = statusInfo[a.status] || { label: a.status, cor: 'var(--muted)' };
+      statusTexto = `<span style="color:${info.cor};font-weight:600">${info.label}</span>`;
+      botoes = a.status === 'pendente'
+        ? `<button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="aprovarAcaoAds(${a.id})">✓ Aprovar</button>
+           <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="recusarAcaoAds(${a.id})">✕ Recusar</button>`
+        : (a.status === 'erro' ? `<span style="font-size:11px;color:var(--rose)" title="${a.erro_msg || ''}">${(a.erro_msg || '').slice(0, 60)}</span>` : '—');
+    }
+    return `<tr>
+      <td style="font-weight:600;max-width:280px">${r.titulo}</td>
+      <td style="color:var(--muted);font-size:12px">${r.campanhaNome}</td>
+      <td class="${r.acos <= (r.acosTarget || 999) ? 'val-pos' : 'val-neg'}">${r.acos.toFixed(1)}%</td>
+      <td><strong>${r.roas.toFixed(2)}x</strong></td>
+      <td>${r.clicks}</td>
+      <td class="val-neg">${fmt(r.custo)}</td>
+      <td class="val-pos">${fmt(r.receita)}</td>
+      <td>${r.unidades}</td>
+      <td><span class="badge ${badge}">${r.classe}</span></td>
+      <td style="font-size:12px;max-width:200px">${acaoTexto}</td>
+      <td style="font-size:12px">${statusTexto}</td>
+      <td>${botoes}</td>
     </tr>`;
   }).join('');
 }
@@ -4396,67 +4503,13 @@ async function excluirSkuEPA(sku) {
   } catch(e) { notify('Erro ao remover', 'err'); }
 }
 
-// ====== FILA DE AÇÕES MERCADO ADS ======
-let _acoesAdsLista = [];
-
-async function carregarAcoesAds() {
-  try {
-    _acoesAdsLista = await sbGet('ml_ads_acoes', 'select=*&order=criado_em.desc');
-    renderTabelaAcoesAds();
-  } catch (e) {
-    console.error('Erro ao carregar fila de ações Mercado Ads:', e);
-  }
-}
-
-function renderTabelaAcoesAds() {
-  const tbody = document.getElementById('bodyAcoesAds');
-  if (!tbody) return;
-  const pendentes = _acoesAdsLista.filter(a => a.status === 'pendente').length;
-  document.getElementById('totalAcoesAdsPendentes').textContent = pendentes + ' pendente(s)';
-
-  if (!_acoesAdsLista.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🚦</div><p>Nenhuma ação na fila ainda</p></div></td></tr>';
-    return;
-  }
-
-  const tipoLabel = { pausar: '⏸️ Pausar', ativar: '▶️ Ativar', orcamento: '💰 Orçamento', lance: '🎯 Lance/ROAS' };
-  const statusInfo = {
-    pendente: { label: '🟡 Pendente', cor: 'var(--amber)' },
-    aprovado: { label: '🔵 Aprovado — aguardando aplicar', cor: '#3B82F6' },
-    recusado: { label: '⚪ Recusado', cor: 'var(--muted)' },
-    aguardando_verificacao: { label: '🟠 Aplicado — aguardando confirmação (clique Buscar Performance)', cor: 'var(--amber)' },
-    aplicado: { label: '🟢 Aplicado (confirmado)', cor: 'var(--jade)' },
-    erro: { label: '🔴 Erro', cor: 'var(--rose)' }
-  };
-
-  tbody.innerHTML = _acoesAdsLista.map(a => {
-    const info = statusInfo[a.status] || { label: a.status, cor: 'var(--muted)' };
-    const acoes = a.status === 'pendente'
-      ? `<button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="aprovarAcaoAds(${a.id})">✓ Aprovar</button>
-         <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="recusarAcaoAds(${a.id})">✕ Recusar</button>`
-      : (a.status === 'erro' ? `<span style="font-size:11px;color:var(--rose)" title="${a.erro_msg || ''}">${(a.erro_msg || '').slice(0, 60)}</span>` : '—');
-    const deValor = a.valor_atual != null ? a.valor_atual : '—';
-    const paraValor = a.valor_novo != null ? a.valor_novo : '—';
-    const valores = (a.tipo === 'orcamento' || a.tipo === 'lance') ? `${deValor} → ${paraValor}` : '—';
-
-    return `<tr>
-      <td>${tipoLabel[a.tipo] || a.tipo}</td>
-      <td style="font-size:12px">${a.titulo || a.item_id || a.ad_group_id || a.campanha_id || '—'}</td>
-      <td style="font-size:12px">${valores}</td>
-      <td style="font-size:12px;max-width:220px">${a.motivo || '—'}</td>
-      <td style="font-size:11px;color:var(--muted)">${a.origem}</td>
-      <td style="color:${info.cor};font-size:12px;font-weight:600">${info.label}</td>
-      <td>${acoes}</td>
-    </tr>`;
-  }).join('');
-}
-
+// ====== AÇÕES MERCADO ADS (Aprovar/Recusar dentro do quadro único) ======
 async function aprovarAcaoAds(id) {
   try {
     await sbPatch('ml_ads_acoes', 'id=eq.' + id, { status: 'aprovado', decidido_em: new Date().toISOString() });
-    const item = _acoesAdsLista.find(a => a.id === id);
-    if (item) item.status = 'aprovado';
-    renderTabelaAcoesAds();
+    const r = _quadroAdsLista.find(r => r.acao && r.acao.id === id);
+    if (r) r.acao.status = 'aprovado';
+    renderQuadroAds();
     notify('✅ Aprovado! Aplica no próximo ciclo do script-ponte (só pausar/ativar são automáticos por enquanto).');
   } catch (e) { notify('Erro ao aprovar', 'err'); }
 }
@@ -4464,9 +4517,9 @@ async function aprovarAcaoAds(id) {
 async function recusarAcaoAds(id) {
   try {
     await sbPatch('ml_ads_acoes', 'id=eq.' + id, { status: 'recusado', decidido_em: new Date().toISOString() });
-    const item = _acoesAdsLista.find(a => a.id === id);
-    if (item) item.status = 'recusado';
-    renderTabelaAcoesAds();
+    const r = _quadroAdsLista.find(r => r.acao && r.acao.id === id);
+    if (r) r.acao.status = 'recusado';
+    renderQuadroAds();
     notify('Recusado.');
   } catch (e) { notify('Erro ao recusar', 'err'); }
 }
