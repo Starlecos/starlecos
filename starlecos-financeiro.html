@@ -1646,6 +1646,22 @@
         <span class="table-header-title">Promoções pendentes e histórico</span>
         <span class="table-total" id="totalPromocoesPendentes">0 pendente(s)</span>
       </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
+        <div class="field" style="margin-bottom:0"><label>Tipo de promoção</label>
+          <select id="promo_filtro_tipo" onchange="renderTabelaPromocoes()">
+            <option value="">— Todos os tipos —</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0"><label>Status</label>
+          <select id="promo_filtro_status" onchange="renderTabelaPromocoes()">
+            <option value="">— Todos —</option>
+            <option value="pendente" selected>🟡 Pendente</option>
+            <option value="aplicado">🟢 Aplicado no ML</option>
+            <option value="recusado">⚪ Recusado</option>
+            <option value="erro">🔴 Erro ao aplicar</option>
+          </select>
+        </div>
+      </div>
       <table>
         <thead>
           <tr>
@@ -4615,13 +4631,36 @@ async function sincronizarPromocoesML() {
   }
 }
 
+// Preenche o filtro de tipo só com os tipos que realmente existem nos
+// dados carregados (evita opção vazia tipo "seller_campaign" se nunca
+// apareceu nenhuma promoção desse tipo ainda).
+function popularFiltroTipoPromocoes() {
+  const sel = document.getElementById('promo_filtro_tipo');
+  const atual = sel.value;
+  const tipos = [...new Set(_promocoesLista.map(p => p.promo_type).filter(Boolean))]
+    .sort((a, b) => (PROMO_TYPE_LABEL[a] || a).localeCompare(PROMO_TYPE_LABEL[b] || b));
+  sel.innerHTML = '<option value="">— Todos os tipos —</option>' +
+    tipos.map(t => `<option value="${t}">${PROMO_TYPE_LABEL[t] || t}</option>`).join('');
+  if (tipos.includes(atual)) sel.value = atual;
+}
+
 function renderTabelaPromocoes() {
   const tbody = document.getElementById('bodyPromocoesML');
+  popularFiltroTipoPromocoes();
   const pendentes = _promocoesLista.filter(p => p.status === 'pendente').length;
   document.getElementById('totalPromocoesPendentes').textContent = pendentes + ' pendente(s)';
 
+  const filtroTipo = document.getElementById('promo_filtro_tipo').value;
+  const filtroStatus = document.getElementById('promo_filtro_status').value;
+  const lista = _promocoesLista.filter(p =>
+    (!filtroTipo || p.promo_type === filtroTipo) && (!filtroStatus || p.status === filtroStatus));
+
   if (!_promocoesLista.length) {
     tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda — clique em "Buscar Promoções"</p></div></td></tr>';
+    return;
+  }
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhuma promoção com esse filtro</p></div></td></tr>';
     return;
   }
 
@@ -4632,7 +4671,7 @@ function renderTabelaPromocoes() {
     erro: { label: '🔴 Erro ao aplicar', cor: 'var(--rose)' }
   };
 
-  tbody.innerHTML = _promocoesLista.map(p => {
+  tbody.innerHTML = lista.map(p => {
     const info = statusInfo[p.status] || { label: p.status, cor: 'var(--muted)' };
     const acoes = p.status === 'pendente'
       ? `<button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="aprovarPromocao(${p.id})">✓ Aprovar</button>
