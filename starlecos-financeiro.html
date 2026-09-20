@@ -4121,11 +4121,11 @@ function dhRegistros() {
     if (v.status === 'Cancelado') return;
     const tv = v.taxaVenda != null ? v.taxaVenda : (v.taxa_venda || 0);
     const tfRaw = v.taxaFrete != null ? v.taxaFrete : (v.taxa_frete || 0);
-    out.push({ canal: 'ml', data: v.data, bruto: v.bruto || 0, taxas: tv + (tfRaw === -1 ? 0 : tfRaw), texto: v.produto, qtd: v.qtd || 1 });
+    out.push({ canal: 'ml', pid: 'mercado_livre:' + v.pedido, data: v.data, bruto: v.bruto || 0, taxas: tv + (tfRaw === -1 ? 0 : tfRaw), texto: v.produto, qtd: v.qtd || 1 });
   });
   (dados.pedidosShopify || []).forEach(v => {
     if (v.status === 'Cancelado') return;
-    out.push({ canal: 'shopify', data: v.data, bruto: v.bruto || 0, taxas: v.taxa || 0, texto: v.produto, qtd: v.qtd || 1 });
+    out.push({ canal: 'shopify', pid: 'shopify:' + v.id, data: v.data, bruto: v.bruto || 0, taxas: v.taxa || 0, texto: v.produto, qtd: v.qtd || 1 });
   });
   (dados.vendasShopee || []).forEach(v => {
     if (v.status === 'Cancelado') return;
@@ -4138,28 +4138,78 @@ function dhRegistros() {
   return out;
 }
 
-// Casa o nome do anúncio com a tabela de custo por tipo de produto
-// (CUSTO_VENDA_EPA). É estimativa por palavra-chave — título sem tipo
-// reconhecível fica "sem custo" e é contado à parte, nunca inventado.
+// Base do custo por SKU: estoque_produtos (SKU → grupo do Estoque Produto
+// Acabado) + estoque_movimentos (qual SKU saiu em cada pedido, desde
+// 29/08/2026). O custo de cada grupo vem de CUSTO_VENDA_EPA.
+async function dhCarregarBase() {
+  if (_dh.carregandoBase || (_dh.base && Date.now() - _dh.base.t < 5 * 60 * 1000)) return;
+  _dh.carregandoBase = true;
+  try {
+    const [skus, movs] = await Promise.all([
+      sbGetAll('estoque_produtos', 'select=sku,produto,estampa'),
+      sbGetAll('estoque_movimentos', 'select=canal,pedido_id,sku,delta&motivo=eq.venda')
+    ]);
+    const grupoPorSku = {};
+    const estampasEst = [];
+    skus.forEach(s => {
+      grupoPorSku[s.sku] = s.produto;
+      if (/estampado/i.test(s.produto) && s.estampa) estampasEst.push(dhNorm(s.estampa));
+    });
+    const porPedido = {};
+    movs.forEach(m => {
+      const k = m.canal + ':' + m.pedido_id;
+      (porPedido[k] = porPedido[k] || []).push({ sku: m.sku, q: Math.abs(m.delta) });
+    });
+    _dh.base = { t: Date.now(), grupoPorSku, porPedido, estampasEst: [...new Set(estampasEst)] };
+  } catch (e) {
+    console.warn('Base de custo por SKU indisponível, usando só estimativa por título:', e);
+    _dh.base = { t: Date.now(), grupoPorSku: {}, porPedido: {}, estampasEst: [] };
+  }
+  _dh.carregandoBase = false;
+  renderDashHero();
+}
+
+function dhNorm(t) { return (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+// Reserva pros pedidos sem SKU no histórico (antes de 29/08): casa o título
+// com o grupo. Título sem tipo reconhecível fica "sem custo", nunca inventado.
 function dhTipoProduto(t) {
-  t = (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  t = dhNorm(t);
   const masc = /masculin/.test(t);
+  // jaleco estampado cujo título não diz "estampa" (ex: "Mundo Tea Masculino"):
+  // reconhece pelo nome da estampa cadastrada no estoque
+  const estampaNoTitulo = () => /estampa/.test(t) || (_dh.base && _dh.base.estampasEst.some(e => {
+    const toks = e.split(/[^a-z0-9]+/).filter(w => w.length >= 3);
+    return toks.length && toks.every(w => t.includes(w));
+  }));
   if (/touca/.test(t)) return 'Touca';
   if (/faixa/.test(t)) return 'Faixa de Cabelo';
   if (/calca/.test(t)) return masc ? 'Calça Masculino' : 'Calça Feminino';
   if (/blusa/.test(t)) {
-    const est = /estampa/.test(t);
+    const est = estampaNoTitulo();
     return masc ? (est ? 'Blusa Masculino Estampado' : 'Blusa Masculino Liso') : (est ? 'Blusa Feminino Estampado' : 'Blusa Feminino Liso');
   }
   if (/jaleco/.test(t)) {
     if (/sem manga|s\/manga|s-manga/.test(t)) return 'Jaleco S/Manga Feminino';
-    const est = /estampa/.test(t);
+    const est = estampaNoTitulo();
     return masc ? (est ? 'Jaleco Estampado Masculino' : 'Jaleco Liso Masculino') : (est ? 'Jaleco Estampado Feminino' : 'Jaleco Liso Feminino');
   }
   return null;
 }
 
 function dhCustoRegistro(r) {
+  // 1) exato: SKU que saiu no pedido → grupo do estoque → custo do grupo
+  const skusPedido = _dh.base && r.pid ? _dh.base.porPedido[r.pid] : null;
+  if (skusPedido && skusPedido.length) {
+    let custo = 0, sem = false;
+    skusPedido.forEach(s => {
+      const c = CUSTO_VENDA_EPA[_dh.base.grupoPorSku[s.sku]];
+      if (c) custo += c.custo * s.q; else sem = true;
+    });
+    return { custo, sem, exato: true };
+  }
+  // 2) vendas da vendedora já trazem o grupo em cada item (exato também)
+  // 3) reserva: estimativa pelo título (pedidos antes do histórico de SKU)
   let partes;
   if (r.itens && r.itens.length) {
     partes = r.itens.map(i => ({ t: i.produto || '', q: i.qtd || 1 }));
@@ -4174,17 +4224,18 @@ function dhCustoRegistro(r) {
     const c = CUSTO_VENDA_EPA[p.t] || CUSTO_VENDA_EPA[dhTipoProduto(p.t)];
     if (c) custo += c.custo * p.q; else sem = true;
   });
-  return { custo, sem };
+  return { custo, sem, exato: !!(r.itens && r.itens.length) };
 }
 
 function dhAgregar(regs, canal, faixa) {
   const sel = regs.filter(r => (canal === 'total' || r.canal === canal) && r.data >= faixa[0] && r.data <= faixa[1]);
-  const ag = { venda: 0, custo: 0, pedidos: sel.length, porDia: {}, porCanal: {}, semCusto: 0 };
+  const ag = { venda: 0, custo: 0, pedidos: sel.length, porDia: {}, porCanal: {}, semCusto: 0, exatos: 0 };
   sel.forEach(r => {
     const c = dhCustoRegistro(r);
     ag.venda += r.bruto;
     ag.custo += r.taxas + c.custo;
     if (c.sem) ag.semCusto++;
+    if (c.exato) ag.exatos++;
     ag.porDia[r.data] = (ag.porDia[r.data] || 0) + r.bruto;
     ag.porCanal[r.canal] = (ag.porCanal[r.canal] || 0) + r.bruto;
   });
@@ -4312,15 +4363,23 @@ function renderDashHero() {
     return `<button class="dh-canal ${c.id === _dh.canal ? 'ativo' : ''}" ${ok ? `onclick="dhSetCanal('${c.id}')"` : 'disabled'}>
       <span class="dh-dot" style="background:${c.cor}"></span>${c.nome}${ok ? '' : '<span class="dh-breve">em breve</span>'}</button>`;
   }).join('');
-  const conectados = DH_CANAIS.filter(c => c.id !== 'total' && temVenda(c.id)).map(c => c.nome);
-  document.getElementById('dhNota').textContent = conectados.length
-    ? 'Canais com venda: ' + conectados.join(', ') + '. Total soma todos.' : 'Nenhuma venda registrada ainda.';
+  dhCarregarBase(); // custo por SKU (async; ao terminar redesenha)
 
   const { cur, prev } = dhPeriodos();
   const rotDe = f => f[0] === f[1] ? dhDM(f[0]) : dhDM(f[0]) + ' a ' + dhDM(f[1]);
   const rotCur = rotDe(cur);
   const rotPrev = rotDe(prev);
   const aC = dhAgregar(regs, _dh.canal, cur), aP = dhAgregar(regs, _dh.canal, prev);
+
+  const conectados = DH_CANAIS.filter(c => c.id !== 'total' && temVenda(c.id)).map(c => c.nome);
+  let nota = conectados.length
+    ? 'Canais com venda: ' + conectados.join(', ') + '. Total soma todos.' : 'Nenhuma venda registrada ainda.';
+  if (aC.pedidos) {
+    nota += _dh.base
+      ? ` Custo do produto por SKU/grupo do estoque em ${aC.exatos} de ${aC.pedidos} pedido(s)` + (aC.exatos < aC.pedidos ? '; o resto (antes de 29/08) é estimado pelo título.' : '.')
+      : ' Carregando custo por SKU…';
+  }
+  document.getElementById('dhNota').textContent = nota;
 
   document.getElementById('dhKpi1').innerHTML =
     dhCard('Venda Total', fmt(aC.venda), dhDelta(aC.venda, aP.venda, rotPrev)) +
