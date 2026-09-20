@@ -3491,11 +3491,12 @@ async function sincronizarPedidosShopify() {
       const produto = resumo ? resumo.produto : 'Produto Shopify';
       const qtd     = resumo ? resumo.qtd : 1;
       const bruto   = parseFloat(o.total_price || 0);
-      const liquido = bruto; // Shopify não retorna taxa de gateway direto no pedido — ajustar depois se precisar
+      const taxa    = Math.round(bruto * 0.05 * 100) / 100; // Shopify não traz taxa no pedido: 5% do valor da venda (regra do Enzo)
+      const liquido = Math.round((bruto - taxa) * 100) / 100;
       const data    = o.created_at ? dataBR(o.created_at) : hoje();
       const cancelado = !!o.cancelled_at;
       const status = cancelado ? 'Cancelado' : 'Entregue';
-      return { id: o.id, pedido: o.name || String(o.id), produto, qtd, bruto, taxa: 0, liquido, data, status };
+      return { id: o.id, pedido: o.name || String(o.id), produto, qtd, bruto, taxa, liquido, data, status };
     });
 
     // 5. Salvar em lotes no Supabase (merge-duplicates evita duplicar se rodar sync 2x)
