@@ -4076,6 +4076,7 @@ function atualizarTudo() {
 
 // ====== DASHBOARD HERO — período + canal + comparativo com o período anterior ======
 const _dh = { periodo: 'mes', canal: 'total', iniciado: false, visitas: {} };
+const DH_TAXA_SHOPIFY = 0.05; // taxa da plataforma Shopify sobre o valor da venda
 const DH_CANAIS = [
   { id: 'total',     nome: 'Total',          cor: '#e8503a' },
   { id: 'ml',        nome: 'Mercado Livre',  cor: '#ffd400' },
@@ -4125,7 +4126,8 @@ function dhRegistros() {
   });
   (dados.pedidosShopify || []).forEach(v => {
     if (v.status === 'Cancelado') return;
-    out.push({ canal: 'shopify', pid: 'shopify:' + v.id, data: v.data, bruto: v.bruto || 0, taxas: v.taxa || 0, texto: v.produto, qtd: v.qtd || 1 });
+    // Shopify não traz taxa no pedido: considera 5% do valor da venda (regra do Enzo)
+    out.push({ canal: 'shopify', pid: 'shopify:' + v.id, data: v.data, bruto: v.bruto || 0, taxas: v.taxa > 0 ? v.taxa : (v.bruto || 0) * DH_TAXA_SHOPIFY, texto: v.produto, qtd: v.qtd || 1 });
   });
   (dados.vendasShopee || []).forEach(v => {
     if (v.status === 'Cancelado') return;
