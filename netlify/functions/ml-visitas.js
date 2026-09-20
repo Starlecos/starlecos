@@ -1,5 +1,5 @@
 // Visitas do vendedor no ML num intervalo (só leitura, token do servidor).
-// ?de=YYYY-MM-DD&ate=YYYY-MM-DD  ->  { total_visits }
+// ?de=YYYY-MM-DD&ate=YYYY-MM-DD  ->  { total_visits, results:[{date,total}] } (por dia)
 const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
 const ML_APP_ID = '6624742243995383';
 
@@ -46,7 +46,9 @@ exports.handler = async function(event) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'de e ate (YYYY-MM-DD) obrigatórios' }) };
     }
     const accessToken = await obterTokenML();
-    const url = 'https://api.mercadolibre.com/users/1781620508/items_visits?date_from=' + p.de + 'T00:00:00.000-03:00&date_to=' + p.ate + 'T23:59:59.000-03:00';
+    const dias = Math.round((Date.parse(p.ate) - Date.parse(p.de)) / 86400000) + 1;
+    if (dias < 1 || dias > 120) return { statusCode: 400, headers, body: JSON.stringify({ error: 'intervalo inválido (1 a 120 dias)' }) };
+    const url = 'https://api.mercadolibre.com/users/1781620508/items_visits/time_window?last=' + dias + '&unit=day&ending=' + p.ate;
     const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
     const data = await res.json();
     return { statusCode: res.status, headers, body: JSON.stringify(data) };
