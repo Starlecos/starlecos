@@ -4238,7 +4238,7 @@ function dhChartVendas(cur, prev, aC, aP, rotCur, rotPrev) {
   const n = dias.length;
   const vC = dias.map(d => aC.porDia[d] || 0);
   const vP = dias.map((d, i) => aP.porDia[dhAdd(prev[0], i)] || 0);
-  const top = dhNice(Math.max(1, ...vC, ...vP));
+  const top = dhNice(Math.max(100, ...vC, ...vP));
   const W = 1000, H = 250, pL = 46, pB = 22, pT = 8, pR = 6;
   const pw = W - pL - pR, ph = H - pB - pT, slot = pw / n, bw = Math.min(22, slot * 0.38);
   let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">`;
@@ -4317,8 +4317,9 @@ function renderDashHero() {
     ? 'Canais com venda: ' + conectados.join(', ') + '. Total soma todos.' : 'Nenhuma venda registrada ainda.';
 
   const { cur, prev } = dhPeriodos();
-  const rotCur = dhDM(cur[0]) + ' a ' + dhDM(cur[1]);
-  const rotPrev = dhDM(prev[0]) + ' a ' + dhDM(prev[1]);
+  const rotDe = f => f[0] === f[1] ? dhDM(f[0]) : dhDM(f[0]) + ' a ' + dhDM(f[1]);
+  const rotCur = rotDe(cur);
+  const rotPrev = rotDe(prev);
   const aC = dhAgregar(regs, _dh.canal, cur), aP = dhAgregar(regs, _dh.canal, prev);
 
   document.getElementById('dhKpi1').innerHTML =
