@@ -1094,6 +1094,71 @@
 
   <!-- ====== DASHBOARD ====== -->
   <div class="tab-panel active" id="panel-dashboard">
+    <style>
+      .dh { background:#0d0d0d; border-radius:16px; padding:18px; margin-bottom:24px; color:#eee; font-family:'Inter',sans-serif; }
+      .dh-periodos { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+      .dh-pbtn { background:#111; border:1px solid #333; color:#ddd; border-radius:8px; padding:7px 14px; font-size:12.5px; cursor:pointer; font-family:inherit; }
+      .dh-pbtn:hover { border-color:#666; }
+      .dh-pbtn.ativo { background:#e8503a; border-color:#e8503a; color:#fff; font-weight:600; }
+      .dh-custom { display:flex; gap:6px; align-items:center; }
+      .dh-custom[hidden] { display:none; }
+      .dh-custom input { background:#111; border:1px solid #333; color:#eee; border-radius:8px; padding:6px 8px; font-size:12px; font-family:inherit; color-scheme:dark; }
+      .dh-body { display:grid; grid-template-columns:170px 1fr; gap:14px; align-items:start; }
+      .dh-canais { display:flex; flex-direction:column; gap:4px; }
+      .dh-canal { display:flex; align-items:center; gap:8px; background:transparent; border:1px solid transparent; color:#bbb; border-radius:10px; padding:9px 11px; font-size:13px; cursor:pointer; text-align:left; font-family:inherit; }
+      .dh-canal:hover:not(:disabled) { background:#161616; }
+      .dh-canal.ativo { background:#2a1512; border-color:#3d1f1a; color:#e8503a; }
+      .dh-canal:disabled { color:#666; cursor:default; }
+      .dh-dot { width:7px; height:7px; border-radius:50%; flex:0 0 7px; }
+      .dh-breve { font-size:9.5px; background:#222; color:#999; border-radius:10px; padding:1px 7px; margin-left:auto; white-space:nowrap; }
+      .dh-nota { font-size:10.5px; color:#8a8a8a; line-height:1.4; padding:8px 4px 0; }
+      .dh-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+      .dh-kpi { background:#171717; border:1px solid #262626; border-radius:14px; padding:14px 16px; min-width:0; }
+      .dh-kpi .l { font-size:12.5px; color:#bbb; }
+      .dh-kpi .v { font-size:24px; color:#fff; margin:8px 0 12px; font-weight:500; white-space:nowrap; }
+      .dh-kpi .d { font-size:11px; color:#888; display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+      .dh-up { color:#22c55e; font-weight:600; } .dh-down { color:#ef4444; font-weight:600; } .dh-neutro { color:#888; }
+      .dh-sub { font-size:12.5px; color:#bbb; margin:12px 0 8px; }
+      .dh-charts { display:grid; grid-template-columns:1.9fr 1fr; gap:12px; margin-top:16px; }
+      .dh-card { background:#171717; border:1px solid #262626; border-radius:14px; padding:16px 18px; min-width:0; }
+      .dh-card h4 { margin:0; font-size:15px; color:#fff; font-weight:600; }
+      .dh-card p { margin:4px 0 12px; font-size:11.5px; color:#999; }
+      .dh-leg { display:flex; gap:14px; font-size:11px; color:#aaa; margin-bottom:6px; }
+      .dh-leg i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
+      .dh-donut { display:flex; align-items:center; gap:16px; flex-wrap:wrap; justify-content:center; }
+      .dh-donut ul { list-style:none; margin:0; padding:0; font-size:12px; color:#ddd; flex:1; min-width:150px; }
+      .dh-donut li { display:flex; align-items:center; gap:8px; padding:5px 0; }
+      .dh-donut li b { margin-left:auto; font-weight:500; white-space:nowrap; }
+      @media (max-width:1000px){ .dh-body{grid-template-columns:1fr;} .dh-canais{flex-direction:row;flex-wrap:wrap;} .dh-grid{grid-template-columns:repeat(2,1fr);} .dh-charts{grid-template-columns:1fr;} }
+    </style>
+    <div class="dh" id="dashHero">
+      <div class="dh-periodos" id="dhPeriodos">
+        <button class="dh-pbtn" data-p="dia">Dia</button>
+        <button class="dh-pbtn" data-p="7d">Últimos 7 dias</button>
+        <button class="dh-pbtn ativo" data-p="mes">Mês atual</button>
+        <button class="dh-pbtn" data-p="30d">Últimos 30 dias</button>
+        <button class="dh-pbtn" data-p="custom">Personalizado</button>
+        <span class="dh-custom" id="dhCustom" hidden>
+          <input type="date" id="dhDe"> <span style="color:#777">até</span> <input type="date" id="dhAte">
+        </span>
+      </div>
+      <div class="dh-body">
+        <div>
+          <div class="dh-canais" id="dhCanais"></div>
+          <div class="dh-nota" id="dhNota"></div>
+        </div>
+        <div>
+          <div class="dh-grid" id="dhKpi1"></div>
+          <div class="dh-sub">Visão Geral</div>
+          <div class="dh-grid" id="dhKpi2"></div>
+        </div>
+      </div>
+      <div class="dh-charts">
+        <div class="dh-card" id="dhVendas"></div>
+        <div class="dh-card" id="dhDonut"></div>
+      </div>
+    </div>
+
     <div class="section-header">
       <div class="section-title">📊 Visão Geral do Período</div>
     </div>
@@ -3989,6 +4054,9 @@ function atualizarTudo() {
   document.getElementById('subDespesas').textContent = `${nCP} conta(s) paga(s)`;
   document.getElementById('subPedidos').textContent = `${nVO} online · ${nML} ML · ${nSH} Shopee · ${nSF} Shopify`;
 
+  // Painel do topo (período + canal + comparativo)
+  try { renderDashHero(); } catch (e) { console.error('Erro no painel do dashboard:', e); }
+
   // Channels
   renderChannels(rVO, rML, rSH, rSF, totalReceitas);
 
@@ -4004,6 +4072,292 @@ function atualizarTudo() {
   renderShopee();
   renderShopify();
   renderContas();
+}
+
+// ====== DASHBOARD HERO — período + canal + comparativo com o período anterior ======
+const _dh = { periodo: 'mes', canal: 'total', iniciado: false, visitas: {} };
+const DH_CANAIS = [
+  { id: 'total',     nome: 'Total',          cor: '#e8503a' },
+  { id: 'ml',        nome: 'Mercado Livre',  cor: '#ffd400' },
+  { id: 'shopify',   nome: 'Shopify',        cor: '#96bf48' },
+  { id: 'vendedora', nome: 'Vendas Online',  cor: '#4aa3ff' },
+  { id: 'shopee',    nome: 'Shopee',         cor: '#ee6a2c' },
+  { id: 'tiktok',    nome: 'TikTok Shop',    cor: '#d6336c' }
+];
+
+function dhAdd(str, n) {
+  const p = str.split('-').map(Number);
+  return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10);
+}
+function dhDiff(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 86400000); }
+function dhDM(s) { return s.slice(8, 10) + '/' + s.slice(5, 7); }
+function dhPct(n) { return n.toFixed(1).replace('.', ','); }
+
+function dhPeriodos() {
+  const h = hoje();
+  if (_dh.periodo === 'dia') return { cur: [h, h], prev: [dhAdd(h, -1), dhAdd(h, -1)] };
+  if (_dh.periodo === '7d')  return { cur: [dhAdd(h, -6), h],  prev: [dhAdd(h, -13), dhAdd(h, -7)] };
+  if (_dh.periodo === '30d') return { cur: [dhAdd(h, -29), h], prev: [dhAdd(h, -59), dhAdd(h, -30)] };
+  if (_dh.periodo === 'custom') {
+    let de = document.getElementById('dhDe').value || h.slice(0, 8) + '01';
+    let ate = document.getElementById('dhAte').value || h;
+    if (de > ate) { const t = de; de = ate; ate = t; }
+    const n = dhDiff(de, ate);
+    return { cur: [de, ate], prev: [dhAdd(de, -(n + 1)), dhAdd(de, -1)] };
+  }
+  // mês atual vs mesmo trecho do mês anterior (ex: 01/09–19/09 vs 01/08–19/08)
+  const ini = h.slice(0, 8) + '01';
+  const n = dhDiff(ini, h);
+  const fimMesAnt = dhAdd(ini, -1);
+  const iniMesAnt = fimMesAnt.slice(0, 8) + '01';
+  let fimPrev = dhAdd(iniMesAnt, n);
+  if (fimPrev > fimMesAnt) fimPrev = fimMesAnt;
+  return { cur: [ini, h], prev: [iniMesAnt, fimPrev] };
+}
+
+function dhRegistros() {
+  const out = [];
+  (dados.pedidosML || []).forEach(v => {
+    if (v.status === 'Cancelado') return;
+    const tv = v.taxaVenda != null ? v.taxaVenda : (v.taxa_venda || 0);
+    const tfRaw = v.taxaFrete != null ? v.taxaFrete : (v.taxa_frete || 0);
+    out.push({ canal: 'ml', data: v.data, bruto: v.bruto || 0, taxas: tv + (tfRaw === -1 ? 0 : tfRaw), texto: v.produto, qtd: v.qtd || 1 });
+  });
+  (dados.pedidosShopify || []).forEach(v => {
+    if (v.status === 'Cancelado') return;
+    out.push({ canal: 'shopify', data: v.data, bruto: v.bruto || 0, taxas: v.taxa || 0, texto: v.produto, qtd: v.qtd || 1 });
+  });
+  (dados.vendasShopee || []).forEach(v => {
+    if (v.status === 'Cancelado') return;
+    out.push({ canal: 'shopee', data: v.data, bruto: v.bruto || 0, taxas: v.taxa || 0, texto: v.produto, qtd: v.qtd || 1 });
+  });
+  (dados.vendasOnline || []).forEach(v => {
+    if (v.status === 'Cancelado') return;
+    out.push({ canal: 'vendedora', data: v.data, bruto: getVendaValor(v), taxas: 0, itens: v.itens || null, texto: v.produto || '', qtd: v.qtd || 1 });
+  });
+  return out;
+}
+
+// Casa o nome do anúncio com a tabela de custo por tipo de produto
+// (CUSTO_VENDA_EPA). É estimativa por palavra-chave — título sem tipo
+// reconhecível fica "sem custo" e é contado à parte, nunca inventado.
+function dhTipoProduto(t) {
+  t = (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const masc = /masculin/.test(t);
+  if (/touca/.test(t)) return 'Touca';
+  if (/faixa/.test(t)) return 'Faixa de Cabelo';
+  if (/calca/.test(t)) return masc ? 'Calça Masculino' : 'Calça Feminino';
+  if (/blusa/.test(t)) {
+    const est = /estampa/.test(t);
+    return masc ? (est ? 'Blusa Masculino Estampado' : 'Blusa Masculino Liso') : (est ? 'Blusa Feminino Estampado' : 'Blusa Feminino Liso');
+  }
+  if (/jaleco/.test(t)) {
+    if (/sem manga|s\/manga|s-manga/.test(t)) return 'Jaleco S/Manga Feminino';
+    const est = /estampa/.test(t);
+    return masc ? (est ? 'Jaleco Estampado Masculino' : 'Jaleco Liso Masculino') : (est ? 'Jaleco Estampado Feminino' : 'Jaleco Liso Feminino');
+  }
+  return null;
+}
+
+function dhCustoRegistro(r) {
+  let partes;
+  if (r.itens && r.itens.length) {
+    partes = r.itens.map(i => ({ t: i.produto || '', q: i.qtd || 1 }));
+  } else {
+    const txt = r.texto || '';
+    const pedacos = txt.split(' + ');
+    const parse = pedacos.map(p => /^(\d+)x (.+)$/.exec(p));
+    partes = parse.every(Boolean) ? parse.map(m => ({ t: m[2], q: parseInt(m[1]) })) : [{ t: txt, q: r.qtd || 1 }];
+  }
+  let custo = 0, sem = false;
+  partes.forEach(p => {
+    const c = CUSTO_VENDA_EPA[p.t] || CUSTO_VENDA_EPA[dhTipoProduto(p.t)];
+    if (c) custo += c.custo * p.q; else sem = true;
+  });
+  return { custo, sem };
+}
+
+function dhAgregar(regs, canal, faixa) {
+  const sel = regs.filter(r => (canal === 'total' || r.canal === canal) && r.data >= faixa[0] && r.data <= faixa[1]);
+  const ag = { venda: 0, custo: 0, pedidos: sel.length, porDia: {}, porCanal: {}, semCusto: 0 };
+  sel.forEach(r => {
+    const c = dhCustoRegistro(r);
+    ag.venda += r.bruto;
+    ag.custo += r.taxas + c.custo;
+    if (c.sem) ag.semCusto++;
+    ag.porDia[r.data] = (ag.porDia[r.data] || 0) + r.bruto;
+    ag.porCanal[r.canal] = (ag.porCanal[r.canal] || 0) + r.bruto;
+  });
+  ag.margem = ag.venda - ag.custo;
+  ag.taxaMargem = ag.venda ? ag.margem / ag.venda * 100 : 0;
+  ag.ticket = ag.pedidos ? ag.venda / ag.pedidos : 0;
+  return ag;
+}
+
+function dhDelta(cur, prev, rotulo, pp) {
+  if (pp) {
+    const d = cur - prev;
+    const cls = d > 0.05 ? 'dh-up' : d < -0.05 ? 'dh-down' : 'dh-neutro';
+    return `<span class="${cls}">${d >= 0 ? '↗ +' : '↘ '}${dhPct(d)} p.p.</span> vs. ${rotulo}`;
+  }
+  if (!prev) return `<span class="dh-neutro">sem base de comparação</span> (${rotulo})`;
+  const d = (cur - prev) / prev * 100;
+  const cls = d > 0.05 ? 'dh-up' : d < -0.05 ? 'dh-down' : 'dh-neutro';
+  return `<span class="${cls}">${d >= 0 ? '↗ +' : '↘ '}${dhPct(d)}%</span> vs. ${rotulo}`;
+}
+
+function dhCard(label, valor, delta) {
+  return `<div class="dh-kpi"><div class="l">${label}</div><div class="v">${valor}</div><div class="d">${delta}</div></div>`;
+}
+
+async function dhVisitas(de, ate) {
+  const k = de + '|' + ate;
+  const c = _dh.visitas[k];
+  if (c && Date.now() - c.t < 5 * 60 * 1000) return c.v;
+  let v = null;
+  try {
+    const r = await fetch('/.netlify/functions/ml-visitas?de=' + de + '&ate=' + ate);
+    if (r.ok) {
+      const d = await r.json();
+      v = (d.results || []).filter(x => x.date.slice(0, 10) >= de && x.date.slice(0, 10) <= ate).reduce((a, x) => a + x.total, 0);
+    }
+  } catch (e) { v = null; }
+  _dh.visitas[k] = { v, t: Date.now() };
+  return v;
+}
+
+function dhNice(m) {
+  const p = Math.pow(10, Math.floor(Math.log10(m)));
+  const f = m / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+
+function dhChartVendas(cur, prev, aC, aP, rotCur, rotPrev) {
+  const dias = [];
+  for (let d = cur[0]; d <= cur[1] && dias.length < 93; d = dhAdd(d, 1)) dias.push(d);
+  const n = dias.length;
+  const vC = dias.map(d => aC.porDia[d] || 0);
+  const vP = dias.map((d, i) => aP.porDia[dhAdd(prev[0], i)] || 0);
+  const top = dhNice(Math.max(1, ...vC, ...vP));
+  const W = 1000, H = 250, pL = 46, pB = 22, pT = 8, pR = 6;
+  const pw = W - pL - pR, ph = H - pB - pT, slot = pw / n, bw = Math.min(22, slot * 0.38);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">`;
+  for (let g = 0; g <= 4; g++) {
+    const y = pT + ph - ph * g / 4;
+    svg += `<line x1="${pL}" x2="${W - pR}" y1="${y}" y2="${y}" stroke="#2a2a2a" stroke-dasharray="3 4"/>`;
+    svg += `<text x="${pL - 6}" y="${y + 3}" fill="#888" font-size="10" text-anchor="end">${Math.round(top * g / 4)}</text>`;
+  }
+  const passo = Math.ceil(n / 16);
+  dias.forEach((d, i) => {
+    const cx = pL + slot * i + slot / 2;
+    const hP = ph * vP[i] / top, hC = ph * vC[i] / top;
+    svg += `<rect x="${cx - bw - 1}" y="${pT + ph - hP}" width="${bw}" height="${hP}" rx="2" fill="#4a4a4a"><title>${dhDM(dhAdd(prev[0], i))}: ${fmt(vP[i])}</title></rect>`;
+    svg += `<rect x="${cx + 1}" y="${pT + ph - hC}" width="${bw}" height="${hC}" rx="2" fill="#e8503a"><title>${dhDM(d)}: ${fmt(vC[i])}</title></rect>`;
+    if (i % passo === 0) svg += `<text x="${cx}" y="${H - 6}" fill="#888" font-size="10" text-anchor="middle">${dhDM(d)}</text>`;
+  });
+  svg += '</svg>';
+  return `<h4>Vendas</h4><p>${rotCur} vs. ${rotPrev}</p>
+    <div class="dh-leg"><span><i style="background:#e8503a"></i>Período atual</span><span><i style="background:#4a4a4a"></i>Período anterior</span></div>${svg}`;
+}
+
+function dhDonut(aC) {
+  const ent = Object.entries(aC.porCanal).filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]);
+  const tot = ent.reduce((a, e) => a + e[1], 0);
+  const cabec = '<h4>Vendas por canal</h4><p>Participação de cada canal no faturamento</p>';
+  if (!tot) return cabec + '<div style="color:#888;font-size:12px;padding:30px 0;text-align:center">Sem vendas no período</div>';
+  const r = 60, C = 2 * Math.PI * r;
+  let off = 0, arcos = '', leg = '';
+  ent.forEach(e => {
+    const info = DH_CANAIS.find(c => c.id === e[0]) || { nome: e[0], cor: '#888' };
+    const len = C * e[1] / tot;
+    arcos += `<circle cx="80" cy="80" r="${r}" fill="none" stroke="${info.cor}" stroke-width="22" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)"/>`;
+    off += len;
+    leg += `<li><i style="width:9px;height:9px;border-radius:50%;background:${info.cor};display:inline-block"></i>${info.nome}<b>${fmt(e[1])} (${Math.round(e[1] / tot * 100)}%)</b></li>`;
+  });
+  return `${cabec}<div class="dh-donut"><svg width="160" height="160" viewBox="0 0 160 160">${arcos}</svg><ul>${leg}</ul></div>`;
+}
+
+function dhSetCanal(id) { _dh.canal = id; renderDashHero(); }
+
+function renderDashHero() {
+  const raiz = document.getElementById('dashHero');
+  if (!raiz) return;
+  if (!_dh.iniciado) {
+    _dh.iniciado = true;
+    document.getElementById('dhPeriodos').addEventListener('click', ev => {
+      const b = ev.target.closest('.dh-pbtn');
+      if (!b) return;
+      _dh.periodo = b.dataset.p;
+      if (_dh.periodo === 'custom') {
+        const h = hoje();
+        if (!document.getElementById('dhDe').value) document.getElementById('dhDe').value = h.slice(0, 8) + '01';
+        if (!document.getElementById('dhAte').value) document.getElementById('dhAte').value = h;
+      }
+      renderDashHero();
+    });
+    document.getElementById('dhDe').addEventListener('change', renderDashHero);
+    document.getElementById('dhAte').addEventListener('change', renderDashHero);
+  }
+
+  document.querySelectorAll('#dhPeriodos .dh-pbtn').forEach(b => b.classList.toggle('ativo', b.dataset.p === _dh.periodo));
+  document.getElementById('dhCustom').hidden = _dh.periodo !== 'custom';
+
+  const regs = dhRegistros();
+  const temVenda = id => regs.some(r => r.canal === id);
+  const habilitado = id => id === 'total' || id === 'ml' || id === 'shopify' || id === 'vendedora' || temVenda(id);
+  if (!habilitado(_dh.canal)) _dh.canal = 'total';
+
+  document.getElementById('dhCanais').innerHTML = DH_CANAIS.map(c => {
+    const ok = habilitado(c.id);
+    return `<button class="dh-canal ${c.id === _dh.canal ? 'ativo' : ''}" ${ok ? `onclick="dhSetCanal('${c.id}')"` : 'disabled'}>
+      <span class="dh-dot" style="background:${c.cor}"></span>${c.nome}${ok ? '' : '<span class="dh-breve">em breve</span>'}</button>`;
+  }).join('');
+  const conectados = DH_CANAIS.filter(c => c.id !== 'total' && temVenda(c.id)).map(c => c.nome);
+  document.getElementById('dhNota').textContent = conectados.length
+    ? 'Canais com venda: ' + conectados.join(', ') + '. Total soma todos.' : 'Nenhuma venda registrada ainda.';
+
+  const { cur, prev } = dhPeriodos();
+  const rotCur = dhDM(cur[0]) + ' a ' + dhDM(cur[1]);
+  const rotPrev = dhDM(prev[0]) + ' a ' + dhDM(prev[1]);
+  const aC = dhAgregar(regs, _dh.canal, cur), aP = dhAgregar(regs, _dh.canal, prev);
+
+  document.getElementById('dhKpi1').innerHTML =
+    dhCard('Venda Total', fmt(aC.venda), dhDelta(aC.venda, aP.venda, rotPrev)) +
+    dhCard('Custo Total da Venda', fmt(aC.custo), dhDelta(aC.custo, aP.custo, rotPrev)) +
+    dhCard('Margem de Contribuição', fmt(aC.margem), dhDelta(aC.margem, aP.margem, rotPrev)) +
+    dhCard('Taxa de Margem de Contribuição', dhPct(aC.taxaMargem) + '%', dhDelta(aC.taxaMargem, aP.taxaMargem, rotPrev, true));
+
+  const usaVisitas = _dh.canal === 'total' || _dh.canal === 'ml';
+  const kpi2 = (visHtml, convHtml) =>
+    dhCard('Pedidos', aC.pedidos, dhDelta(aC.pedidos, aP.pedidos, rotPrev)) +
+    dhCard('Ticket Médio', fmt(aC.ticket), dhDelta(aC.ticket, aP.ticket, rotPrev)) + visHtml + convHtml;
+  const semDado = '<span class="dh-neutro">sem dados de visitas neste canal</span>';
+  document.getElementById('dhKpi2').innerHTML = kpi2(
+    dhCard('Visitas', usaVisitas ? '…' : '—', usaVisitas ? '<span class="dh-neutro">carregando…</span>' : semDado),
+    dhCard('Taxa de Conversão', usaVisitas ? '…' : '—', usaVisitas ? '<span class="dh-neutro">carregando…</span>' : semDado));
+
+  document.getElementById('dhVendas').innerHTML = dhChartVendas(cur, prev, aC, aP, rotCur, rotPrev);
+  document.getElementById('dhDonut').innerHTML = dhDonut(aC);
+
+  if (usaVisitas) {
+    const chave = _dh.periodo + _dh.canal + cur.join() + prev.join();
+    _dh.ultimaChave = chave;
+    Promise.all([dhVisitas(cur[0], cur[1]), dhVisitas(prev[0], prev[1])]).then(([vC, vP]) => {
+      if (_dh.ultimaChave !== chave) return; // usuário já mudou de período/canal
+      const nota = _dh.canal === 'total' ? ' <span class="dh-neutro">(só ML)</span>' : '';
+      const pedML = dhAgregar(regs, 'ml', cur).pedidos, pedMLp = dhAgregar(regs, 'ml', prev).pedidos;
+      let visHtml, convHtml;
+      if (vC == null) {
+        visHtml = dhCard('Visitas', '—', '<span class="dh-neutro">não foi possível ler as visitas</span>');
+        convHtml = dhCard('Taxa de Conversão', '—', '<span class="dh-neutro">sem visitas</span>');
+      } else {
+        const convC = vC ? pedML / vC * 100 : 0, convP = vP ? pedMLp / vP * 100 : 0;
+        visHtml = dhCard('Visitas', vC.toLocaleString('pt-BR'), dhDelta(vC, vP || 0, rotPrev) + nota);
+        convHtml = dhCard('Taxa de Conversão', dhPct(convC) + '%', dhDelta(convC, convP, rotPrev, true) + nota);
+      }
+      document.getElementById('dhKpi2').innerHTML = kpi2(visHtml, convHtml);
+    });
+  }
 }
 
 function renderChannels(rVO, rML, rSH, rSF, total) {
