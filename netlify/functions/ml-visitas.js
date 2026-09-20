@@ -41,7 +41,8 @@ exports.handler = async function(event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   try {
     const p = event.queryStringParameters || {};
-    if (!/^d{4}-d{2}-d{2}$/.test(p.de || '') || !/^d{4}-d{2}-d{2}$/.test(p.ate || '')) {
+    const dataOk = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+    if (!dataOk(p.de) || !dataOk(p.ate)) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'de e ate (YYYY-MM-DD) obrigatórios' }) };
     }
     const accessToken = await obterTokenML();
