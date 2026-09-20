@@ -2434,9 +2434,11 @@ async function sincronizarPedidosML() {
     // 2. Buscar todos os IDs já existentes no Supabase
     let pedidosExistentes = [];
     try {
-      pedidosExistentes = await sbGetAll('pedidos_ml', 'select=pedido');
+      pedidosExistentes = await sbGetAll('pedidos_ml', 'select=id,pedido,produto,qtd,bruto,taxa_venda,taxa_frete');
     } catch(e) { pedidosExistentes = dados.pedidosML || []; }
     const jaExistentes = new Set(pedidosExistentes.map(p => String(p.pedido)));
+    const existentePorPedido = {};
+    pedidosExistentes.forEach(p => { existentePorPedido[String(p.pedido)] = p; });
     console.log('Pedidos já no histórico:', jaExistentes.size);
 
     // 3. Paginar para buscar TODOS os pedidos do ML
@@ -2452,12 +2454,34 @@ async function sincronizarPedidosML() {
     }
     console.log('Total pedidos no ML:', todasOrders.length);
 
+    // 3b. Corrige pedidos multi-item já gravados só com o 1º item (produto,
+    //     quantidade E taxa de venda — a taxa também só contava o 1º item)
+    let corrigidosML = 0;
+    for (const o of todasOrders) {
+      const ex = existentePorPedido[String(o.id)];
+      const itens = o.order_items || [];
+      if (!ex || itens.length < 2) continue;
+      const r = resumirItensPedido(itens.map(i => ({ titulo: i.item.title, qtd: i.quantity })));
+      const taxaVenda = itens.reduce((a, i) => a + (i.sale_fee || 0), 0);
+      if (ex.produto === r.produto && ex.qtd === r.qtd && Math.abs((ex.taxa_venda || 0) - taxaVenda) < 0.01) continue;
+      const frete = ex.taxa_frete === -1 ? 0 : (ex.taxa_frete || 0);
+      const taxa = taxaVenda + frete;
+      const liquido = (ex.bruto || 0) - taxa;
+      try {
+        await sbPatch('pedidos_ml', 'pedido=eq.' + o.id, { produto: r.produto, qtd: r.qtd, taxa_venda: taxaVenda, taxa, liquido });
+        const local = (dados.pedidosML || []).find(p => String(p.pedido) === String(o.id));
+        if (local) Object.assign(local, { produto: r.produto, qtd: r.qtd, taxaVenda, taxa, liquido });
+        corrigidosML++;
+      } catch (e) { console.warn('Falha ao corrigir pedido ML ' + o.id, e); }
+    }
+
     // 4. Filtrar apenas pedidos novos
     const pedidosNovos = todasOrders.filter(o => !jaExistentes.has(String(o.id)));
     let novos = 0;
 
     if (!pedidosNovos.length) {
-      notify('ML atualizado — nenhum pedido novo.');
+      notify('ML atualizado — nenhum pedido novo.' + (corrigidosML ? ' ' + corrigidosML + ' pedido(s) com vários itens corrigido(s).' : ''));
+      if (corrigidosML) salvar();
       atualizarStatusML(true);
       renderML();
       return;
@@ -2469,11 +2493,12 @@ async function sincronizarPedidosML() {
     for (let i = 0; i < pedidosNovos.length; i++) {
       const order     = pedidosNovos[i];
       const pedidoId  = String(order.id);
-      const item      = order.order_items && order.order_items[0] ? order.order_items[0] : null;
-      const produto   = item ? item.item.title : 'Produto ML';
-      const qtd       = item ? item.quantity : 1;
+      const itens     = order.order_items || [];
+      const resumo    = resumirItensPedido(itens.map(i => ({ titulo: i.item.title, qtd: i.quantity })));
+      const produto   = resumo ? resumo.produto : 'Produto ML';
+      const qtd       = resumo ? resumo.qtd : 1;
       const bruto     = order.total_amount || 0;
-      const taxaVenda = item ? (item.sale_fee || 0) : 0;
+      const taxaVenda = itens.reduce((a, i) => a + (i.sale_fee || 0), 0);
       const taxaFrete = 0; // frete será 0 na importação em lote para não demorar
       const taxa      = taxaVenda + taxaFrete;
       const liquido   = bruto - taxa;
@@ -3322,6 +3347,17 @@ function renderShopify() {
     </tr>`).join('');
 }
 
+// Pedido com vários itens: junta todos ("1x A + 1x B") e soma as quantidades,
+// em vez de guardar só o 1º item. Item único mantém o título puro.
+function resumirItensPedido(itens) {
+  if (!itens.length) return null;
+  if (itens.length === 1) return { produto: itens[0].titulo, qtd: itens[0].qtd };
+  return {
+    produto: itens.map(i => i.qtd + 'x ' + i.titulo).join(' + '),
+    qtd: itens.reduce((a, i) => a + i.qtd, 0)
+  };
+}
+
 async function sincronizarPedidosShopify() {
   const btn = document.getElementById('shopifyStatusBtn');
   const textoOriginal = btn.textContent;
@@ -3331,9 +3367,11 @@ async function sincronizarPedidosShopify() {
     // 1. Buscar pedidos já existentes no Supabase (dedupe por id do pedido Shopify)
     let pedidosExistentes = [];
     try {
-      pedidosExistentes = await sbGetAll('pedidos_shopify', 'select=id');
+      pedidosExistentes = await sbGetAll('pedidos_shopify', 'select=id,produto,qtd');
     } catch(e) { pedidosExistentes = dados.pedidosShopify || []; }
     const jaExistentes = new Set(pedidosExistentes.map(p => String(p.id)));
+    const existentePorId = {};
+    pedidosExistentes.forEach(p => { existentePorId[String(p.id)] = p; });
 
     // 2. Paginar por cursor (a function do Netlify já extrai o next_page_info do header Link)
     let todasOrders = [];
@@ -3357,21 +3395,36 @@ async function sincronizarPedidosShopify() {
     const STATUS_PAGO = ['paid', 'partially_refunded', 'refunded'];
     const pedidosPagos = todasOrders.filter(o => STATUS_PAGO.includes(o.financial_status));
 
+    // 3b. Corrige pedidos multi-item já gravados só com o 1º item (bug antigo,
+    //     achado em 20/09/2026 no #1154: Princesinhas + Toy Story virou só Princesinhas)
+    let corrigidos = 0;
+    for (const o of pedidosPagos) {
+      const ex = existentePorId[String(o.id)];
+      if (!ex || (o.line_items || []).length < 2) continue;
+      const r = resumirItensPedido(o.line_items.map(i => ({ titulo: i.title, qtd: i.quantity })));
+      if (ex.produto === r.produto && ex.qtd === r.qtd) continue;
+      try {
+        await sbPatch('pedidos_shopify', 'id=eq.' + o.id, { produto: r.produto, qtd: r.qtd });
+        const local = (dados.pedidosShopify || []).find(p => String(p.id) === String(o.id));
+        if (local) { local.produto = r.produto; local.qtd = r.qtd; }
+        corrigidos++;
+      } catch (e) { console.warn('Falha ao corrigir pedido Shopify ' + o.name, e); }
+    }
+
     // 4. Filtrar só os novos
     const pedidosNovos = pedidosPagos.filter(o => !jaExistentes.has(String(o.id)));
     if (!pedidosNovos.length) {
-      notify('Shopify atualizado — nenhum pedido pago novo.');
+      notify('Shopify atualizado — nenhum pedido pago novo.' + (corrigidos ? ' ' + corrigidos + ' pedido(s) com vários itens corrigido(s).' : ''));
       renderShopify();
       return;
     }
     notify('🔄 Salvando ' + pedidosNovos.length + ' pedido(s) novo(s)...');
 
-    // 5. Mapear pro formato da tabela (mesma simplificação do ML: só o 1º item do pedido —
-    //    pedido com múltiplos produtos guarda só o primeiro, limitação conhecida)
+    // 5. Mapear pro formato da tabela (todos os itens do pedido juntos)
     const lote = pedidosNovos.map(o => {
-      const item    = o.line_items && o.line_items[0] ? o.line_items[0] : null;
-      const produto = item ? item.title : 'Produto Shopify';
-      const qtd     = item ? item.quantity : 1;
+      const resumo  = resumirItensPedido((o.line_items || []).map(i => ({ titulo: i.title, qtd: i.quantity })));
+      const produto = resumo ? resumo.produto : 'Produto Shopify';
+      const qtd     = resumo ? resumo.qtd : 1;
       const bruto   = parseFloat(o.total_price || 0);
       const liquido = bruto; // Shopify não retorna taxa de gateway direto no pedido — ajustar depois se precisar
       const data    = o.created_at ? dataBR(o.created_at) : hoje();
@@ -3393,7 +3446,7 @@ async function sincronizarPedidosShopify() {
     }
 
     dados.pedidosShopify = (dados.pedidosShopify || []).concat(lote);
-    notify('✅ ' + lote.length + ' pedido(s) Shopify sincronizado(s)!');
+    notify('✅ ' + lote.length + ' pedido(s) Shopify sincronizado(s)!' + (corrigidos ? ' ' + corrigidos + ' com vários itens corrigido(s).' : ''));
     atualizarTudo();
   } catch(e) {
     console.error(e);
