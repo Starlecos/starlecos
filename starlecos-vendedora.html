@@ -234,32 +234,6 @@
         <label>Selecione o produto para editar as estampas</label>
         <select id="modalProdutoSelect" onchange="renderEstampasModal()">
           <option value="">— Escolha um produto —</option>
-          <optgroup label="🥼 Jalecos Femininos">
-            <option>Jaleco Estampado Feminino</option>
-            <option>Jaleco Liso Feminino</option>
-            <option>Jaleco Estampado Feminino Botões</option>
-            <option>Jaleco S/Manga Feminino</option>
-          </optgroup>
-          <optgroup label="🥼 Jalecos Masculinos">
-            <option>Jaleco Estampado Masculino</option>
-            <option>Jaleco Liso Masculino</option>
-          </optgroup>
-          <optgroup label="👖 Calças">
-            <option>Calça Feminino</option>
-            <option>Calça Masculino</option>
-          </optgroup>
-          <optgroup label="👕 Blusas">
-            <option>Blusa Feminino Liso</option>
-            <option>Blusa Feminino Estampado</option>
-            <option>Blusa Feminino Estampado Manga Princesa</option>
-            <option>Blusa Feminino Liso Manga Princesa</option>
-            <option>Blusa Masculino Liso</option>
-            <option>Blusa Masculino Estampado</option>
-          </optgroup>
-          <optgroup label="✨ Acessórios">
-            <option>Faixa de Cabelo</option>
-            <option>Touca</option>
-          </optgroup>
         </select>
       </div>
       <div class="tags-panel" id="estampasPanel"><div class="tags-panel-empty">Selecione um produto acima.</div></div>
@@ -498,21 +472,36 @@ async function sbDelete(table, filter) {
 // =============================================
 // PRODUTOS
 // =============================================
-const PRODUTOS = [
-  { group:'🥼 Jalecos Femininos', items:['Jaleco Estampado Feminino','Jaleco Liso Feminino','Jaleco Estampado Feminino Botões','Jaleco S/Manga Feminino'] },
-  { group:'🥼 Jalecos Masculinos', items:['Jaleco Estampado Masculino','Jaleco Liso Masculino'] },
-  { group:'👖 Calças', items:['Calça Feminino','Calça Masculino'] },
-  { group:'👕 Blusas', items:['Blusa Feminino Liso','Blusa Feminino Estampado','Blusa Feminino Estampado Manga Princesa','Blusa Feminino Liso Manga Princesa','Blusa Masculino Liso','Blusa Masculino Estampado'] },
-  { group:'✨ Acessórios', items:['Faixa de Cabelo','Touca'] }
-];
+// Catálogo de produtos — vem do Supabase (tabela produtos_epa), cadastrado
+// pela tela no Financeiro ("🆕 Cadastrar Produto Novo", aba Estoque
+// Produto Acabado). Antes era lista fixa aqui (e em mais 3 lugares) —
+// produto novo exigia deploy de código pra aparecer nas Vendas (achado
+// real em 07/09/2026, README item 38).
+var _produtosVendedora = [];
 
-function buildSelectOptions() {
-  var opts = '<option value="">— Produto —</option>';
-  PRODUTOS.forEach(function(g) {
-    opts += '<optgroup label="' + g.group + '">';
-    g.items.forEach(function(p) { opts += '<option value="' + p + '">' + p + '</option>'; });
-    opts += '</optgroup>';
+async function carregarProdutosVendedora() {
+  try { _produtosVendedora = await sbGet('produtos_epa', 'select=produto,categoria,ordem&order=ordem.asc'); }
+  catch (e) { console.error('Erro ao carregar produtos_epa:', e); }
+  var modalSel = document.getElementById('modalProdutoSelect');
+  if (modalSel) {
+    var atualModal = modalSel.value;
+    modalSel.innerHTML = buildSelectOptions('— Escolha um produto —');
+    if (atualModal) modalSel.value = atualModal;
+  }
+}
+
+function buildSelectOptions(rotuloVazio) {
+  var opts = '<option value="">' + (rotuloVazio || '— Produto —') + '</option>';
+  var catAtual = null;
+  _produtosVendedora.forEach(function(p) {
+    if (p.categoria !== catAtual) {
+      if (catAtual !== null) opts += '</optgroup>';
+      opts += '<optgroup label="' + p.categoria + '">';
+      catAtual = p.categoria;
+    }
+    opts += '<option value="' + p.produto + '">' + p.produto + '</option>';
   });
+  if (catAtual !== null) opts += '</optgroup>';
   return opts;
 }
 
@@ -1082,9 +1071,9 @@ async function exportarExcel() {
 // =============================================
 async function init() {
   document.getElementById('vo_data').value = hoje();
-  document.getElementById('eq_filtro_produto').innerHTML = buildSelectOptions();
   try {
-    await Promise.all([carregarVendedores(), carregarEstampas(), carregarEstoqueProdutos()]);
+    await Promise.all([carregarVendedores(), carregarEstampas(), carregarEstoqueProdutos(), carregarProdutosVendedora()]);
+    document.getElementById('eq_filtro_produto').innerHTML = buildSelectOptions();
     setConn('ok');
     await renderHistorico();
     renderResumoChips();
