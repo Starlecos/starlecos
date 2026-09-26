@@ -1936,6 +1936,10 @@
         </div>
       </div>
       <button class="btn-add jade" onclick="cadastrarProdutoEpa()">＋ Cadastrar Produto</button>
+      <div style="margin-top:16px">
+        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:8px">Produtos cadastrados (clique no ✕ pra remover)</label>
+        <div id="epaListaProdutos" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
     </div>
 
     <div class="table-card" style="margin-bottom:20px">
@@ -2756,6 +2760,7 @@ async function carregarVendasOnline() {
     _produtosEpaLista = produtosEpa;
     atualizarSeletoresProdutoEPA();
     renderCategoriaOptionsEPA();
+    renderListaProdutosEPA();
     if (statusEl) { statusEl.textContent = '🟢 Online'; statusEl.style.color = 'var(--jade)'; }
     atualizarTudo();
     renderGraficoVO();
@@ -4744,6 +4749,42 @@ async function carregarProdutosEpa() {
   catch (e) { console.error('Erro ao carregar produtos_epa:', e); }
   atualizarSeletoresProdutoEPA();
   renderCategoriaOptionsEPA();
+  renderListaProdutosEPA();
+}
+
+function renderListaProdutosEPA() {
+  const el = document.getElementById('epaListaProdutos');
+  if (!el) return;
+  if (!_produtosEpaLista.length) { el.innerHTML = '<span style="font-size:12px;color:var(--muted)">Nenhum produto cadastrado.</span>'; return; }
+  el.innerHTML = _produtosEpaLista.map(p => `
+    <span style="display:inline-flex;align-items:center;gap:6px;background:#FAFBFD;border:1px solid var(--border);border-radius:20px;padding:5px 6px 5px 12px;font-size:12px" title="${p.categoria}">
+      ${p.produto}
+      <button onclick="removerProdutoEpa('${p.produto.replace(/'/g, "\\'")}')" style="border:none;background:var(--rose-light);color:var(--rose);border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:12px;line-height:1;flex:0 0 20px">✕</button>
+    </span>`).join('');
+}
+
+// Não apaga SKU nenhum de estoque_produtos (produto lá é só texto copiado
+// na hora do cadastro do SKU, não é referência de verdade) — mas avisa se
+// já existir SKU com esse produto, porque ele deixa de aparecer nos
+// seletores (Financeiro/Vendedora) pra escolher em SKU/venda novos.
+async function removerProdutoEpa(nome) {
+  try {
+    let temSku = false;
+    try {
+      const skus = await sbGet('estoque_produtos', 'select=sku&produto=eq.' + encodeURIComponent(nome) + '&limit=1');
+      temSku = skus.length > 0;
+    } catch (e) { /* se a checagem falhar, segue com o aviso genérico */ }
+    const aviso = temSku
+      ? `O produto "${nome}" já tem SKU cadastrado no estoque. Remover NÃO apaga os SKUs existentes, mas eles somem dos seletores de produto (Financeiro e Vendedora) até você cadastrar "${nome}" de novo. Remover mesmo assim?`
+      : `Remover o produto "${nome}"?`;
+    if (!confirm(aviso)) return;
+    await sbDelete('produtos_epa', 'produto=eq.' + encodeURIComponent(nome));
+    await carregarProdutosEpa();
+    notify('Produto removido.');
+  } catch (e) {
+    console.error(e);
+    notify('Erro ao remover produto', 'err');
+  }
 }
 
 function custoVendaProdutoEPA(nome) {
