@@ -3933,11 +3933,19 @@ function renderQuadroCampanhas(de, ate) {
     let acaoTexto = '—';
     if (r.acoes.length) {
       analiseTexto = r.acoes.map(a => a.motivo).filter(Boolean).join('<br><br>') || '—';
+      // Data da análise mais recente — deixa visível quando está defasada
+      const maisRecente = r.acoes.map(a => a.criado_em).filter(Boolean).sort().pop();
+      if (maisRecente) analiseTexto += `<br><span style="color:var(--muted);font-size:11px">Análise de ${new Date(maisRecente).toLocaleDateString('pt-BR')}</span>`;
       acaoTexto = r.acoes.map(a => {
         const de_ = a.valor_atual != null ? a.valor_atual : '—';
         const para = a.valor_novo != null ? a.valor_novo : '—';
         return `${tipoLabel[a.tipo] || a.tipo}: ${de_} → ${para}`;
       }).join('<br>');
+    } else {
+      // Toda recomendação exibida aqui tem que vir do starlecos-mercadoads
+      // (framework oficial) — sem heurística de fallback. Sem ação = ainda
+      // não foi analisada, e o status diz isso em vez de inventar número.
+      analiseTexto = acaoTexto = '<span style="color:var(--muted)">⏳ Sem análise do agente ainda</span>';
     }
     return `<tr>
       <td style="font-weight:600">${r.nome}</td>
