@@ -5710,10 +5710,16 @@ function renderTabelaPromocoes() {
 
   tbody.innerHTML = lista.map(p => {
     const info = statusInfo[p.status] || { label: p.status, cor: 'var(--muted)' };
-    const acoes = p.status === 'pendente'
-      ? `<button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="aprovarPromocao(${p.id})">✓ Aprovar</button>
-         <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="recusarPromocao(${p.id})">✕ Recusar</button>`
-      : (p.status === 'erro' ? `<span style="font-size:11px;color:var(--rose)" title="${p.erro_msg || ''}">${(p.erro_msg || '').slice(0, 60)}</span>` : '—');
+    // "Recusado" não é definitivo — o Enzo pode mudar de ideia depois, então
+    // sempre pode aprovar de novo. "Erro" mostra o motivo, mas também dá
+    // pra tentar aprovar de novo embaixo (útil pra erro transitório do ML).
+    const botaoAprovar = `<button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="aprovarPromocao(${p.id})">✓ Aprovar</button>`;
+    const botaoRecusar = `<button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="recusarPromocao(${p.id})">✕ Recusar</button>`;
+    let acoes;
+    if (p.status === 'pendente') acoes = botaoAprovar + ' ' + botaoRecusar;
+    else if (p.status === 'recusado') acoes = botaoAprovar;
+    else if (p.status === 'erro') acoes = `<span style="font-size:11px;color:var(--rose)" title="${p.erro_msg || ''}">${(p.erro_msg || '').slice(0, 60)}</span><br>${botaoAprovar}`;
+    else acoes = '—'; // aplicado: já foi, nada a fazer
 
     return `<tr>
       <td style="display:flex;align-items:center;gap:8px">
@@ -5738,7 +5744,15 @@ async function aprovarPromocao(id) {
   const item = _promocoesLista.find(p => p.id === id);
   if (!item) return;
   if (!/^MLB\d+$/.test(item.item_id)) {
-    notify('⚠️ Registro de formato antigo (raspagem descontinuada) — recuse e deixe a busca nova recriar.', 'err');
+    // "family" = promoção de evento (ex: "9.9"/"10.10" agrupado) que o ML
+    // não expõe com anúncio único — sem o payload real do endpoint de
+    // aplicação em massa (nunca capturado, ver diário 07/09/2026), não dá
+    // pra aplicar automático. Registro de formato antigo (Tampermonkey,
+    // antes da API oficial) é um caso diferente, mas cai na mesma trava.
+    const msg = item.promo_type === 'family'
+      ? '⚠️ Promoção agrupada (evento tipo "10.10" com vários tamanhos) — participar automático ainda não existe, só direto pelo painel do ML.'
+      : '⚠️ Registro de formato antigo (raspagem descontinuada) — recuse e deixe a busca nova recriar.';
+    notify(msg, 'err');
     return;
   }
   const tipoOficial = PROMO_TYPE_UPPER[item.promo_type] || (item.promo_type || '').toUpperCase();
