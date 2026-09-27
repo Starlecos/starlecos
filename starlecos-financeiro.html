@@ -2024,6 +2024,32 @@
         <tbody id="projTabela"><tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📈</div><p>Carregando...</p></div></td></tr></tbody>
       </table>
     </div>
+
+    <div class="table-card" style="margin-bottom:20px">
+      <div class="table-header">
+        <span class="table-header-title">📏 Metros de tecido a comprar, por estampa/cor</span>
+        <span class="table-total" id="projMetrosTotal">0 m</span>
+      </div>
+      <div style="padding:12px 20px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);background:#FAFBFD">
+        Tamanho não entra nessa conta — soma as peças a comprar de todos os
+        tamanhos de cada estampa/cor e multiplica pelos metros por peça
+        configurados abaixo (ajustável por produto). Faixa de Cabelo, Faixa
+        de Cabelo Metalizada e Touca aparecem na projeção de unidades acima,
+        mas não entram nesse cálculo de metros.
+      </div>
+      <table>
+        <thead>
+          <tr><th>Estampa/Cor</th><th>Produtos</th><th>Peças a comprar</th><th>Metros a comprar</th></tr>
+        </thead>
+        <tbody id="projTabelaMetros"><tr><td colspan="4">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="form-card" style="margin-bottom:20px">
+      <h3>⚙️ Metros de tecido por peça (por produto)</h3>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Ajuste quanto de tecido cada peça de cada produto consome — é isso que alimenta o resumo de metros acima. Produto novo cadastrado no Estoque Produto Acabado já entra aqui com um valor padrão (Jaleco 2m, Jaleco S/Manga 1,5m, Blusa 1m, Calça 1,5m, resto 0m) — só ajustar se precisar.</div>
+      <div id="projParametrosMetros" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
   </div>
 
   <!-- ====== CONTAS PAGAS ====== -->
@@ -4768,6 +4794,7 @@ async function carregarProdutosEpa() {
   atualizarSeletoresProdutoEPA();
   renderCategoriaOptionsEPA();
   renderListaProdutosEPA();
+  renderProjParametrosMetros();
 }
 
 function renderListaProdutosEPA() {
@@ -4808,6 +4835,23 @@ async function removerProdutoEpa(nome) {
 function custoVendaProdutoEPA(nome) {
   const p = _produtosEpaLista.find(x => x.produto === nome);
   return p ? { custo: p.custo, venda: p.venda } : null;
+}
+
+function metrosPorProdutoEPA(nome) {
+  const p = _produtosEpaLista.find(x => x.produto === nome);
+  return p ? (p.metros_tecido || 0) : 0;
+}
+
+// Padrão sugerido pra produto novo (Jaleco 2m / Jaleco S/Manga 1,5m / Blusa
+// 1m / Calça 1,5m / resto 0m — regra do Enzo, 26/09/2026). Sempre editável
+// depois em "⚙️ Metros de tecido por peça" na Projeção de Compras.
+function metrosPadraoPorNome(nome) {
+  const n = normEPA(nome);
+  if (/s\/manga|sem manga/.test(n)) return 1.5;
+  if (n.startsWith('jaleco')) return 2;
+  if (n.startsWith('calça') || n.startsWith('calca')) return 1.5;
+  if (n.startsWith('blusa')) return 1;
+  return 0;
 }
 
 // G1-G4 são estoque à parte, sem variação no anúncio publicado — não contam
@@ -4863,12 +4907,13 @@ async function cadastrarProdutoEpa() {
   if (!produto || !categoria) { notify('Informe o nome do produto e a categoria.', 'err'); return; }
   try {
     const ordem = _produtosEpaLista.reduce((m, p) => Math.max(m, p.ordem || 0), 0) + 1;
-    await sbInsert('produtos_epa', { produto, categoria, custo, venda, ordem });
+    const metros_tecido = metrosPadraoPorNome(produto);
+    await sbInsert('produtos_epa', { produto, categoria, custo, venda, ordem, metros_tecido });
     await carregarProdutosEpa();
     document.getElementById('epaNovoNome').value = '';
     document.getElementById('epaNovoCusto').value = '';
     document.getElementById('epaNovoVenda').value = '';
-    notify('✅ Produto "' + produto + '" cadastrado! Já aparece nos seletores do Financeiro. Abra (ou atualize) a Área da Vendedora pra ele aparecer lá também — se o produto usa estampa/cor, cadastre as estampas dele em "🎨 Estampas".');
+    notify('✅ Produto "' + produto + '" cadastrado! Já aparece nos seletores do Financeiro. Abra (ou atualize) a Área da Vendedora pra ele aparecer lá também — se o produto usa estampa/cor, cadastre as estampas dele em "🎨 Estampas". Metros de tecido por peça já veio com um padrão (' + metros_tecido + 'm) — ajuste em "Metros de tecido por peça" na Projeção de Compras se precisar.');
   } catch (e) {
     console.error(e);
     notify('Erro ao cadastrar — esse nome de produto já existe?', 'err');
@@ -4995,6 +5040,7 @@ let _proj = { skus: [], movs: [], inicioHistorico: null, periodo: 'mes', t: 0, c
 
 async function carregarProjecaoCompras() {
   if (!document.getElementById('proj_filtro_produto').options.length) atualizarSeletoresProdutoEPA();
+  renderProjParametrosMetros();
   if (_proj.movs.length && Date.now() - _proj.t < 5 * 60 * 1000) { renderProjecaoCompras(); return; }
   if (_proj.carregando) return;
   _proj.carregando = true;
@@ -5112,6 +5158,7 @@ function renderProjecaoCompras() {
   });
 
   renderProjResumoCards(linhas, diasCobertos);
+  renderProjResumoMetros(linhas);
 
   if (!linhas.length) {
     corpo.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">✅</div><p>Nenhum SKU precisa de compra nesse filtro.</p></div></td></tr>';
@@ -5164,6 +5211,73 @@ function renderProjResumoCards(linhas, diasCobertos) {
       <div class="sum-value">R$ ${custoTotal.toFixed(2).replace('.', ',')}</div>
       <div class="sum-sub">Pelo custo cadastrado de cada produto</div>
     </div>`;
+}
+
+// Agrupa as peças a comprar (já filtradas/somadas por SKU em
+// renderProjecaoCompras) por estampa/cor, somando todos os tamanhos e
+// convertendo peça→metro pelo parâmetro de cada produto. Produto com metros
+// por peça = 0 (Faixa de Cabelo, Faixa de Cabelo Metalizada, Touca — regra
+// do Enzo, 26/09/2026) fica de fora dessa conta, mesmo que precise comprar
+// unidade (isso continua aparecendo normal na tabela principal acima).
+function renderProjResumoMetros(linhas) {
+  const grupos = {};
+  linhas.forEach(r => {
+    if (r.comprar <= 0) return;
+    const metrosPorPeca = metrosPorProdutoEPA(r.produto);
+    if (metrosPorPeca <= 0) return;
+    const chave = normEPA(r.estampa);
+    if (!grupos[chave]) grupos[chave] = { label: r.estampa || '— Sem estampa/cor —', produtos: new Set(), pecas: 0, metros: 0 };
+    grupos[chave].produtos.add(r.produto);
+    grupos[chave].pecas += r.comprar;
+    grupos[chave].metros += r.comprar * metrosPorPeca;
+  });
+  const linhasGrupo = Object.values(grupos).sort((a, b) => b.metros - a.metros);
+  const totalMetros = linhasGrupo.reduce((a, g) => a + g.metros, 0);
+  document.getElementById('projMetrosTotal').textContent = totalMetros.toFixed(1).replace('.', ',') + ' m';
+
+  const corpo = document.getElementById('projTabelaMetros');
+  if (!linhasGrupo.length) {
+    corpo.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="empty-icon">✅</div><p>Nenhuma estampa/cor precisa de tecido novo nesse filtro.</p></div></td></tr>';
+    return;
+  }
+  corpo.innerHTML = linhasGrupo.map(g => `
+    <tr>
+      <td style="font-weight:600">${g.label}</td>
+      <td style="font-size:12px;color:var(--muted)">${[...g.produtos].join(', ')}</td>
+      <td>${g.pecas} un</td>
+      <td style="font-weight:700;color:var(--rose)">${g.metros.toFixed(1).replace('.', ',')} m</td>
+    </tr>`).join('');
+}
+
+// Lista editável de metros por peça de cada produto (alimenta o resumo
+// acima). Usa o índice no array em vez do nome no id/onclick pra não
+// precisar escapar aspas/barras de nomes como "Jaleco S/Manga Feminino".
+function renderProjParametrosMetros() {
+  const el = document.getElementById('projParametrosMetros');
+  if (!el) return;
+  if (!_produtosEpaLista.length) { el.innerHTML = '<span style="font-size:12px;color:var(--muted)">Carregando produtos...</span>'; return; }
+  el.innerHTML = _produtosEpaLista.map((p, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:13px">${p.produto}</span>
+      <input type="number" id="projMetros_${i}" value="${p.metros_tecido || 0}" min="0" step="0.1" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px">
+      <span style="font-size:12px;color:var(--muted);white-space:nowrap">m/peça</span>
+      <button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="salvarMetrosProdutoEpa(${i})">💾</button>
+    </div>`).join('');
+}
+
+async function salvarMetrosProdutoEpa(idx) {
+  const p = _produtosEpaLista[idx];
+  if (!p) return;
+  const val = parseFloat(document.getElementById('projMetros_' + idx).value) || 0;
+  try {
+    await sbPatch('produtos_epa', 'produto=eq.' + encodeURIComponent(p.produto), { metros_tecido: val });
+    p.metros_tecido = val;
+    notify('✅ "' + p.produto + '" agora usa ' + val + ' m/peça.');
+    renderProjecaoCompras(); // recalcula o resumo de metros com o valor novo
+  } catch (e) {
+    console.error(e);
+    notify('Erro ao salvar', 'err');
+  }
 }
 
 // ====== PROMOÇÕES ML — via API oficial /seller-promotions (ml-promocoes.js) ======
