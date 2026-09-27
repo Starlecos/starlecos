@@ -1681,6 +1681,7 @@
         <span class="table-header-title">Promoções pendentes e histórico</span>
         <span class="table-total" id="totalPromocoesPendentes">0 pendente(s)</span>
       </div>
+      <div id="resumoTiposPromocoes" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px 20px;border-bottom:1px solid var(--border);background:#FAFBFD"></div>
       <div class="form-row" style="grid-template-columns:1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
         <div class="field" style="margin-bottom:0"><label>Tipo de promoção</label>
           <select id="promo_filtro_tipo" onchange="renderTabelaPromocoes()">
@@ -5092,7 +5093,7 @@ function renderConferirCanais(lidos, semLeitura) {
   }
   const linhas = _divergenciasCanais.map(d =>
     '<tr><td style="font-family:monospace;font-size:12px">' + d.sku + '</td>' +
-    '<td style="font-size:12px">' + d.ml_item_id + (d.ml_variation_id ? ' / var ' + d.ml_variation_id : '') + '</td>' +
+    '<td style="font-size:12px">' + d.ml_item_id + (d.ml_variation_id ? ' / var ' + d.ml_variation_id : '') + '<br><span style="color:var(--muted)">' + (d.titulo || '') + '</span></td>' +
     '<td>' + d.interno + '</td><td class="val-neg"><strong>' + d.ml + '</strong></td>' +
     '<td style="font-size:12px">' + (d.status_ml || '—') + '</td></tr>').join('');
   box.innerHTML = '<div class="table-card"><div class="table-header">' +
@@ -5104,7 +5105,7 @@ function renderConferirCanais(lidos, semLeitura) {
 async function corrigirDivergenciasCanais() {
   const btn = document.getElementById('btnCorrigirCanais');
   const skus = [...new Set(_divergenciasCanais.map(d => d.sku))];
-  if (!confirm('Empurrar o estoque interno pro ML/Shopify de ' + skus.length + ' SKU(s)? O estoque interno é a fonte da verdade — o do ML será sobrescrito.')) return;
+  if (!confirm('Empurrar o estoque interno pro ML/Shopify de ' + skus.length + ' SKU(s)? O estoque interno é a fonte da verdade — o do ML será sobrescrito.\n\nConfira antes se o título do anúncio bate com o SKU (cor/estampa/tamanho): se o anúncio estiver ligado ao SKU errado, isso escreve o número errado nele.')) return;
   btn.disabled = true;
   let ok = 0, falhou = [];
   for (let i = 0; i < skus.length; i++) {
@@ -5599,9 +5600,46 @@ function popularFiltroTipoPromocoes() {
   if (tipos.includes(atual)) sel.value = atual;
 }
 
+// Resumo por tipo, sempre com TODOS os tipos já vistos (independe do
+// filtro de status/tipo selecionado na tabela abaixo) — mostra a
+// contagem de pendente/aplicado/recusado/erro de cada um. Clicar num
+// tipo aplica ele no filtro. Sem isso, o Enzo só via os tipos que têm
+// algo "pendente" agora e achava que os outros tinham sumido (achado
+// real 27/09/2026 — "Campanha Tradicional" tinha 390 aplicadas e ficava
+// invisível, porque nenhuma estava mais pendente).
+function renderResumoTiposPromocoes() {
+  const box = document.getElementById('resumoTiposPromocoes');
+  if (!_promocoesLista.length) { box.innerHTML = ''; return; }
+  const porTipo = {};
+  _promocoesLista.forEach(p => {
+    const t = p.promo_type || '—';
+    if (!porTipo[t]) porTipo[t] = { pendente: 0, aplicado: 0, recusado: 0, erro: 0, total: 0 };
+    porTipo[t][p.status] = (porTipo[t][p.status] || 0) + 1;
+    porTipo[t].total++;
+  });
+  const filtroAtual = document.getElementById('promo_filtro_tipo').value;
+  box.innerHTML = Object.entries(porTipo)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([tipo, c]) => {
+      const ativo = tipo === filtroAtual;
+      const partes = [
+        c.pendente ? `<strong style="color:var(--amber)">${c.pendente} pendente</strong>` : null,
+        c.aplicado ? `${c.aplicado} aplicado` : null,
+        c.recusado ? `${c.recusado} recusado` : null,
+        c.erro ? `<span style="color:var(--rose)">${c.erro} erro</span>` : null
+      ].filter(Boolean).join(' · ');
+      return `<button onclick="document.getElementById('promo_filtro_tipo').value='${tipo}';renderTabelaPromocoes()"
+        style="cursor:pointer;text-align:left;border:1.5px solid ${ativo ? 'var(--jade)' : 'var(--border)'};border-radius:8px;padding:8px 12px;background:#fff;font-family:Inter,sans-serif">
+        <div style="font-size:12px;font-weight:700">${PROMO_TYPE_LABEL[tipo] || tipo} <span style="color:var(--muted);font-weight:400">(${c.total})</span></div>
+        <div style="font-size:11px;color:var(--muted)">${partes || 'nenhum ainda'}</div>
+      </button>`;
+    }).join('');
+}
+
 function renderTabelaPromocoes() {
   const tbody = document.getElementById('bodyPromocoesML');
   popularFiltroTipoPromocoes();
+  renderResumoTiposPromocoes();
   const pendentes = _promocoesLista.filter(p => p.status === 'pendente').length;
   document.getElementById('totalPromocoesPendentes').textContent = pendentes + ' pendente(s)';
 
