@@ -5519,10 +5519,23 @@ async function sincronizarPromocoesML() {
         const entradas = promos.filter(p => p.type === tipoOficial);
         let match = null;
         if (row.promotion_id && !row.promotion_id.startsWith('NOID-')) {
+          // Tipo com id próprio (DEAL, SELLER_COUPON_CAMPAIGN...) pode ter
+          // VÁRIAS campanhas distintas ativas no mesmo item ao mesmo tempo
+          // (ex: "10.10" e "Vem fazer Compritta" são duas linhas DEAL
+          // diferentes) — só casa com a MESMA campanha (id/ref_id igual),
+          // nunca com "qualquer uma decidida desse tipo". Achado real
+          // (27/09/2026): a versão antiga tinha um fallback frouxo que
+          // marcava "10.10" como aplicado só porque "Compritta" (outra
+          // campanha DEAL do mesmo item) já estava ativa — falso positivo.
           const base = idBasePromocao(row.promotion_id);
           match = entradas.find(p => (p.id === base || p.ref_id === base) && p.status !== 'candidate');
+        } else {
+          // Sem id próprio (LIGHTNING/PRICE_DISCOUNT — a doc oficial não
+          // devolve um identificador que distinga a candidatura específica
+          // desse item), só existe uma oferta relevante por vez desse tipo
+          // pro item, então "qualquer uma decidida" é seguro aqui.
+          match = entradas.find(p => p.status !== 'candidate');
         }
-        if (!match) match = entradas.find(p => p.status !== 'candidate');
         if (match) {
           await sbPatch('ml_promocoes', 'id=eq.' + row.id, {
             status: 'aplicado', decidido_em: new Date().toISOString(), aplicado_em: new Date().toISOString(),
