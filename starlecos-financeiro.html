@@ -1087,6 +1087,7 @@
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
     <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
     <button class="tab-btn" onclick="showTab('estoqueProdutoAcabado');carregarResumoEstoqueProdutoAcabado()">🏷️ Estoque Produto Acabado</button>
+    <button class="tab-btn" onclick="showTab('projecaoCompras');carregarProjecaoCompras()">📈 Projeção de Compras</button>
     <button class="tab-btn" onclick="showTab('calendario')">📅 Calendário</button>
     <button class="tab-btn" onclick="showTab('mpPagamentos');carregarMPPagamentos()">💸 MP Pagamentos</button>
   </div>
@@ -1959,6 +1960,68 @@
       <table>
         <thead><tr><th>SKU</th><th>Produto</th><th>Tamanho</th><th>Estampa</th><th>Quantidade</th></tr></thead>
         <tbody id="epaTabelaBaixo"><tr><td colspan="5"><div class="empty-state"><div class="empty-icon">⏳</div><p>Carregando...</p></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== PROJEÇÃO DE COMPRAS ====== -->
+  <div class="tab-panel" id="panel-projecaoCompras">
+    <div class="section-header">
+      <div class="section-title">📈 Projeção de Compras <span class="section-badge">Estoque necessário pros próximos 60 dias</span></div>
+    </div>
+    <div style="background:var(--sky-light);border:1px solid #A9CBEA;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#0F4A80">
+      ℹ️ Calcula a média de venda diária por SKU no período escolhido abaixo e projeta quanto de estoque você precisa pra cobrir os <strong>próximos 60 dias</strong> de demanda. A venda vem do histórico real de estoque (<code>estoque_movimentos</code>) — só existe a partir de <strong id="projInicioHistorico">—</strong>; período que for além disso usa só os dias com dado real pra calcular a média (não inventa venda de antes do histórico existir).
+    </div>
+
+    <div class="summary-grid" id="projResumoCards" style="margin-bottom:20px"></div>
+
+    <div class="table-card" style="margin-bottom:20px">
+      <div class="table-header">
+        <span class="table-header-title">Período usado pra calcular a média de venda</span>
+      </div>
+      <div style="padding:16px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border);background:#FAFBFD">
+        <button class="tab-btn" data-proj-periodo="7d" onclick="setProjPeriodo('7d')">7 dias</button>
+        <button class="tab-btn active" data-proj-periodo="mes" onclick="setProjPeriodo('mes')">Mês atual</button>
+        <button class="tab-btn" data-proj-periodo="60d" onclick="setProjPeriodo('60d')">60 dias</button>
+        <button class="tab-btn" data-proj-periodo="custom" onclick="setProjPeriodo('custom')">Personalizado</button>
+        <span id="projCustomDatas" hidden style="display:flex;gap:6px;align-items:center;margin-left:4px">
+          <input type="date" id="projDe" onchange="renderProjecaoCompras()">
+          <span style="color:var(--muted);font-size:12px">até</span>
+          <input type="date" id="projAte" onchange="renderProjecaoCompras()">
+        </span>
+        <span id="projAvisoCobertura" style="font-size:12px;color:var(--amber);margin-left:8px"></span>
+      </div>
+
+      <div class="form-row" style="grid-template-columns:1.2fr 1.2fr 100px 1fr auto;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
+        <div class="field" style="margin-bottom:0"><label>Filtrar por produto</label><select id="proj_filtro_produto" onchange="onProdutoFiltroChangeProj()"></select></div>
+        <div class="field" style="margin-bottom:0"><label>Filtrar por estampa/cor</label>
+          <select id="proj_filtro_estampa" onchange="renderProjecaoCompras()" disabled>
+            <option value="">— Selecione um produto —</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0"><label>Tamanho</label>
+          <select id="proj_filtro_tamanho" onchange="renderProjecaoCompras()">
+            <option value="">— Todos —</option>
+            <option>PP</option><option>P</option><option>M</option><option>G</option><option>GG</option><option>G1</option><option>G2</option><option>G3</option><option>G4</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0"><label>Buscar por SKU</label><input type="text" id="proj_busca" placeholder="Ex: JAL-EST-F" oninput="renderProjecaoCompras()"></div>
+        <div class="field" style="margin-bottom:0;justify-content:flex-end">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--text);white-space:nowrap">
+            <input type="checkbox" id="proj_so_comprar" checked onchange="renderProjecaoCompras()" style="width:16px;height:16px;accent-color:var(--jade);cursor:pointer">
+            Só o que precisa comprar
+          </label>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th><th>Produto</th><th>Estampa</th><th>Tamanho</th>
+            <th>Estoque Atual</th><th>Venda no Período</th><th>Média Diária</th>
+            <th>Necessário (60d)</th><th>A Comprar</th>
+          </tr>
+        </thead>
+        <tbody id="projTabela"><tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📈</div><p>Carregando...</p></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -4770,7 +4833,7 @@ function buildProdutoOptionsEPA(rotuloVazio) {
 // de consulta, Confecção) mantendo o valor já escolhido quando possível —
 // chamado na carga inicial e sempre que um produto novo é cadastrado.
 function atualizarSeletoresProdutoEPA() {
-  [['epa_produto', '— Selecione —'], ['epa_filtro_produto', '— Todos os produtos —'], ['conf_produto', '— Selecione —']].forEach(([id, rotulo]) => {
+  [['epa_produto', '— Selecione —'], ['epa_filtro_produto', '— Todos os produtos —'], ['conf_produto', '— Selecione —'], ['proj_filtro_produto', '— Todos os produtos —']].forEach(([id, rotulo]) => {
     const el = document.getElementById(id);
     if (!el) return;
     const atual = el.value;
@@ -4921,6 +4984,186 @@ async function excluirSkuEPA(sku) {
     renderTabelaEPA();
     notify('Removido.');
   } catch(e) { notify('Erro ao remover', 'err'); }
+}
+
+// ====== PROJEÇÃO DE COMPRAS — quanto comprar de cada SKU pros próximos 60
+// dias, baseado na velocidade real de venda (estoque_movimentos) no período
+// escolhido no filtro. O ledger só existe a partir de 29/08/2026 — nunca
+// inventa venda de antes disso, só usa os dias que realmente têm dado.
+const PROJ_DIAS_COBERTURA = 60;
+let _proj = { skus: [], movs: [], inicioHistorico: null, periodo: 'mes', t: 0, carregando: false };
+
+async function carregarProjecaoCompras() {
+  if (!document.getElementById('proj_filtro_produto').options.length) atualizarSeletoresProdutoEPA();
+  if (_proj.movs.length && Date.now() - _proj.t < 5 * 60 * 1000) { renderProjecaoCompras(); return; }
+  if (_proj.carregando) return;
+  _proj.carregando = true;
+  try {
+    const [skus, movs] = await Promise.all([
+      sbGetAll('estoque_produtos', 'select=sku,produto,estampa,tamanho,quantidade'),
+      sbGetAll('estoque_movimentos', 'select=sku,delta,motivo,criado_em&motivo=in.(venda,cancelamento)')
+    ]);
+    _proj.skus = skus;
+    _proj.movs = movs;
+    _proj.inicioHistorico = movs.reduce((min, m) => {
+      const d = m.criado_em.slice(0, 10);
+      return (!min || d < min) ? d : min;
+    }, null);
+    _proj.t = Date.now();
+    document.getElementById('projInicioHistorico').textContent = _proj.inicioHistorico ? fmtData(_proj.inicioHistorico) : '—';
+  } catch (e) {
+    console.error('Erro ao carregar projeção de compras:', e);
+    notify('Erro ao carregar dados de venda para a projeção', 'err');
+  }
+  _proj.carregando = false;
+  renderProjecaoCompras();
+}
+
+function setProjPeriodo(p) {
+  _proj.periodo = p;
+  document.querySelectorAll('[data-proj-periodo]').forEach(b => b.classList.toggle('active', b.dataset.projPeriodo === p));
+  document.getElementById('projCustomDatas').hidden = (p !== 'custom');
+  if (p === 'custom') {
+    const de = document.getElementById('projDe'), ate = document.getElementById('projAte');
+    if (!de.value) { ate.value = hoje(); de.value = dhAdd(hoje(), -29); }
+  }
+  renderProjecaoCompras();
+}
+
+// Intervalo [de, ate] (inclusive) do período escolhido no filtro.
+function projPeriodo() {
+  const fim = hoje();
+  if (_proj.periodo === '7d') return { de: dhAdd(fim, -6), ate: fim };
+  if (_proj.periodo === '60d') return { de: dhAdd(fim, -59), ate: fim };
+  if (_proj.periodo === 'custom') {
+    const de = document.getElementById('projDe').value || dhAdd(fim, -29);
+    let ate = document.getElementById('projAte').value || fim;
+    if (ate > fim) ate = fim;
+    return { de, ate };
+  }
+  // 'mes': mês atual (dia 1 até hoje) — proxy pra "últimos 30 dias" pedido.
+  return { de: fim.slice(0, 8) + '01', ate: fim };
+}
+
+function onProdutoFiltroChangeProj() {
+  const produto = document.getElementById('proj_filtro_produto').value;
+  const selEstampa = document.getElementById('proj_filtro_estampa');
+  if (!produto) {
+    selEstampa.innerHTML = '<option value="">— Selecione um produto —</option>';
+    selEstampa.disabled = true;
+  } else {
+    let estampas = _proj.skus.filter(r => r.produto === produto && r.estampa).map(r => r.estampa);
+    estampas = [...new Set(estampas)].sort();
+    selEstampa.innerHTML = '<option value="">— Todas as estampas/cores —</option>' + estampas.map(e => `<option>${e}</option>`).join('');
+    selEstampa.disabled = false;
+  }
+  renderProjecaoCompras();
+}
+
+function renderProjecaoCompras() {
+  const corpo = document.getElementById('projTabela');
+  if (!_proj.skus.length) {
+    corpo.innerHTML = _proj.carregando
+      ? '<tr><td colspan="9">Carregando...</td></tr>'
+      : '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📈</div><p>Nenhum SKU cadastrado no Estoque de Produto Acabado ainda.</p></div></td></tr>';
+    return;
+  }
+  const { de, ate } = projPeriodo();
+
+  // Clampa no início real do histórico — nunca inventa venda de antes disso.
+  const deReal = (_proj.inicioHistorico && de < _proj.inicioHistorico) ? _proj.inicioHistorico : de;
+  const diasCobertos = Math.max(1, dhDiff(deReal, ate) + 1);
+  const avisoEl = document.getElementById('projAvisoCobertura');
+  avisoEl.textContent = (_proj.inicioHistorico && de < _proj.inicioHistorico)
+    ? `⚠️ Histórico só começa em ${fmtData(_proj.inicioHistorico)} — média calculada com ${diasCobertos} dia(s) reais, não ${dhDiff(de, ate) + 1}.`
+    : '';
+
+  // Vendido líquido por SKU no intervalo [deReal, ate]: delta já vem negativo
+  // na venda e positivo no cancelamento, então -soma = quantidade vendida líquida.
+  const vendidoPorSku = {};
+  _proj.movs.forEach(m => {
+    const d = m.criado_em.slice(0, 10);
+    if (d < deReal || d > ate) return;
+    vendidoPorSku[m.sku] = (vendidoPorSku[m.sku] || 0) - m.delta;
+  });
+
+  const filtroProduto = document.getElementById('proj_filtro_produto').value;
+  const filtroEstampa = document.getElementById('proj_filtro_estampa').value;
+  const filtroTamanho = document.getElementById('proj_filtro_tamanho').value;
+  const busca = normEPA(document.getElementById('proj_busca').value);
+  const soComprar = document.getElementById('proj_so_comprar').checked;
+
+  let linhas = _proj.skus.map(s => {
+    const vendido = Math.max(0, vendidoPorSku[s.sku] || 0);
+    const mediaDiaria = vendido / diasCobertos;
+    const necessario = Math.ceil(mediaDiaria * PROJ_DIAS_COBERTURA);
+    const atual = s.quantidade || 0;
+    const comprar = Math.max(0, necessario - atual);
+    return { ...s, vendido, mediaDiaria, necessario, atual, comprar };
+  });
+
+  linhas = linhas.filter(r => {
+    if (filtroProduto && r.produto !== filtroProduto) return false;
+    if (filtroEstampa && r.estampa !== filtroEstampa) return false;
+    if (filtroTamanho && r.tamanho !== filtroTamanho) return false;
+    if (busca && normEPA(r.sku).indexOf(busca) === -1) return false;
+    if (soComprar && r.comprar <= 0) return false;
+    return true;
+  });
+
+  renderProjResumoCards(linhas, diasCobertos);
+
+  if (!linhas.length) {
+    corpo.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">✅</div><p>Nenhum SKU precisa de compra nesse filtro.</p></div></td></tr>';
+    return;
+  }
+  linhas.sort((a, b) => b.comprar - a.comprar || (a.produto + a.estampa + a.tamanho).localeCompare(b.produto + b.estampa + b.tamanho));
+  corpo.innerHTML = linhas.map(r => `
+    <tr>
+      <td style="font-weight:600;font-family:monospace;font-size:12px">${r.sku}</td>
+      <td>${r.produto}</td>
+      <td style="font-size:12px;color:var(--muted)">${r.estampa || '—'}</td>
+      <td>${r.tamanho || '—'}</td>
+      <td>${r.atual} un</td>
+      <td>${r.vendido} un</td>
+      <td>${r.mediaDiaria.toFixed(2).replace('.', ',')} un/dia</td>
+      <td>${r.necessario} un</td>
+      <td style="font-weight:700;color:${r.comprar > 0 ? 'var(--rose)' : 'var(--jade)'}">${r.comprar > 0 ? r.comprar + ' un' : '✅ OK'}</td>
+    </tr>`).join('');
+}
+
+function renderProjResumoCards(linhas, diasCobertos) {
+  const totalSkusComprar = linhas.filter(r => r.comprar > 0).length;
+  const totalUnidComprar = linhas.reduce((a, r) => a + r.comprar, 0);
+  const custoTotal = linhas.reduce((a, r) => {
+    const cv = custoVendaProdutoEPA(r.produto);
+    return a + r.comprar * (cv ? cv.custo : 0);
+  }, 0);
+  document.getElementById('projResumoCards').innerHTML = `
+    <div class="sum-card pedidos">
+      <div class="sum-icon">📅</div>
+      <div class="sum-label">Dias usados na média</div>
+      <div class="sum-value">${diasCobertos}</div>
+      <div class="sum-sub">Só dias com histórico real</div>
+    </div>
+    <div class="sum-card despesa">
+      <div class="sum-icon">🛒</div>
+      <div class="sum-label">SKUs a comprar</div>
+      <div class="sum-value">${totalSkusComprar}</div>
+      <div class="sum-sub">de ${linhas.length} no filtro atual</div>
+    </div>
+    <div class="sum-card estoque">
+      <div class="sum-icon">📦</div>
+      <div class="sum-label">Peças a comprar</div>
+      <div class="sum-value">${totalUnidComprar}</div>
+      <div class="sum-sub">Pra cobrir ${PROJ_DIAS_COBERTURA} dias</div>
+    </div>
+    <div class="sum-card receita">
+      <div class="sum-icon">💰</div>
+      <div class="sum-label">Custo estimado da compra</div>
+      <div class="sum-value">R$ ${custoTotal.toFixed(2).replace('.', ',')}</div>
+      <div class="sum-sub">Pelo custo cadastrado de cada produto</div>
+    </div>`;
 }
 
 // ====== PROMOÇÕES ML — via API oficial /seller-promotions (ml-promocoes.js) ======
