@@ -5416,7 +5416,11 @@ const PROMO_TYPE_UPPER = {
 
 async function carregarPromocoesML() {
   try {
-    _promocoesLista = await sbGet('ml_promocoes', 'select=*&order=detectado_em.desc');
+    // sbGet só traz 1 página (1000 linhas) — com 2.417+ promoções isso
+    // cortava tipos inteiros de fora da tela (achado real 27/09/2026:
+    // "Desconto Individual" sumia por inteiro, "Oferta Relâmpago" caía
+    // de 129 pra 2). sbGetAll pagina até trazer tudo.
+    _promocoesLista = await sbGetAll('ml_promocoes', 'select=*&order=detectado_em.desc');
     renderTabelaPromocoes();
   } catch (e) {
     console.error('Erro ao carregar promoções ML:', e);
