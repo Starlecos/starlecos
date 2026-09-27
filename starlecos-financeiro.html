@@ -1695,6 +1695,7 @@
             <option value="aplicado">🟢 Aplicado no ML</option>
             <option value="recusado">⚪ Recusado</option>
             <option value="erro">🔴 Erro ao aplicar</option>
+            <option value="expirado">⚫ Expirou no ML</option>
           </select>
         </div>
       </div>
@@ -5657,7 +5658,7 @@ function renderResumoTiposPromocoes() {
   const porTipo = {};
   _promocoesLista.forEach(p => {
     const t = p.promo_type || '—';
-    if (!porTipo[t]) porTipo[t] = { pendente: 0, aplicado: 0, recusado: 0, erro: 0, total: 0 };
+    if (!porTipo[t]) porTipo[t] = { pendente: 0, aplicado: 0, recusado: 0, erro: 0, expirado: 0, total: 0 };
     porTipo[t][p.status] = (porTipo[t][p.status] || 0) + 1;
     porTipo[t].total++;
   });
@@ -5670,7 +5671,8 @@ function renderResumoTiposPromocoes() {
         c.pendente ? `<strong style="color:var(--amber)">${c.pendente} pendente</strong>` : null,
         c.aplicado ? `${c.aplicado} aplicado` : null,
         c.recusado ? `${c.recusado} recusado` : null,
-        c.erro ? `<span style="color:var(--rose)">${c.erro} erro</span>` : null
+        c.erro ? `<span style="color:var(--rose)">${c.erro} erro</span>` : null,
+        c.expirado ? `${c.expirado} expirado` : null
       ].filter(Boolean).join(' · ');
       return `<button onclick="document.getElementById('promo_filtro_tipo').value='${tipo}';renderTabelaPromocoes()"
         style="cursor:pointer;text-align:left;border:1.5px solid ${ativo ? 'var(--jade)' : 'var(--border)'};border-radius:8px;padding:8px 12px;background:#fff;font-family:Inter,sans-serif">
@@ -5705,7 +5707,8 @@ function renderTabelaPromocoes() {
     pendente: { label: '🟡 Pendente', cor: 'var(--amber)' },
     recusado: { label: '⚪ Recusado', cor: 'var(--muted)' },
     aplicado: { label: '🟢 Aplicado no ML', cor: 'var(--jade)' },
-    erro: { label: '🔴 Erro ao aplicar', cor: 'var(--rose)' }
+    erro: { label: '🔴 Erro ao aplicar', cor: 'var(--rose)' },
+    expirado: { label: '⚫ Expirou no ML', cor: 'var(--muted)' }
   };
 
   tbody.innerHTML = lista.map(p => {
@@ -5719,6 +5722,7 @@ function renderTabelaPromocoes() {
     if (p.status === 'pendente') acoes = botaoAprovar + ' ' + botaoRecusar;
     else if (p.status === 'recusado') acoes = botaoAprovar;
     else if (p.status === 'erro') acoes = `<span style="font-size:11px;color:var(--rose)" title="${p.erro_msg || ''}">${(p.erro_msg || '').slice(0, 60)}</span><br>${botaoAprovar}`;
+    else if (p.status === 'expirado') acoes = `<span style="font-size:11px;color:var(--muted)">${(p.erro_msg || 'Não é mais candidata no ML').slice(0, 60)}</span>`;
     else acoes = '—'; // aplicado: já foi, nada a fazer
 
     return `<tr>
@@ -5766,8 +5770,13 @@ async function aprovarPromocao(id) {
     let atual = promos.find(p => p.type === tipoOficial && p.status === 'candidate' &&
       (item.promotion_id && !item.promotion_id.startsWith('NOID-') ? (p.id === baseAtual || p.ref_id === baseAtual) : true));
     if (!atual) {
-      await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'erro', erro_msg: 'Não é mais candidata no ML (expirou ou já foi decidida por outro caminho)', decidido_em: new Date().toISOString() });
-      item.status = 'erro'; item.erro_msg = 'Não é mais candidata no ML';
+      // Status próprio "expirado" (não "erro") — não é uma falha que vale
+      // tentar de novo, a candidatura simplesmente não existe mais no ML.
+      // Achado real (27/09/2026): o Enzo via essas linhas junto dos erros
+      // de verdade (transitórios), com botão "Aprovar" que ia falhar de
+      // novo sempre — confuso e sem serventia.
+      await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'expirado', erro_msg: 'Não é mais candidata no ML (expirou ou já foi decidida por outro caminho)', decidido_em: new Date().toISOString() });
+      item.status = 'expirado'; item.erro_msg = 'Não é mais candidata no ML';
       renderTabelaPromocoes();
       notify('⚠️ Essa promoção não está mais disponível no ML.', 'err');
       return;
