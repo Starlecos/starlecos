@@ -1981,7 +1981,7 @@
       </div>
       <div style="padding:16px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border);background:#FAFBFD">
         <button class="tab-btn" data-proj-periodo="7d" onclick="setProjPeriodo('7d')">7 dias</button>
-        <button class="tab-btn active" data-proj-periodo="mes" onclick="setProjPeriodo('mes')">Mês atual</button>
+        <button class="tab-btn active" data-proj-periodo="30d" onclick="setProjPeriodo('30d')">30 dias</button>
         <button class="tab-btn" data-proj-periodo="60d" onclick="setProjPeriodo('60d')">60 dias</button>
         <button class="tab-btn" data-proj-periodo="custom" onclick="setProjPeriodo('custom')">Personalizado</button>
         <span id="projCustomDatas" hidden style="display:flex;gap:6px;align-items:center;margin-left:4px">
@@ -5036,7 +5036,7 @@ async function excluirSkuEPA(sku) {
 // escolhido no filtro. O ledger só existe a partir de 29/08/2026 — nunca
 // inventa venda de antes disso, só usa os dias que realmente têm dado.
 const PROJ_DIAS_COBERTURA = 60;
-let _proj = { skus: [], movs: [], inicioHistorico: null, periodo: 'mes', t: 0, carregando: false };
+let _proj = { skus: [], movs: [], inicioHistorico: null, periodo: '30d', t: 0, carregando: false };
 
 async function carregarProjecaoCompras() {
   if (!document.getElementById('proj_filtro_produto').options.length) atualizarSeletoresProdutoEPA();
@@ -5087,8 +5087,10 @@ function projPeriodo() {
     if (ate > fim) ate = fim;
     return { de, ate };
   }
-  // 'mes': mês atual (dia 1 até hoje) — proxy pra "últimos 30 dias" pedido.
-  return { de: fim.slice(0, 8) + '01', ate: fim };
+  // '30d': janela móvel dos últimos 30 dias corridos (não reseta todo dia 1
+  // como "mês atual" resetaria — troca decidida em 26/09/2026 justamente
+  // pra não ter amostra pequena no início do mês).
+  return { de: dhAdd(fim, -29), ate: fim };
 }
 
 function onProdutoFiltroChangeProj() {
