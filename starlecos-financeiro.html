@@ -5424,6 +5424,23 @@ async function carregarPromocoesML() {
   }
 }
 
+// O ML reusa o MESMO promotion_id pra janelas diferentes de uma campanha
+// recorrente (achado real 27/09/2026: "10.10" propôs de novo pro
+// MLB4323601961 com data 28/set–13/out usando o mesmíssimo id
+// "P-MLB18061082" já decidido em 19/09 — como a chave de conflito do
+// upsert é (item_id, promotion_id), a proposta nova nunca entrava,
+// "ignore-duplicates" descartava por já existir). Guarda o id real + a
+// data de início na mesma string ("P-MLB18061082@2026-09-28"): uma
+// janela nova sempre vira uma linha nova (sem perder a deduplicação
+// dentro da mesma janela), e idBasePromocao() volta pro id real puro
+// pra comparar contra o dado ao vivo do ML ou montar o payload de aplicar.
+function idComJanela(idReal, startDate) {
+  return idReal + (startDate ? '@' + startDate.slice(0, 10) : '');
+}
+function idBasePromocao(promotionId) {
+  return (promotionId || '').split('@')[0];
+}
+
 // Varre todo o catálogo (ativos + pausados) via API oficial do ML e insere
 // candidatas novas em ml_promocoes — substitui a raspagem via Tampermonkey.
 async function sincronizarPromocoesML() {
@@ -5502,7 +5519,8 @@ async function sincronizarPromocoesML() {
         const entradas = promos.filter(p => p.type === tipoOficial);
         let match = null;
         if (row.promotion_id && !row.promotion_id.startsWith('NOID-')) {
-          match = entradas.find(p => (p.id === row.promotion_id || p.ref_id === row.promotion_id) && p.status !== 'candidate');
+          const base = idBasePromocao(row.promotion_id);
+          match = entradas.find(p => (p.id === base || p.ref_id === base) && p.status !== 'candidate');
         }
         if (!match) match = entradas.find(p => p.status !== 'candidate');
         if (match) {
@@ -5540,7 +5558,16 @@ async function sincronizarPromocoesML() {
       const info = infoPorId[c.item_id] || {};
       const p = c.promo;
       const tipo = (p.type || '').toLowerCase();
-      const promotionId = p.id || p.ref_id || ('NOID-' + tipo);
+      // O ML reusa o MESMO promotion_id pra janelas diferentes de uma
+      // campanha recorrente (achado real 27/09/2026: "10.10" propôs de
+      // novo pro MLB4323601961 com data 28/set–13/out usando o mesmíssimo
+      // id "P-MLB18061082" já decidido em 19/09) — como a chave de
+      // conflito é (item_id, promotion_id), a proposta nova nunca entrava,
+      // "ignore-duplicates" descartava por já existir. Anexa a data de
+      // início na chave quando ela existe, pra uma janela nova sempre
+      // virar uma linha nova, sem perder a deduplicação dentro da mesma
+      // janela (mesmo id + mesma data = mesma linha, continua ignorando).
+      const promotionId = idComJanela(p.id || p.ref_id || ('NOID-' + tipo), p.start_date);
       let nome = p.name || PROMO_TYPE_LABEL[tipo] || p.type;
       let candidateQuantity = null;
       if (tipo === 'lightning' && p.stock) {
@@ -5704,8 +5731,9 @@ async function aprovarPromocao(id) {
     const promos = await r.json();
     if (!Array.isArray(promos)) throw new Error('Resposta inesperada do ML');
 
+    const baseAtual = idBasePromocao(item.promotion_id);
     let atual = promos.find(p => p.type === tipoOficial && p.status === 'candidate' &&
-      (item.promotion_id && !item.promotion_id.startsWith('NOID-') ? (p.id === item.promotion_id || p.ref_id === item.promotion_id) : true));
+      (item.promotion_id && !item.promotion_id.startsWith('NOID-') ? (p.id === baseAtual || p.ref_id === baseAtual) : true));
     if (!atual) {
       await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'erro', erro_msg: 'Não é mais candidata no ML (expirou ou já foi decidida por outro caminho)', decidido_em: new Date().toISOString() });
       item.status = 'erro'; item.erro_msg = 'Não é mais candidata no ML';
