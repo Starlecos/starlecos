@@ -1840,8 +1840,13 @@
   <div class="tab-panel" id="panel-estoqueProdutoAcabado">
     <div class="section-header">
       <div class="section-title">🏷️ Estoque de Produto Acabado</div>
-      <button class="btn-export" onclick="exportarEstoqueCSV()">⬇ Exportar Excel</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn-export" id="btnConferirCanais" onclick="conferirEstoqueCanais()">🔍 Conferir estoque nos canais</button>
+        <button class="btn-export" onclick="exportarEstoqueCSV()">⬇ Exportar Excel</button>
+      </div>
     </div>
+
+    <div id="conferirCanaisResultado" style="display:none;margin-bottom:20px"></div>
 
     <div style="background:var(--sky-light);border:1px solid #A9CBEA;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#0F4A80">
       ℹ️ Este é o resumo do estoque de produto acabado (jalecos, blusas, calças por SKU). O cadastro,
@@ -5013,12 +5018,108 @@ async function salvarQtdEPA(sku) {
     renderTabelaEPA();
     notify('✅ Estoque atualizado!');
     // Empurra a quantidade nova pro ML e pra Shopify — ajuste manual, nenhum
-    // canal sabe da mudança sozinho.
-    fetch('/.netlify/functions/push-estoque', {
+    // canal sabe da mudança sozinho. Antes isso era "dispare e esqueça": se
+    // o ML recusasse (429, anúncio em hold...) a tela dizia "✅ atualizado" e
+    // o anúncio ficava com estoque errado sem ninguém saber. Agora lê o
+    // resultado real e avisa.
+    empurrarEstoqueVisivel(sku);
+  } catch(e) { notify('Erro ao atualizar', 'err'); }
+}
+
+// Problemas de um resultado de push-estoque (lista vazia = tudo confirmado)
+function problemasDoPush(r) {
+  const p = [];
+  (r.ml || []).forEach(x => {
+    if (!x.ok) p.push('ML ' + x.ml_item_id + (x.confirmado === false ? ' (pediu ' + x.esperado + ', ML ficou com ' + x.valor_real + ')' : ' (HTTP ' + x.status + ')'));
+  });
+  if (r.shopify && r.shopify.ok === false) p.push('Shopify (HTTP ' + r.shopify.status + ')');
+  return p;
+}
+
+// Empurra o estoque de um SKU e AVISA se algum canal não confirmou.
+async function empurrarEstoqueVisivel(sku) {
+  try {
+    const res = await fetch('/.netlify/functions/push-estoque', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sku })
-    }).catch(e => console.error('Erro ao empurrar estoque:', e));
-  } catch(e) { notify('Erro ao atualizar', 'err'); }
+    });
+    const r = await res.json();
+    if (!res.ok) { notify('⚠️ ' + sku + ': não consegui atualizar nos canais (' + (r.error || 'HTTP ' + res.status) + '). Use "Conferir estoque nos canais".', 'err'); return false; }
+    const probs = problemasDoPush(r);
+    if (probs.length) { notify('⚠️ ' + sku + ' salvo aqui, mas NÃO confirmou em: ' + probs.join('; ') + '. Use "Conferir estoque nos canais".', 'err'); return false; }
+    return true;
+  } catch (e) {
+    notify('⚠️ ' + sku + ': falha de rede ao atualizar os canais. Use "Conferir estoque nos canais".', 'err');
+    return false;
+  }
+}
+
+// ====== Conferência: estoque interno vs. o que o Mercado Livre realmente tem ======
+let _divergenciasCanais = [];
+
+async function conferirEstoqueCanais() {
+  const btn = document.getElementById('btnConferirCanais');
+  const box = document.getElementById('conferirCanaisResultado');
+  btn.disabled = true;
+  box.style.display = 'block';
+  _divergenciasCanais = [];
+  let offset = 0, lidos = 0, semLeitura = 0;
+  try {
+    while (true) {
+      box.innerHTML = '<div class="form-card" style="padding:14px 18px">🔍 Conferindo anúncios do Mercado Livre... ' + lidos + ' lidos</div>';
+      const res = await fetch('/.netlify/functions/estoque-conferir?offset=' + offset + '&limit=100');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      lidos += data.total_lidos;
+      semLeitura += data.sem_leitura || 0;
+      _divergenciasCanais.push(...data.divergentes);
+      if (data.fim) break;
+      offset += 100;
+    }
+    renderConferirCanais(lidos, semLeitura);
+  } catch (e) {
+    box.innerHTML = '<div class="form-card" style="padding:14px 18px;color:var(--rose)">Erro ao conferir: ' + e.message + '</div>';
+  }
+  btn.disabled = false;
+}
+
+function renderConferirCanais(lidos, semLeitura) {
+  const box = document.getElementById('conferirCanaisResultado');
+  const aviso = semLeitura ? ' · ' + semLeitura + ' anúncio(s) que o ML não devolveu (não conferidos)' : '';
+  if (!_divergenciasCanais.length) {
+    box.innerHTML = '<div class="form-card" style="padding:14px 18px;color:var(--jade)">✅ ' + lidos + ' anúncios conferidos — estoque do Mercado Livre bate com o interno' + aviso + '.</div>';
+    return;
+  }
+  const linhas = _divergenciasCanais.map(d =>
+    '<tr><td style="font-family:monospace;font-size:12px">' + d.sku + '</td>' +
+    '<td style="font-size:12px">' + d.ml_item_id + (d.ml_variation_id ? ' / var ' + d.ml_variation_id : '') + '</td>' +
+    '<td>' + d.interno + '</td><td class="val-neg"><strong>' + d.ml + '</strong></td>' +
+    '<td style="font-size:12px">' + (d.status_ml || '—') + '</td></tr>').join('');
+  box.innerHTML = '<div class="table-card"><div class="table-header">' +
+    '<span class="table-header-title">⚠️ ' + _divergenciasCanais.length + ' anúncio(s) com estoque diferente do interno (de ' + lidos + ' conferidos' + aviso + ')</span>' +
+    '<button class="btn-add jade" style="padding:6px 14px;font-size:12px" id="btnCorrigirCanais" onclick="corrigirDivergenciasCanais()">🔧 Corrigir todos (empurrar estoque interno)</button></div>' +
+    '<table><thead><tr><th>SKU</th><th>Anúncio ML</th><th>Interno</th><th>ML tem</th><th>Status ML</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+}
+
+async function corrigirDivergenciasCanais() {
+  const btn = document.getElementById('btnCorrigirCanais');
+  const skus = [...new Set(_divergenciasCanais.map(d => d.sku))];
+  if (!confirm('Empurrar o estoque interno pro ML/Shopify de ' + skus.length + ' SKU(s)? O estoque interno é a fonte da verdade — o do ML será sobrescrito.')) return;
+  btn.disabled = true;
+  let ok = 0, falhou = [];
+  for (let i = 0; i < skus.length; i++) {
+    btn.textContent = '🔧 Corrigindo ' + (i + 1) + '/' + skus.length + '...';
+    try {
+      const res = await fetch('/.netlify/functions/push-estoque', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sku: skus[i] })
+      });
+      const r = await res.json();
+      if (res.ok && !problemasDoPush(r).length) ok++; else falhou.push(skus[i]);
+    } catch (e) { falhou.push(skus[i]); }
+    await new Promise(r => setTimeout(r, 2000)); // ML e Shopify limitam chamadas por segundo
+  }
+  notify(ok + ' SKU(s) corrigido(s)' + (falhou.length ? ', ' + falhou.length + ' falharam: ' + falhou.join(', ') : '') + '. Conferindo de novo...', falhou.length ? 'err' : undefined);
+  conferirEstoqueCanais();
 }
 
 async function excluirSkuEPA(sku) {
