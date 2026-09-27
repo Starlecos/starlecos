@@ -5760,10 +5760,24 @@ async function aprovarPromocao(id) {
     }
     // MARKETPLACE_CAMPAIGN, VOLUME, SELLER_CAMPAIGN etc: só promotion_id+tipo, o ML define o preço.
 
-    const resp = await fetch('/.netlify/functions/ml-promocoes?action=apply', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-    });
-    const data = await resp.json();
+    // O ML às vezes recusa com "internal capacity constraints" sob carga —
+    // erro transitório do lado dele, não rejeição da promoção (achado real
+    // 27/09/2026) — tenta de novo 2x com espera antes de desistir.
+    let resp, data;
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      resp = await fetch('/.netlify/functions/ml-promocoes?action=apply', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      data = await resp.json();
+      if (resp.ok) break;
+      const msg = data.message || data.error || '';
+      if (tentativa < 2 && /internal capacity/i.test(msg)) {
+        notify('ML sobrecarregado, tentando de novo...');
+        await new Promise(res => setTimeout(res, 2000 * (tentativa + 1)));
+        continue;
+      }
+      throw new Error(msg || JSON.stringify(data));
+    }
     if (!resp.ok) throw new Error(data.message || data.error || JSON.stringify(data));
 
     await sbPatch('ml_promocoes', 'id=eq.' + id, {
