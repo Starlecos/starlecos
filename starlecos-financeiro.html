@@ -1086,7 +1086,6 @@
     <button class="tab-btn" onclick="showTab('promocoes');carregarPromocoesML()">🎯 Promoções ML</button>
     <button class="tab-btn" onclick="showTab('contas')">📄 Contas Pagas</button>
     <button class="tab-btn" onclick="showTab('confeccao')">🧵 Confecção</button>
-    <button class="tab-btn" onclick="showTab('estoque');carregarEstoque()">📦 Estoque</button>
     <button class="tab-btn" onclick="showTab('estoqueProdutoAcabado');carregarResumoEstoqueProdutoAcabado()">🏷️ Estoque Produto Acabado</button>
     <button class="tab-btn" onclick="showTab('calendario')">📅 Calendário</button>
     <button class="tab-btn" onclick="showTab('mpPagamentos');carregarMPPagamentos()">💸 MP Pagamentos</button>
@@ -1836,38 +1835,6 @@
   </div>
 
   <!-- ====== ESTOQUE ====== -->
-  <div class="tab-panel" id="panel-estoque">
-    <div class="section-header">
-      <div class="section-title">📦 Estoque de Insumos</div>
-    </div>
-
-    <div style="background:var(--amber-light);border:1px solid #F0C060;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#7A5200">
-      🧵 O estoque de tecidos/zíperes é preenchido pela confecção. Aqui você pode visualizar e editar os valores.
-    </div>
-
-    <div class="table-card" style="margin-bottom:28px">
-      <div class="table-header">
-        <span class="table-header-title">🧶 Tecidos em Estoque</span>
-        <span class="table-total val-pos" id="totalTecidos">0 m</span>
-      </div>
-      <table>
-        <thead><tr><th>Tecido</th><th>Cor</th><th>Metragem</th><th>Observação</th><th></th></tr></thead>
-        <tbody id="bodyTecidos"><tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🧶</div><p>Nenhum tecido cadastrado</p></div></td></tr></tbody>
-      </table>
-    </div>
-
-    <div class="table-card">
-      <div class="table-header">
-        <span class="table-header-title">🔗 Zíperes em Estoque</span>
-        <span class="table-total val-pos" id="totalZiperes">0 un</span>
-      </div>
-      <table>
-        <thead><tr><th>Tamanho</th><th>Cor</th><th>Quantidade</th><th>Observação</th><th></th></tr></thead>
-        <tbody id="bodyZiperes"><tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🔗</div><p>Nenhum zíper cadastrado</p></div></td></tr></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- ====== ESTOQUE PRODUTO ACABADO (resumo) ====== -->
   <div class="tab-panel" id="panel-estoqueProdutoAcabado">
     <div class="section-header">
@@ -4723,18 +4690,6 @@ async function excluirCompromisso(id) {
 document.getElementById('cal_data').value = calDiaSelecionado;
 carregarCompromissos().then(renderCalendario);
 
-// ====== ESTOQUE (insumos) ======
-async function carregarEstoque() {
-  try {
-    const [tecidos, ziperes] = await Promise.all([
-      sbGet('estoque_tecidos',  'select=*&order=nome.asc'),
-      sbGet('estoque_ziperes',  'select=*&order=tamanho.asc,cor.asc')
-    ]);
-    renderTecidos(tecidos);
-    renderZiperes(ziperes);
-  } catch(e) { console.warn('Erro carregar estoque:', e); }
-}
-
 // ====== ESTOQUE DE PRODUTO ACABADO (entrada/ajuste fica aqui; Vendedora é só leitura) ======
 // Catálogo de produtos — vem do Supabase (tabela produtos_epa), não é mais
 // lista fixa no código. Antes eram 4 listas idênticas espalhadas (aqui +
@@ -5396,114 +5351,6 @@ function renderResumoEstoqueProdutoAcabado(lista) {
     : `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">✅</div><p>Nenhum SKU com estoque baixo</p></div></td></tr>`;
 }
 
-function renderTecidos(lista) {
-  const body = document.getElementById('bodyTecidos');
-  const total = lista.reduce((a,v) => a+(v.metragem||0), 0);
-  document.getElementById('totalTecidos').textContent = total.toFixed(1)+' m';
-  if (!lista.length) { body.innerHTML='<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🧶</div><p>Nenhum tecido cadastrado</p></div></td></tr>'; return; }
-  body.innerHTML = lista.map(v => `
-    <tr>
-      <td style="font-weight:600">${v.nome}</td>
-      <td>${v.cor||'—'}</td>
-      <td><input type="number" id="tec_m_${v.id}" value="${v.metragem||0}" step="0.01" min="0" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px"> m</td>
-      <td style="font-size:12px;color:var(--muted)">${v.obs||'—'}</td>
-      <td><button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="atualizarTecido(${v.id})">💾</button></td>
-    </tr>`).join('');
-}
-
-function renderZiperes(lista) {
-  const body = document.getElementById('bodyZiperes');
-  const total = lista.reduce((a,v) => a+(v.quantidade||0), 0);
-  document.getElementById('totalZiperes').textContent = total+' un';
-  if (!lista.length) { body.innerHTML='<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🔗</div><p>Nenhum zíper cadastrado</p></div></td></tr>'; return; }
-  body.innerHTML = lista.map(v => `
-    <tr>
-      <td style="font-weight:600">${v.tamanho||'—'}</td>
-      <td>${v.cor||'—'}</td>
-      <td><input type="number" id="zip_q_${v.id}" value="${v.quantidade||0}" min="0" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px"> un</td>
-      <td style="font-size:12px;color:var(--muted)">${v.obs||'—'}</td>
-      <td><button class="btn-add" style="padding:5px 12px;font-size:12px" onclick="atualizarZiper(${v.id})">💾</button></td>
-    </tr>`).join('');
-}
-
-async function addTecido() {
-  const nome  = document.getElementById('tec_nome').value.trim();
-  const cor   = document.getElementById('tec_cor').value.trim();
-  const metro = parseFloat(document.getElementById('tec_metro').value)||0;
-  const obs   = document.getElementById('tec_obs').value.trim();
-  if (!nome) { notify('Informe o nome do tecido.','err'); return; }
-  try {
-    const res = await fetch(SUPABASE_URL+'/rest/v1/estoque_tecidos', {
-      method:'POST', headers:{...SB_HEADERS,'Prefer':'return=minimal'}, body:JSON.stringify({nome,cor,metragem:metro,obs})
-    });
-    if (!res.ok) throw new Error(await res.text());
-    ['tec_nome','tec_cor','tec_metro','tec_obs'].forEach(id => document.getElementById(id).value='');
-    await carregarEstoque();
-    notify('✅ Tecido adicionado!');
-  } catch(e) { notify('Erro ao adicionar','err'); }
-}
-
-async function atualizarTecido(id) {
-  const val = parseFloat(document.getElementById('tec_m_'+id).value)||0;
-  try {
-    const res = await fetch(SUPABASE_URL+'/rest/v1/estoque_tecidos?id=eq.'+id, {
-      method:'PATCH', headers:{...SB_HEADERS,'Prefer':'return=minimal'}, body:JSON.stringify({metragem:val,updated_at:new Date().toISOString()})
-    });
-    if (!res.ok) throw new Error(await res.text());
-    await carregarEstoque();
-    notify('✅ Tecido atualizado!');
-  } catch(e) { notify('Erro ao atualizar','err'); }
-}
-
-async function deletarTecido(id) {
-  if (!confirm('Remover este tecido?')) return;
-  try {
-    await fetch(SUPABASE_URL+'/rest/v1/estoque_tecidos?id=eq.'+id, {method:'DELETE',headers:SB_HEADERS});
-    await carregarEstoque();
-    notify('Tecido removido.');
-  } catch(e) { notify('Erro','err'); }
-}
-
-async function addZiper() {
-  const tam = document.getElementById('zip_tam').value.trim();
-  const cor = document.getElementById('zip_cor').value.trim();
-  const qtd = parseInt(document.getElementById('zip_qtd').value)||0;
-  const obs = document.getElementById('zip_obs').value.trim();
-  if (!tam) { notify('Informe o tamanho do zíper.','err'); return; }
-  try {
-    const res = await fetch(SUPABASE_URL+'/rest/v1/estoque_ziperes', {
-      method:'POST', headers:{...SB_HEADERS,'Prefer':'return=minimal'}, body:JSON.stringify({tamanho:tam,cor,quantidade:qtd,obs})
-    });
-    if (!res.ok) throw new Error(await res.text());
-    ['zip_tam','zip_cor','zip_qtd','zip_obs'].forEach(id => document.getElementById(id).value='');
-    await carregarEstoque();
-    notify('✅ Zíper adicionado!');
-  } catch(e) { notify('Erro ao adicionar','err'); }
-}
-
-async function atualizarZiper(id) {
-  const val = parseInt(document.getElementById('zip_q_'+id).value)||0;
-  try {
-    const res = await fetch(SUPABASE_URL+'/rest/v1/estoque_ziperes?id=eq.'+id, {
-      method:'PATCH', headers:{...SB_HEADERS,'Prefer':'return=minimal'}, body:JSON.stringify({quantidade:val,updated_at:new Date().toISOString()})
-    });
-    if (!res.ok) throw new Error(await res.text());
-    await carregarEstoque();
-    notify('✅ Zíper atualizado!');
-  } catch(e) { notify('Erro ao atualizar','err'); }
-}
-
-async function deletarZiper(id) {
-  if (!confirm('Remover este zíper?')) return;
-  try {
-    await fetch(SUPABASE_URL+'/rest/v1/estoque_ziperes?id=eq.'+id, {method:'DELETE',headers:SB_HEADERS});
-    await carregarEstoque();
-    notify('Zíper removido.');
-  } catch(e) { notify('Erro','err'); }
-}
-
-// Carregar estoque ao abrir aba
-document.querySelector('[onclick*="estoque"]').addEventListener('click', carregarEstoque);
 
 // ====== ENVIAR À CONFECÇÃO ======
 async function enviarConfeccao() {
