@@ -84,7 +84,7 @@ exports.handler = async function(event) {
     for (let i = 0; i < ids.length; i += 20) {
       const lote = ids.slice(i, i + 20);
       const res = await fetch(
-        'https://api.mercadolibre.com/items?ids=' + lote.join(',') + '&attributes=id,available_quantity,status,variations',
+        'https://api.mercadolibre.com/items?ids=' + lote.join(',') + '&attributes=id,title,available_quantity,status,variations',
         { headers: { Authorization: 'Bearer ' + accessToken } }
       );
       const arr = await res.json();
@@ -108,6 +108,7 @@ exports.handler = async function(event) {
       if (mlQtd !== interno[l.sku]) {
         divergentes.push({
           sku: l.sku, ml_item_id: l.ml_item_id, ml_variation_id: l.ml_variation_id,
+          titulo: item.title || null,
           interno: interno[l.sku], ml: mlQtd, status_ml: item.status
         });
       }

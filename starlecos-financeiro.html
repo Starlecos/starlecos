@@ -5867,6 +5867,20 @@ async function cadastrarSkuEPA() {
     renderResumoEstoqueProdutoAcabado(_epaLista);
     renderTabelaEPA();
     notify('✅ SKU cadastrado!');
+    // Empurra a quantidade inicial pro ML e pra Shopify se o SKU já estiver
+    // mapeado em sku_ml_listagens/sku_canal_map (ex: SKU de um anúncio que já
+    // existia, cadastrado agora aqui). Sem isso o SKU nasce certo só aqui
+    // dentro e só sincroniza na primeira venda ou edição manual — causa raiz
+    // real confirmada em 07/10/2026 (SKU "Liso Cinza PP", nunca sincronizado
+    // desde 17/08 por falta exatamente desse passo).
+    fetch('/.netlify/functions/push-estoque', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku })
+    }).then(r => r.json()).then(r => {
+      const falhouML = (r.ml || []).some(m => !m.ok);
+      const falhouShopify = r.shopify && !r.shopify.ok;
+      if (falhouML || falhouShopify) notify('⚠️ SKU cadastrado, mas o envio pro ' + (falhouML ? 'Mercado Livre' : 'Shopify') + ' falhou — confira manualmente.', 'err');
+    }).catch(e => console.error('Erro ao empurrar estoque do SKU novo:', e));
   } catch(e) { console.error(e); notify('Erro ao cadastrar — o SKU já existe?', 'err'); }
 }
 
