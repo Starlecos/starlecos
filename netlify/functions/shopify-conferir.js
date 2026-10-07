@@ -31,7 +31,7 @@ exports.handler = async function(event) {
   try {
     const params = event.queryStringParameters || {};
     const offset = parseInt(params.offset) || 0;
-    const limit = Math.min(parseInt(params.limit) || 20, 50);
+    const limit = Math.min(parseInt(params.limit) || 12, 15); // pequeno de propósito: ~550ms de espera por item pra respeitar o rate limit
 
     // 1) Fatia de variantes mapeadas (ordem estável por sku)
     const listRes = await fetch(
@@ -67,13 +67,23 @@ exports.handler = async function(event) {
     for (const l of listagens) {
       if (!(l.sku in interno)) continue; // SKU sem linha no estoque interno — outro problema
       try {
-        const res = await fetch(`https://${store}/admin/api/2024-01/variants/${l.shopify_variant_id}.json`, {
+        // Rate limit da Shopify (~2 req/s, bucket de 40) — sem espaçar, boa
+        // parte das leituras volta 429 e vira falso "sem_leitura" (achado
+        // real em 07/10/2026: 95 de 244 sem ler na primeira tentativa sem
+        // esse delay). 1 retry com espera maior se vier 429.
+        let res = await fetch(`https://${store}/admin/api/2024-01/variants/${l.shopify_variant_id}.json`, {
           headers: { 'X-Shopify-Access-Token': token }
         });
-        if (!res.ok) { semLeitura++; continue; }
+        if (res.status === 429) {
+          await new Promise(r => setTimeout(r, 1500));
+          res = await fetch(`https://${store}/admin/api/2024-01/variants/${l.shopify_variant_id}.json`, {
+            headers: { 'X-Shopify-Access-Token': token }
+          });
+        }
+        if (!res.ok) { semLeitura++; await new Promise(r => setTimeout(r, 550)); continue; }
         const data = await res.json();
         const v = data.variant;
-        if (!v) { semLeitura++; continue; }
+        if (!v) { semLeitura++; await new Promise(r => setTimeout(r, 550)); continue; }
         const shopQtd = v.inventory_quantity;
         if (shopQtd !== interno[l.sku]) {
           divergentes.push({
@@ -82,6 +92,7 @@ exports.handler = async function(event) {
             interno: interno[l.sku], shopify: shopQtd
           });
         }
+        await new Promise(r => setTimeout(r, 550)); // ~1,8 req/s, dentro do limite
       } catch (e) { semLeitura++; }
     }
 
