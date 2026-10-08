@@ -879,6 +879,15 @@ async function registrarVenda() {
   var validos = itens.filter(function(i){ return i.produto && i.valor>0; });
   if (!validos.length) { alert('Adicione pelo menos um produto com valor.'); return; }
 
+  // Produto com cor cadastrada mas venda sem cor selecionada nunca bate com
+  // nenhum SKU real — a venda salva, mas o estoque nunca é baixado (achado
+  // real em 07/10/2026: 51% das vendas no histórico tinham esse problema).
+  var semEstampa = validos.filter(function(i){ return !i.estampa && (_estampas[i.produto]||[]).length; });
+  if (semEstampa.length) {
+    alert('Selecione a cor/estampa de: ' + semEstampa.map(function(i){ return i.produto; }).join(', ') + '. Sem isso o estoque não é baixado certo.');
+    return;
+  }
+
   var subtotal = validos.reduce(function(a,i){ return a+i.valor*i.qtd+i.valorBordado; },0);
   var total    = subtotal+frete;
   var id       = Date.now();
