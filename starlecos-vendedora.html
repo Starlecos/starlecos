@@ -341,6 +341,15 @@
         <input type="text" id="vo_obs" placeholder="Ex: entrega urgente...">
       </div>
     </div>
+    <div class="field-row">
+      <div class="field" style="flex:1">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="vo_turma" style="width:18px;height:18px">
+          📦 Pedido de Turma (encomenda)
+        </label>
+        <div style="font-size:12px;color:#6B7D93;margin-top:4px">Baixa do estoque na hora, mesmo que fique negativo — reserva o material até a confecção entregar e a entrada ser lançada, que abate esse negativo.</div>
+      </div>
+    </div>
 
     <div class="total-box" id="totalBox">
       <span class="total-box-label">💰 Total do Pedido</span>
@@ -655,7 +664,7 @@ function normEP(s) { return (s||'').trim().toLowerCase(); }
 // a partir do número em cache no navegador, que pode estar desatualizado
 // se o estoque mudou em outro lugar (ML, Shopify, Financeiro) enquanto a
 // aba da Vendas estava aberta.
-async function movimentarEstoque(itens, pedidoId, sinal, motivo) {
+async function movimentarEstoque(itens, pedidoId, sinal, motivo, permiteNegativo) {
   for (var i = 0; i < itens.length; i++) {
     var it = itens[i];
     var match = _estoqueProdutos.find(function(e) {
@@ -667,9 +676,13 @@ async function movimentarEstoque(itens, pedidoId, sinal, motivo) {
     try {
       await fetch(SUPABASE_URL + '/rest/v1/rpc/aplicar_movimento_estoque', {
         method: 'POST', headers: { ...HEADERS, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ p_canal: 'vendas', p_pedido_id: String(pedidoId), p_sku: match.sku, p_delta: sinal * (it.qtd||0), p_motivo: motivo })
+        body: JSON.stringify({ p_canal: 'vendas', p_pedido_id: String(pedidoId), p_sku: match.sku, p_delta: sinal * (it.qtd||0), p_motivo: motivo, p_permite_negativo: !!permiteNegativo })
       });
-      match.quantidade = Math.max(0, (match.quantidade||0) + sinal * (it.qtd||0));
+      // Pedido de Turma pode deixar negativo de propósito (reserva contra
+      // produção futura) — só clampa em 0 quando NÃO é Turma, pra não
+      // escurecer visualmente um saldo que a entrada futura vai abater.
+      var novaQtd = (match.quantidade||0) + sinal * (it.qtd||0);
+      match.quantidade = permiteNegativo ? novaQtd : Math.max(0, novaQtd);
       // Empurra a quantidade nova pro ML e pra Shopify — venda manual, nenhum
       // canal sabe da mudança sozinho.
       fetch('/.netlify/functions/push-estoque', {
@@ -679,8 +692,12 @@ async function movimentarEstoque(itens, pedidoId, sinal, motivo) {
     } catch(e) { console.error('Erro ao movimentar estoque:', e); }
   }
 }
-function descontarEstoque(itens, pedidoId) { return movimentarEstoque(itens, pedidoId, -1, 'venda'); }
-function devolverEstoque(itens, pedidoId)  { return movimentarEstoque(itens, pedidoId, 1, 'cancelamento'); }
+function descontarEstoque(itens, pedidoId, turma) { return movimentarEstoque(itens, pedidoId, -1, 'venda', turma); }
+// Devolução sempre soma (nunca precisa "proteger" contra negativo) — mas se
+// o SKU já estava negativo por outro pedido de Turma na mesma SKU, uma soma
+// parcial (ex: -13 + 5 = -8) tem que continuar negativa de verdade, não
+// zerar por engano. p_permite_negativo=true aqui sempre, mesmo fora de Turma.
+function devolverEstoque(itens, pedidoId)  { return movimentarEstoque(itens, pedidoId, 1, 'cancelamento', true); }
 
 // =============================================
 // ABA ESTOQUE (produtos acabados)
@@ -872,6 +889,7 @@ async function registrarVenda() {
   var pagamento = document.getElementById('vo_pagamento').value;
   var status    = document.getElementById('vo_status').value;
   var obs       = document.getElementById('vo_obs').value.trim();
+  var turma     = document.getElementById('vo_turma').checked;
   var itens     = getItens();
 
   if (!vendedora) { alert('Selecione seu nome.'); return; }
@@ -896,9 +914,9 @@ async function registrarVenda() {
   btn.disabled = true; btn.textContent = 'Salvando...';
 
   try {
-    await sbInsert('vendas', { id, data, vendedora, cliente, itens: validos, subtotal, frete, total, canal, pagamento, status, obs });
+    await sbInsert('vendas', { id, data, vendedora, cliente, itens: validos, subtotal, frete, total, canal, pagamento, status, obs, turma });
     try { localStorage.setItem('starlecos_vendedora_nome', vendedora); } catch(e) {}
-    if (status !== 'Cancelado') descontarEstoque(validos, id);
+    if (status !== 'Cancelado') descontarEstoque(validos, id, turma);
 
     var nomes = validos.map(function(i){ return i.qtd+'x '+i.produto; }).join(', ');
     var box = document.getElementById('successBox');
@@ -910,6 +928,7 @@ async function registrarVenda() {
     document.getElementById('vo_frete').value='0';
     document.getElementById('vo_obs').value='';
     document.getElementById('vo_status').value='Pago';
+    document.getElementById('vo_turma').checked=false;
     document.getElementById('itensList').innerHTML='';
     itemCount=0; adicionarItem(); calcTotal();
     await renderHistorico();
@@ -996,7 +1015,9 @@ async function renderHistorico() {
           '<div class="venda-cliente">'+(v.cliente||'Cliente não informado')+'</div>'+
           itensHtml+
           '<div class="venda-meta">'+fmtData(v.data)+' · '+v.canal+' · '+v.pagamento+freteInfo+
-            ' &nbsp;<span class="badge '+badgeCls+'">'+v.status+'</span></div>'+
+            ' &nbsp;<span class="badge '+badgeCls+'">'+v.status+'</span>'+
+            (v.turma?' <span class="badge badge-amber">📦 Turma</span>':'')+
+            '</div>'+
           '<button class="btn-excluir-pedido" onclick="excluirPedido('+v.id+')">🗑 Excluir pedido</button>'+
         '</div>'+
         '<div class="venda-valor">'+fmt(v.total||0)+'</div>'+

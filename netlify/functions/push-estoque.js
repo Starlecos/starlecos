@@ -159,6 +159,12 @@ exports.handler = async function(event) {
       return { statusCode: 200, headers, body: JSON.stringify({ aviso: 'SKU sem mapeamento de canal, nada pra empurrar' }) };
     }
 
+    // Estoque interno pode ficar negativo de propósito (pedido de Turma —
+    // reserva contra produção futura, ver modalidade na Vendedora). ML e
+    // Shopify não têm o conceito de "estoque disponível negativo" — manda
+    // 0 pra eles (sem anunciar disponibilidade que não existe), mas o
+    // valor interno negativo real continua só aqui/no Supabase.
+    const quantidadeExterna = Math.max(0, quantidade);
     const resultado = { sku, quantidade, ml: [], shopify: null };
 
     if (ignorar_canal !== 'mercado_livre' && mlListagens.length) {
@@ -168,7 +174,7 @@ exports.handler = async function(event) {
       if (accessToken) {
         for (const l of mlListagens) {
           try {
-            const r = await empurrarML(accessToken, l.ml_item_id, l.ml_variation_id, quantidade);
+            const r = await empurrarML(accessToken, l.ml_item_id, l.ml_variation_id, quantidadeExterna);
             resultado.ml.push({ ml_item_id: l.ml_item_id, ml_variation_id: l.ml_variation_id, ...r });
           } catch (e) {
             resultado.ml.push({ ml_item_id: l.ml_item_id, ml_variation_id: l.ml_variation_id, ok: false, erro: e.message });
@@ -177,7 +183,7 @@ exports.handler = async function(event) {
       }
     }
     if (ignorar_canal !== 'shopify' && shopifyVariantId) {
-      try { resultado.shopify = await empurrarShopify(shopifyVariantId, quantidade); }
+      try { resultado.shopify = await empurrarShopify(shopifyVariantId, quantidadeExterna); }
       catch (e) { resultado.shopify = { ok: false, erro: e.message }; }
     }
 

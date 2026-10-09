@@ -4999,12 +4999,43 @@ function renderTabelaEPA() {
       <td>${v.produto}</td>
       <td>${v.tamanho||'—'}</td>
       <td style="font-size:12px;color:var(--muted)">${v.estampa||'—'}</td>
-      <td><input type="number" id="epaq_${v.sku}" value="${v.quantidade||0}" min="0" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px"> un</td>
+      <td><input type="number" id="epaq_${v.sku}" value="${v.quantidade||0}" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:Inter,sans-serif;font-size:13px${(v.quantidade||0) < 0 ? ';color:var(--rose);font-weight:700' : ''}"> un${(v.quantidade||0) < 0 ? ' <span style="font-size:11px;color:var(--rose)" title="Reservado por pedido de Turma — a próxima entrada abate isso">📦</span>' : ''}</td>
       <td style="display:flex;gap:4px">
-        <button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="salvarQtdEPA('${v.sku}')">💾</button>
+        <button class="btn-add jade" style="padding:5px 12px;font-size:12px" onclick="salvarQtdEPA('${v.sku}')" title="Define a quantidade exata (sobrescreve)">💾</button>
+        <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--sky)" onclick="lancarEntradaEPA('${v.sku}')" title="Soma peças que chegaram da confecção (abate reserva de Turma primeiro)">📦</button>
         <button class="btn-add" style="padding:5px 12px;font-size:12px;background:var(--rose)" onclick="excluirSkuEPA('${v.sku}')">✕</button>
       </td>
     </tr>`).join('');
+}
+
+// Soma peças recém-produzidas ao estoque (em vez de sobrescrever como o 💾
+// faz) — se o SKU estava negativo por causa de um pedido de Turma (reserva
+// contra produção futura), a soma abate esse negativo primeiro, naturalmente.
+async function lancarEntradaEPA(sku) {
+  const item = _epaLista.find(r => r.sku === sku);
+  if (!item) return;
+  const resp = prompt('Quantas peças chegaram da confecção pro SKU ' + sku + '? (estoque atual: ' + (item.quantidade||0) + ')', '');
+  if (resp === null) return;
+  const qtd = parseInt(resp);
+  if (!qtd || qtd <= 0) { notify('Informe uma quantidade válida (maior que zero).', 'err'); return; }
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/aplicar_movimento_estoque', {
+      method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+      // p_permite_negativo=true: se o SKU tava negativo (reserva de Turma) e
+      // essa entrada não cobre tudo, tem que continuar negativo de verdade
+      // (ex: -13 + 5 = -8), nunca zerar por engano.
+      body: JSON.stringify({ p_canal: 'confeccao', p_pedido_id: 'entrada-' + Date.now(), p_sku: sku, p_delta: qtd, p_motivo: 'entrada_producao', p_permite_negativo: true })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    item.quantidade = (item.quantidade||0) + qtd;
+    renderResumoEstoqueProdutoAcabado(_epaLista);
+    renderTabelaEPA();
+    notify('✅ Entrada de ' + qtd + ' peça(s) lançada em ' + sku + '! Estoque agora: ' + item.quantidade + '.');
+    empurrarEstoqueVisivel(sku);
+  } catch (e) {
+    console.error(e);
+    notify('Erro ao lançar entrada', 'err');
+  }
 }
 
 async function salvarQtdEPA(sku) {
@@ -5890,6 +5921,7 @@ function renderResumoEstoqueProdutoAcabado(lista) {
   const comEstoque = lista.filter(v => (v.quantidade||0) > 0).length;
   const zerados    = lista.filter(v => (v.quantidade||0) === 0 && !TAMANHOS_SEM_ANUNCIO_EPA.includes(v.tamanho)).length;
   const baixos     = lista.filter(v => (v.quantidade||0) > 0 && (v.quantidade||0) <= 3);
+  const reservados = lista.filter(v => (v.quantidade||0) < 0).length; // pedido de Turma consumindo à frente da produção
 
   document.getElementById('epaResumoCards').innerHTML = `
     <div class="sum-card estoque">
@@ -5902,7 +5934,7 @@ function renderResumoEstoqueProdutoAcabado(lista) {
       <div class="sum-icon">📦</div>
       <div class="sum-label">Peças em Estoque</div>
       <div class="sum-value">${totalPecas}</div>
-      <div class="sum-sub">Soma de todos os SKUs</div>
+      <div class="sum-sub">${reservados ? reservados + ' SKU(s) negativo(s) — reserva de Turma' : 'Soma de todos os SKUs'}</div>
     </div>
     <div class="sum-card despesa">
       <div class="sum-icon">🚫</div>

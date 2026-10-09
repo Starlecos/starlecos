@@ -105,7 +105,13 @@ exports.handler = async function(event) {
         if (!v) { semLeitura++; return; }
         mlQtd = v.available_quantity;
       }
-      if (mlQtd !== interno[l.sku]) {
+      // Interno pode ficar negativo de propósito (pedido de Turma — reserva
+      // contra produção futura). ML nunca mostra negativo (push-estoque manda
+      // 0 nesse caso) — compara contra o "disponível" (0 se negativo), não
+      // contra o número cru, senão toda reserva de Turma aparece como falsa
+      // divergência aqui.
+      const internoDisponivel = Math.max(0, interno[l.sku]);
+      if (mlQtd !== internoDisponivel) {
         divergentes.push({
           sku: l.sku, ml_item_id: l.ml_item_id, ml_variation_id: l.ml_variation_id,
           titulo: item.title || null,

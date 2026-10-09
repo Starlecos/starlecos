@@ -85,7 +85,13 @@ exports.handler = async function(event) {
         const v = data.variant;
         if (!v) { semLeitura++; await new Promise(r => setTimeout(r, 550)); continue; }
         const shopQtd = v.inventory_quantity;
-        if (shopQtd !== interno[l.sku]) {
+        // Interno pode ficar negativo de propósito (pedido de Turma —
+        // reserva contra produção futura). Shopify nunca mostra negativo
+        // (push-estoque manda 0 nesse caso) — compara contra o
+        // "disponível" (0 se negativo), senão toda reserva de Turma
+        // aparece como falsa divergência aqui.
+        const internoDisponivel = Math.max(0, interno[l.sku]);
+        if (shopQtd !== internoDisponivel) {
           divergentes.push({
             sku: l.sku, shopify_variant_id: l.shopify_variant_id,
             titulo: v.title || null,
