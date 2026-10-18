@@ -125,15 +125,18 @@ exports.handler = async function(event) {
       if (promotion_type === 'LIGHTNING' && typeof stock !== 'number') {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'stock obrigatório pra LIGHTNING' }) };
       }
-      // SMART (Co-participação Automatizada) exige offer_id além do
-      // promotion_id — o ML identifica a campanha (promotion_id) e a
-      // candidatura específica DESSE item nela (offer_id) separadamente.
-      // Achado real (18/10/2026): sem isso o ML recusa com "Offer id is
-      // required" — 32 tentativas falhando sempre. O offer_id vem do
-      // sufixo de "ref_id" que o próprio ML devolve em ?action=item
-      // (formato "CANDIDATE-{item_id}-{offer_id}").
-      if (promotion_type === 'SMART' && !offer_id) {
-        return { statusCode: 400, headers, body: JSON.stringify({ error: 'offer_id obrigatório pra SMART' }) };
+      // SMART e SMART_LIGHTNING (Co-participação Automatizada) exigem
+      // offer_id além do promotion_id — o ML identifica a campanha
+      // (promotion_id) e a candidatura específica DESSE item nela
+      // (offer_id) separadamente. É o `ref_id` COMPLETO que o ML devolve
+      // em ?action=item (formato "CANDIDATE-{item_id}-{num}") — achado
+      // real (18/10/2026, 2 rodadas): sem offer_id nenhum, "Offer id is
+      // required"; mandando só o número final (sem o prefixo
+      // "CANDIDATE-..."), o ML aceita a requisição mas estoura um erro
+      // 500 genérico em vez de aplicar. Testado com o ref_id completo
+      // direto contra a API real — funcionou (HTTP 201).
+      if ((promotion_type === 'SMART' || promotion_type === 'SMART_LIGHTNING') && !offer_id) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'offer_id obrigatório pra ' + promotion_type }) };
       }
       const payload = { promotion_type };
       if (promotion_id) payload.promotion_id = promotion_id;

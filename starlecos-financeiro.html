@@ -5676,11 +5676,7 @@ async function sincronizarPromocoesML() {
         url_produto: info.permalink || null, promocao_nome: nome, promotion_id: promotionId,
         promo_type: tipo, preco_original: p.original_price != null ? p.original_price : null,
         preco_final: precoFinal, desconto_percentual: descontoPct, candidate_quantity: candidateQuantity,
-        // SMART/SMART_LIGHTNING já nasce "automatico" — aprovação é do
-        // próprio ML, nunca teve "aplicar" manual que funcionasse (ver
-        // aprovarPromocao, achado real 18/10/2026).
-        status: (tipo === 'smart' || tipo === 'smart_lightning') ? 'automatico' : 'pendente',
-        detectado_em: new Date().toISOString(),
+        status: 'pendente', detectado_em: new Date().toISOString(),
         _category_id: info.category_id || null, _listing_type_id: info.listing_type_id || null
       };
     });
@@ -5741,13 +5737,11 @@ function renderResumoTiposPromocoes() {
   const box = document.getElementById('resumoTiposPromocoes');
   if (!_promocoesLista.length) { box.innerHTML = ''; return; }
   const porTipo = {};
-  // "Expirado" e "automatico" não entram aqui — nenhum dos dois tem ação
-  // possível (expirado: não é mais candidata no ML; automatico: SMART/
-  // SMART_LIGHTNING, o próprio ML decide sozinho, nunca teve "aplicar"
-  // manual que funcionasse, ver aprovarPromocao). Só poluiriam o resumo
-  // (achado real 18/10/2026: um tipo inteiro, "Campanha Tradicional"
-  // antigo, ficava 100% expirado e virava um card fantasma).
-  _promocoesLista.filter(p => p.status !== 'expirado' && p.status !== 'automatico').forEach(p => {
+  // "Expirado" não entra aqui — não é mais candidata no ML, não tem ação
+  // possível, só polui o resumo (achado real 18/10/2026: um tipo inteiro,
+  // "Campanha Tradicional" antigo, ficava 100% expirado e virava um card
+  // fantasma só com esse número, sem nada pra fazer com ele).
+  _promocoesLista.filter(p => p.status !== 'expirado').forEach(p => {
     const t = p.promo_type || '—';
     if (!porTipo[t]) porTipo[t] = { pendente: 0, aplicado: 0, recusado: 0, erro: 0, total: 0 };
     porTipo[t][p.status] = (porTipo[t][p.status] || 0) + 1;
@@ -5788,11 +5782,10 @@ function renderTabelaPromocoes() {
   const filtroTipo = document.getElementById('promo_filtro_tipo').value;
   const filtroStatus = document.getElementById('promo_filtro_status').value;
   // Busca por produto ignora o filtro de status — o ponto dela é ver TUDO
-  // que existe pra aquele produto de uma vez (inclusive "automatico", que
-  // nem aparece como opção no filtro de status), igual a tela por-produto
-  // do próprio ML (achado real 18/10/2026: Enzo abriu 1 produto no ML e
-  // viu 7 campanhas; aqui só filtrava por tipo/status global, sem jeito
-  // de juntar tudo de 1 produto só).
+  // que existe pra aquele produto de uma vez, igual a tela por-produto do
+  // próprio ML (achado real 18/10/2026: Enzo abriu 1 produto no ML e viu
+  // 7 campanhas; aqui só filtrava por tipo/status global, sem jeito de
+  // juntar tudo de 1 produto só).
   const buscaProduto = (document.getElementById('promo_busca_produto').value || '').trim().toLowerCase();
   const lista = _promocoesLista.filter(p =>
     (!filtroTipo || p.promo_type === filtroTipo) &&
@@ -5812,8 +5805,7 @@ function renderTabelaPromocoes() {
     recusado: { label: '⚪ Recusado', cor: 'var(--muted)' },
     aplicado: { label: '🟢 Aplicado no ML', cor: 'var(--jade)' },
     erro: { label: '🔴 Erro ao aplicar', cor: 'var(--rose)' },
-    expirado: { label: '⚫ Expirou no ML', cor: 'var(--muted)' },
-    automatico: { label: '⚙️ Automático (ML decide)', cor: 'var(--muted)' }
+    expirado: { label: '⚫ Expirou no ML', cor: 'var(--muted)' }
   };
 
   tbody.innerHTML = lista.map(p => {
@@ -5828,7 +5820,6 @@ function renderTabelaPromocoes() {
     else if (p.status === 'recusado') acoes = botaoAprovar;
     else if (p.status === 'erro') acoes = `<span style="font-size:11px;color:var(--rose)" title="${p.erro_msg || ''}">${(p.erro_msg || '').slice(0, 60)}</span><br>${botaoAprovar}`;
     else if (p.status === 'expirado') acoes = `<span style="font-size:11px;color:var(--muted)">${(p.erro_msg || 'Não é mais candidata no ML').slice(0, 60)}</span>`;
-    else if (p.status === 'automatico') acoes = `<span style="font-size:11px;color:var(--muted)">O próprio ML decide, sem aprovar manual</span>`;
     else acoes = '—'; // aplicado: já foi, nada a fazer
 
     return `<tr>
@@ -5865,21 +5856,6 @@ async function aprovarPromocao(id) {
     notify(msg, 'err');
     return;
   }
-  // SMART e SMART_LIGHTNING (Co-participação Automatizada) têm aprovação
-  // 100% automática do próprio ML, documentada — não existe um "aplicar"
-  // manual via API pra esses tipos. Achado real (18/10/2026): nenhuma
-  // promoção desses dois tipos JAMAIS foi aplicada com sucesso no sistema
-  // inteiro (0 de centenas de tentativas) — todo "Aprovar" aqui ia direto
-  // pra erro 500 do próprio ML ("Oops! Something went wrong", confirmado
-  // testando contra a API real com vários itens/campanhas diferentes, não
-  // é payload errado nosso). Marca como "automatico" em vez de tentar.
-  if (item.promo_type === 'smart' || item.promo_type === 'smart_lightning') {
-    await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'automatico', erro_msg: null, decidido_em: new Date().toISOString() });
-    item.status = 'automatico'; item.erro_msg = null;
-    renderTabelaPromocoes();
-    notify('⚙️ Esse tipo o próprio ML decide sozinho (co-participação automatizada) — não existe aprovar manual pra ele.');
-    return;
-  }
   const tipoOficial = PROMO_TYPE_UPPER[item.promo_type] || (item.promo_type || '').toUpperCase();
   try {
     notify('Conferindo dado atual no ML...');
@@ -5908,14 +5884,16 @@ async function aprovarPromocao(id) {
     // "id" que a Lightning devolve (LGH-MLB1000) é genérico, compartilhado
     // por todo mundo, não identifica a candidatura específica desse item.
     if (atual.id && tipoOficial !== 'LIGHTNING' && tipoOficial !== 'PRICE_DISCOUNT') payload.promotion_id = atual.id;
-    // SMART exige offer_id (a candidatura específica DESSE item na
-    // campanha) além do promotion_id (a campanha em si) — sem isso o ML
-    // recusa com "Offer id is required" (achado real 18/10/2026, 32
-    // tentativas falhando). Vem embutido no ref_id que o ML já devolve:
-    // "CANDIDATE-{item_id}-{offer_id}".
-    if (tipoOficial === 'SMART' && atual.ref_id) {
-      const prefixo = 'CANDIDATE-' + item.item_id + '-';
-      if (atual.ref_id.startsWith(prefixo)) payload.offer_id = atual.ref_id.slice(prefixo.length);
+    // SMART e SMART_LIGHTNING exigem offer_id (a candidatura específica
+    // DESSE item na campanha) além do promotion_id (a campanha em si) —
+    // sem isso o ML recusa com "Offer id is required". É o `ref_id`
+    // COMPLETO que o ML já devolve ("CANDIDATE-{item_id}-{num}") — achado
+    // real (18/10/2026): mandar só o número final (sem o prefixo
+    // "CANDIDATE-...") faz o ML aceitar o request mas estourar um erro
+    // 500 genérico ("Oops! Something went wrong") em vez de aplicar —
+    // confirmado testando os dois formatos direto contra a API real.
+    if ((tipoOficial === 'SMART' || tipoOficial === 'SMART_LIGHTNING') && atual.ref_id) {
+      payload.offer_id = atual.ref_id;
     }
     if (tipoOficial === 'LIGHTNING') {
       payload.deal_price = atual.suggested_discounted_price;
