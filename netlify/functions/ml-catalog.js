@@ -6,7 +6,9 @@
 //     devolve todos os item_id daquele status (offset até 1000 por chamada
 //     de busca, que é o limite da API pra esse endpoint).
 //   ?action=bulk&ids=ID1,ID2,...         -> multiget /items?ids=... (até 20
-//     por chamada), devolve title/status/sub_status/variations de cada um.
+//     por chamada), devolve title/status/sub_status/variations/category_id/
+//     listing_type_id de cada um (os 2 últimos usados pra estimar comissão
+//     real via ml-promocoes.js?action=fee).
 const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
 const ML_APP_ID = '6624742243995383';
 const SELLER_ID = '1781620508';
@@ -77,7 +79,7 @@ exports.handler = async function(event) {
     if (params.action === 'bulk') {
       const ids = (params.ids || '').split(',').filter(Boolean);
       if (!ids.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'ids obrigatório' }) };
-      const url = 'https://api.mercadolibre.com/items?ids=' + ids.join(',') + '&attributes=id,title,status,sub_status,variations,thumbnail,permalink';
+      const url = 'https://api.mercadolibre.com/items?ids=' + ids.join(',') + '&attributes=id,title,status,sub_status,variations,thumbnail,permalink,category_id,listing_type_id';
       const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
       const data = await res.json();
       return { statusCode: res.status, headers, body: JSON.stringify(data) };

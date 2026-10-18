@@ -15,6 +15,12 @@
 //                                         -> POST /seller-promotions/items/{item_id} (aplica de verdade)
 //   POST ?action=remove body:{item_id, promotion_id, promotion_type, offer_id?}
 //                                         -> DELETE /seller-promotions/items/{item_id} (recusa/remove)
+//   ?action=fee&price=&category_id=&listing_type_id=
+//                                         -> GET /sites/MLB/listing_prices (comissão real do ML
+//                                            pra aquele preço/categoria/tipo de anúncio — usado
+//                                            pra estimar "você recebe" nas promoções candidatas,
+//                                            já que o ML não expõe o valor líquido exato de uma
+//                                            candidata antes dela ser aprovada, ver diário 18/10/2026)
 const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
 const ML_APP_ID = '6624742243995383';
 const SELLER_ID = '1781620508';
@@ -96,6 +102,14 @@ exports.handler = async function(event) {
     if (params.action === 'item') {
       if (!params.item_id) return { statusCode: 400, headers, body: JSON.stringify({ error: 'item_id obrigatório' }) };
       const r = await chamarML(accessToken, `/seller-promotions/items/${params.item_id}?app_version=v2`);
+      return { statusCode: r.status, headers, body: JSON.stringify(r.data) };
+    }
+
+    if (params.action === 'fee') {
+      if (!params.price || !params.category_id || !params.listing_type_id) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'price, category_id e listing_type_id obrigatórios' }) };
+      }
+      const r = await chamarML(accessToken, `/sites/MLB/listing_prices?price=${encodeURIComponent(params.price)}&category_id=${encodeURIComponent(params.category_id)}&listing_type_id=${encodeURIComponent(params.listing_type_id)}`);
       return { statusCode: r.status, headers, body: JSON.stringify(r.data) };
     }
 

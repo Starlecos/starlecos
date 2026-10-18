@@ -1706,7 +1706,7 @@
             <th>Promoção</th>
             <th>De / Por</th>
             <th>Desconto</th>
-            <th>Você recebe</th>
+            <th>Você recebe <span title="Estimativa: preço final menos a comissão real do ML pra categoria/tipo de anúncio. Não inclui o desconto de frete grátis que o painel do ML aplica por cima (esse componente não é público na API) — fica um pouco acima do valor real." style="cursor:help">ⓘ</span></th>
             <th>Detectado em</th>
             <th>Status</th>
             <th>Ações</th>
@@ -5477,6 +5477,44 @@ function idBasePromocao(promotionId) {
   return (promotionId || '').split('@')[0];
 }
 
+// Estimativa de "você recebe": o ML não expõe o valor líquido exato de uma
+// promoção ainda CANDIDATA (só calcula de verdade depois que ela vira uma
+// oferta aplicada) — achado real (18/10/2026, testado direto contra a API
+// com os IDs reais de candidatas existentes: nem /seller-promotions/items,
+// nem /promotions/{id}/items, nem /seller-promotions/offers/{offer_id}
+// devolvem o valor líquido de uma candidata). O que dá pra pegar de fonte
+// oficial é a comissão real da categoria/tipo de anúncio pro preço final
+// (GET /sites/MLB/listing_prices, documentado) — por isso aqui é só preço
+// final menos comissão, SEM o desconto de frete grátis que o painel do
+// próprio ML aplica por cima (esse componente não é público). Enzo está
+// ciente que fica uma estimativa por cima do valor real, não bate 100%.
+async function preencherVoceRecebe(linhas) {
+  const cache = {}; // chave "categoria|tipoAnuncio|preço" -> sale_fee_amount (ou null se falhou)
+  async function buscarTaxa(categoryId, listingTypeId, preco) {
+    const chave = categoryId + '|' + listingTypeId + '|' + preco;
+    if (chave in cache) return cache[chave];
+    try {
+      const r = await fetch('/.netlify/functions/ml-promocoes?action=fee&price=' + preco + '&category_id=' + encodeURIComponent(categoryId) + '&listing_type_id=' + encodeURIComponent(listingTypeId));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      cache[chave] = typeof data.sale_fee_amount === 'number' ? data.sale_fee_amount : null;
+    } catch (e) {
+      console.warn('Falha buscando comissão (' + chave + '):', e.message);
+      cache[chave] = null;
+    }
+    return cache[chave];
+  }
+  const elegiveis = linhas.filter(l => l.preco_final != null && l._category_id && l._listing_type_id);
+  const LOTE = 10;
+  for (let i = 0; i < elegiveis.length; i += LOTE) {
+    const lote = elegiveis.slice(i, i + LOTE);
+    await Promise.all(lote.map(async l => {
+      const taxa = await buscarTaxa(l._category_id, l._listing_type_id, l.preco_final);
+      if (taxa != null) l.voce_recebe = Math.round((l.preco_final - taxa) * 100) / 100;
+    }));
+  }
+}
+
 // Varre todo o catálogo (ativos + pausados) via API oficial do ML e insere
 // candidatas novas em ml_promocoes — substitui a raspagem via Tampermonkey.
 async function sincronizarPromocoesML() {
@@ -5631,9 +5669,14 @@ async function sincronizarPromocoesML() {
         url_produto: info.permalink || null, promocao_nome: nome, promotion_id: promotionId,
         promo_type: tipo, preco_original: p.original_price != null ? p.original_price : null,
         preco_final: precoFinal, desconto_percentual: descontoPct, candidate_quantity: candidateQuantity,
-        status: 'pendente', detectado_em: new Date().toISOString()
+        status: 'pendente', detectado_em: new Date().toISOString(),
+        _category_id: info.category_id || null, _listing_type_id: info.listing_type_id || null
       };
     });
+
+    statusEl.textContent = `Calculando "você recebe" (comissão real do ML por categoria)...`;
+    await preencherVoceRecebe(linhas);
+    linhas.forEach(l => { delete l._category_id; delete l._listing_type_id; });
 
     statusEl.textContent = `Salvando ${linhas.length} promoção(ões)...`;
     // on_conflict explícito é obrigatório aqui: a chave de conflito
