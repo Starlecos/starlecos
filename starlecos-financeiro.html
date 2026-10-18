@@ -1713,9 +1713,15 @@
           </select>
         </div>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);background:#FAFBFD">
+        <button class="btn-add jade" id="btnAprovarEmMassa" onclick="aprovarEmMassa()">☑️ Aprovar selecionadas</button>
+        <span style="font-size:12px;color:var(--muted)">Pré-marcadas sozinho: pendentes com desconto até 9% (ver CHECKBOX_DESCONTO_MAX_PADRAO no JS). Desmarque/marque manualmente antes de aprovar.</span>
+        <span id="aprovarEmMassaStatus" style="font-size:12px;color:var(--muted);margin-left:auto"></span>
+      </div>
       <table>
         <thead>
           <tr>
+            <th style="width:32px"></th>
             <th>Produto</th>
             <th>Promoção</th>
             <th>De / Por</th>
@@ -1727,7 +1733,7 @@
           </tr>
         </thead>
         <tbody id="bodyPromocoesML">
-          <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda</p></div></td></tr>
+          <tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -5440,6 +5446,18 @@ async function salvarMetrosProdutoEpa(idx) {
 
 // ====== PROMOÇÕES ML — via API oficial /seller-promotions (ml-promocoes.js) ======
 let _promocoesLista = [];
+// Checkbox de "aprovar em massa": pré-marca sozinho toda pendente com
+// desconto até esse %, pra aprovar tudo de baixo risco de uma vez (pedido
+// do Enzo, 18/10/2026). Fica salvo por id em _promoCheckState só quando o
+// Enzo mexe manualmente — senão (primeira vez vendo aquela linha) usa a
+// regra automática, pra não perder o estado quando filtro/ordenação
+// reconstrói a tabela.
+const CHECKBOX_DESCONTO_MAX_PADRAO = 9;
+let _promoCheckState = {};
+function estaMarcadoPromocao(p) {
+  if (p.id in _promoCheckState) return _promoCheckState[p.id];
+  return p.status === 'pendente' && p.desconto_percentual != null && p.desconto_percentual <= CHECKBOX_DESCONTO_MAX_PADRAO;
+}
 
 const PROMO_TYPE_LABEL = {
   deal: 'Campanha Tradicional', tier: 'Campanha Tradicional',
@@ -5818,11 +5836,11 @@ function renderTabelaPromocoes() {
   }
 
   if (!_promocoesLista.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda — clique em "Buscar Promoções"</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda — clique em "Buscar Promoções"</p></div></td></tr>';
     return;
   }
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhuma promoção com esse filtro</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhuma promoção com esse filtro</p></div></td></tr>';
     return;
   }
 
@@ -5849,6 +5867,7 @@ function renderTabelaPromocoes() {
     else acoes = '—'; // aplicado: já foi, nada a fazer
 
     return `<tr>
+      <td>${p.status === 'pendente' ? `<input type="checkbox" ${estaMarcadoPromocao(p) ? 'checked' : ''} onchange="_promoCheckState[${p.id}]=this.checked">` : ''}</td>
       <td style="display:flex;align-items:center;gap:8px">
         ${p.foto ? `<img src="${p.foto}" style="width:36px;height:36px;object-fit:cover;border-radius:6px">` : ''}
         <a href="${p.url_produto || '#'}" target="_blank" style="font-size:12px;max-width:220px;display:inline-block">${p.titulo || p.item_id}</a>
@@ -5867,9 +5886,12 @@ function renderTabelaPromocoes() {
 // Aprovar re-confere o dado ao vivo no ML antes de aplicar (nunca confia só
 // no preço sugerido detectado na última sincronização — pode ter mudado ou
 // a candidatura pode ter expirado) e aplica na hora via API oficial.
-async function aprovarPromocao(id) {
-  const item = _promocoesLista.find(p => p.id === id);
-  if (!item) return;
+// Núcleo de aplicar 1 promoção de verdade no ML — usado tanto pelo botão
+// individual (aprovarPromocao) quanto pela aprovação em massa
+// (aprovarEmMassa). Nunca lança exceção: sempre devolve {ok, ...} e já
+// deixa o banco e o `item` em memória atualizados; quem chama decide o
+// que fazer com a UI (notify/render individual vs. resumo em lote).
+async function aplicarPromocaoReal(item) {
   if (!/^MLB\d+$/.test(item.item_id)) {
     // "family" = promoção de evento (ex: "9.9"/"10.10" agrupado) que o ML
     // não expõe com anúncio único — sem o payload real do endpoint de
@@ -5877,14 +5899,12 @@ async function aprovarPromocao(id) {
     // pra aplicar automático. Registro de formato antigo (Tampermonkey,
     // antes da API oficial) é um caso diferente, mas cai na mesma trava.
     const msg = item.promo_type === 'family'
-      ? '⚠️ Promoção agrupada (evento tipo "10.10" com vários tamanhos) — participar automático ainda não existe, só direto pelo painel do ML.'
-      : '⚠️ Registro de formato antigo (raspagem descontinuada) — recuse e deixe a busca nova recriar.';
-    notify(msg, 'err');
-    return;
+      ? 'Promoção agrupada (evento tipo "10.10" com vários tamanhos) — participar automático ainda não existe, só direto pelo painel do ML.'
+      : 'Registro de formato antigo (raspagem descontinuada) — recuse e deixe a busca nova recriar.';
+    return { ok: false, bloqueado: true, motivo: msg };
   }
   const tipoOficial = PROMO_TYPE_UPPER[item.promo_type] || (item.promo_type || '').toUpperCase();
   try {
-    notify('Conferindo dado atual no ML...');
     const r = await fetch('/.netlify/functions/ml-promocoes?action=item&item_id=' + item.item_id);
     const promos = await r.json();
     if (!Array.isArray(promos)) throw new Error('Resposta inesperada do ML');
@@ -5898,11 +5918,9 @@ async function aprovarPromocao(id) {
       // Achado real (27/09/2026): o Enzo via essas linhas junto dos erros
       // de verdade (transitórios), com botão "Aprovar" que ia falhar de
       // novo sempre — confuso e sem serventia.
-      await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'expirado', erro_msg: 'Não é mais candidata no ML (expirou ou já foi decidida por outro caminho)', decidido_em: new Date().toISOString() });
+      await sbPatch('ml_promocoes', 'id=eq.' + item.id, { status: 'expirado', erro_msg: 'Não é mais candidata no ML (expirou ou já foi decidida por outro caminho)', decidido_em: new Date().toISOString() });
       item.status = 'expirado'; item.erro_msg = 'Não é mais candidata no ML';
-      renderTabelaPromocoes();
-      notify('⚠️ Essa promoção não está mais disponível no ML.', 'err');
-      return;
+      return { ok: false, expirado: true, motivo: 'Não é mais candidata no ML' };
     }
 
     const payload = { item_id: item.item_id, promotion_type: tipoOficial };
@@ -5946,7 +5964,6 @@ async function aprovarPromocao(id) {
       if (resp.ok) break;
       const msg = data.message || data.error || '';
       if (tentativa < 2 && /internal capacity/i.test(msg)) {
-        notify('ML sobrecarregado, tentando de novo...');
         await new Promise(res => setTimeout(res, 2000 * (tentativa + 1)));
         continue;
       }
@@ -5954,21 +5971,58 @@ async function aprovarPromocao(id) {
     }
     if (!resp.ok) throw new Error(data.message || data.error || JSON.stringify(data));
 
-    await sbPatch('ml_promocoes', 'id=eq.' + id, {
+    await sbPatch('ml_promocoes', 'id=eq.' + item.id, {
       status: 'aplicado', decidido_em: new Date().toISOString(), aplicado_em: new Date().toISOString(),
       preco_final: data.price != null ? data.price : item.preco_final
     });
     item.status = 'aplicado';
     if (data.price != null) item.preco_final = data.price;
-    renderTabelaPromocoes();
-    notify('🟢 Aplicado no ML de verdade! Preço real: ' + fmt(data.price));
+    return { ok: true, preco: data.price };
   } catch (e) {
     console.error(e);
-    await sbPatch('ml_promocoes', 'id=eq.' + id, { status: 'erro', erro_msg: String(e.message || e), decidido_em: new Date().toISOString() });
+    await sbPatch('ml_promocoes', 'id=eq.' + item.id, { status: 'erro', erro_msg: String(e.message || e), decidido_em: new Date().toISOString() });
     item.status = 'erro'; item.erro_msg = String(e.message || e);
-    renderTabelaPromocoes();
-    notify('🔴 Erro ao aplicar: ' + (e.message || e), 'err');
+    return { ok: false, motivo: String(e.message || e) };
   }
+}
+
+async function aprovarPromocao(id) {
+  const item = _promocoesLista.find(p => p.id === id);
+  if (!item) return;
+  notify('Conferindo dado atual no ML...');
+  const res = await aplicarPromocaoReal(item);
+  renderTabelaPromocoes();
+  if (res.ok) notify('🟢 Aplicado no ML de verdade! Preço real: ' + fmt(res.preco));
+  else if (res.bloqueado) notify('⚠️ ' + res.motivo, 'err');
+  else if (res.expirado) notify('⚠️ Essa promoção não está mais disponível no ML.', 'err');
+  else notify('🔴 Erro ao aplicar: ' + res.motivo, 'err');
+}
+
+// Aprovação em massa: pega todas as pendentes marcadas no checkbox
+// (pré-marcado automaticamente pra desconto ≤9%, ver renderTabelaPromocoes
+// e CHECKBOX_DESCONTO_MAX_PADRAO) e aplica uma por uma de verdade,
+// sequencial com pausa entre cada — não em paralelo, pra não estourar
+// limite de taxa do ML numa aprovação de muitas de uma vez (mesmo
+// cuidado já usado em sincronizarPromocoesML).
+async function aprovarEmMassa() {
+  const alvos = _promocoesLista.filter(p => p.status === 'pendente' && estaMarcadoPromocao(p));
+  if (!alvos.length) { notify('Nenhuma promoção marcada pra aprovar.', 'err'); return; }
+  if (!confirm('Aprovar ' + alvos.length + ' promoção(ões) de verdade no Mercado Livre agora?\n\nIsso muda o preço desses anúncios no ML imediatamente, uma por uma.')) return;
+
+  const btn = document.getElementById('btnAprovarEmMassa');
+  const statusEl = document.getElementById('aprovarEmMassaStatus');
+  btn.disabled = true;
+  let aplicadas = 0, falharam = 0;
+  for (let i = 0; i < alvos.length; i++) {
+    statusEl.textContent = `Aprovando ${i + 1}/${alvos.length}...`;
+    const res = await aplicarPromocaoReal(alvos[i]);
+    if (res.ok) aplicadas++; else falharam++;
+    if (i < alvos.length - 1) await new Promise(r => setTimeout(r, 700));
+  }
+  statusEl.textContent = '';
+  btn.disabled = false;
+  renderTabelaPromocoes();
+  notify(`✅ ${aplicadas} aplicada(s)` + (falharam ? ` · 🔴 ${falharam} com erro (ver status de cada uma)` : '') + '!');
 }
 
 async function recusarPromocao(id) {
