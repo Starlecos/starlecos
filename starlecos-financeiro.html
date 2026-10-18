@@ -5812,11 +5812,17 @@ function renderTabelaPromocoes() {
   // que existe pra aquele produto de uma vez, igual a tela por-produto do
   // próprio ML (achado real 18/10/2026: Enzo abriu 1 produto no ML e viu
   // 7 campanhas; aqui só filtrava por tipo/status global, sem jeito de
-  // juntar tudo de 1 produto só).
+  // juntar tudo de 1 produto só). Mas "expirado" fica de fora mesmo assim
+  // — não tem ação possível (não é mais candidata no ML), só polui a
+  // busca (achado real 18/10/2026: Enzo buscou um produto com vários
+  // tamanhos e via expirado misturado com aplicado, achando que ainda
+  // precisava decidir algo — mesmo critério já usado no resumo por tipo).
   const buscaProduto = (document.getElementById('promo_busca_produto').value || '').trim().toLowerCase();
   const lista = _promocoesLista.filter(p =>
     (!filtroTipo || p.promo_type === filtroTipo) &&
-    (buscaProduto ? ((p.titulo || '').toLowerCase().includes(buscaProduto) || (p.item_id || '').toLowerCase().includes(buscaProduto)) : (!filtroStatus || p.status === filtroStatus)));
+    (buscaProduto
+      ? (p.status !== 'expirado' && ((p.titulo || '').toLowerCase().includes(buscaProduto) || (p.item_id || '').toLowerCase().includes(buscaProduto)))
+      : (!filtroStatus || p.status === filtroStatus)));
 
   // "recente" mantém a ordem que já veio de carregarPromocoesML
   // (detectado_em desc) — as outras ordenam por desconto%/você recebe,
