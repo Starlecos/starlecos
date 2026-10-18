@@ -1687,7 +1687,7 @@
           <input type="text" id="promo_busca_produto" placeholder="Nome do produto ou código do anúncio (MLB...)" oninput="onBuscaProdutoPromocoes()">
         </div>
       </div>
-      <div class="form-row" style="grid-template-columns:1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
+      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
         <div class="field" style="margin-bottom:0"><label>Tipo de promoção</label>
           <select id="promo_filtro_tipo" onchange="renderTabelaPromocoes()">
             <option value="">— Todos os tipos —</option>
@@ -1701,6 +1701,15 @@
             <option value="recusado">⚪ Recusado</option>
             <option value="erro">🔴 Erro ao aplicar</option>
             <option value="expirado">⚫ Expirou no ML</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0"><label>Ordenar por</label>
+          <select id="promo_ordenar" onchange="renderTabelaPromocoes()">
+            <option value="recente" selected>Mais recente</option>
+            <option value="desconto_desc">Maior desconto %</option>
+            <option value="desconto_asc">Menor desconto %</option>
+            <option value="recebe_desc">Maior "você recebe"</option>
+            <option value="recebe_asc">Menor "você recebe"</option>
           </select>
         </div>
       </div>
@@ -5790,6 +5799,23 @@ function renderTabelaPromocoes() {
   const lista = _promocoesLista.filter(p =>
     (!filtroTipo || p.promo_type === filtroTipo) &&
     (buscaProduto ? ((p.titulo || '').toLowerCase().includes(buscaProduto) || (p.item_id || '').toLowerCase().includes(buscaProduto)) : (!filtroStatus || p.status === filtroStatus)));
+
+  // "recente" mantém a ordem que já veio de carregarPromocoesML
+  // (detectado_em desc) — as outras ordenam por desconto%/você recebe,
+  // sempre com quem não tem valor (null, ex: cupom sem preço sugerido)
+  // jogado pro final, nas duas direções.
+  const ordenar = document.getElementById('promo_ordenar').value;
+  if (ordenar !== 'recente') {
+    const campo = ordenar.startsWith('desconto') ? 'desconto_percentual' : 'voce_recebe';
+    const desc = ordenar.endsWith('_desc');
+    lista.sort((a, b) => {
+      const va = a[campo], vb = b[campo];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return desc ? vb - va : va - vb;
+    });
+  }
 
   if (!_promocoesLista.length) {
     tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda — clique em "Buscar Promoções"</p></div></td></tr>';
