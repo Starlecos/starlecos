@@ -5730,9 +5730,13 @@ function renderResumoTiposPromocoes() {
   const box = document.getElementById('resumoTiposPromocoes');
   if (!_promocoesLista.length) { box.innerHTML = ''; return; }
   const porTipo = {};
-  _promocoesLista.forEach(p => {
+  // "Expirado" não entra aqui — não é mais candidata no ML, não tem ação
+  // possível, só polui o resumo (achado real 18/10/2026: um tipo inteiro,
+  // "Campanha Tradicional" antigo, ficava 100% expirado e virava um card
+  // fantasma só com esse número, sem nada pra fazer com ele).
+  _promocoesLista.filter(p => p.status !== 'expirado').forEach(p => {
     const t = p.promo_type || '—';
-    if (!porTipo[t]) porTipo[t] = { pendente: 0, aplicado: 0, recusado: 0, erro: 0, expirado: 0, total: 0 };
+    if (!porTipo[t]) porTipo[t] = { pendente: 0, aplicado: 0, recusado: 0, erro: 0, total: 0 };
     porTipo[t][p.status] = (porTipo[t][p.status] || 0) + 1;
     porTipo[t].total++;
   });
@@ -5745,8 +5749,7 @@ function renderResumoTiposPromocoes() {
         c.pendente ? `<strong style="color:var(--amber)">${c.pendente} pendente</strong>` : null,
         c.aplicado ? `${c.aplicado} aplicado` : null,
         c.recusado ? `${c.recusado} recusado` : null,
-        c.erro ? `<span style="color:var(--rose)">${c.erro} erro</span>` : null,
-        c.expirado ? `${c.expirado} expirado` : null
+        c.erro ? `<span style="color:var(--rose)">${c.erro} erro</span>` : null
       ].filter(Boolean).join(' · ');
       return `<button onclick="document.getElementById('promo_filtro_tipo').value='${tipo}';renderTabelaPromocoes()"
         style="cursor:pointer;text-align:left;border:1.5px solid ${ativo ? 'var(--jade)' : 'var(--border)'};border-radius:8px;padding:8px 12px;background:#fff;font-family:Inter,sans-serif">
