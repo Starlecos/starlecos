@@ -5818,6 +5818,15 @@ async function aprovarPromocao(id) {
     // "id" que a Lightning devolve (LGH-MLB1000) é genérico, compartilhado
     // por todo mundo, não identifica a candidatura específica desse item.
     if (atual.id && tipoOficial !== 'LIGHTNING' && tipoOficial !== 'PRICE_DISCOUNT') payload.promotion_id = atual.id;
+    // SMART exige offer_id (a candidatura específica DESSE item na
+    // campanha) além do promotion_id (a campanha em si) — sem isso o ML
+    // recusa com "Offer id is required" (achado real 18/10/2026, 32
+    // tentativas falhando). Vem embutido no ref_id que o ML já devolve:
+    // "CANDIDATE-{item_id}-{offer_id}".
+    if (tipoOficial === 'SMART' && atual.ref_id) {
+      const prefixo = 'CANDIDATE-' + item.item_id + '-';
+      if (atual.ref_id.startsWith(prefixo)) payload.offer_id = atual.ref_id.slice(prefixo.length);
+    }
     if (tipoOficial === 'LIGHTNING') {
       payload.deal_price = atual.suggested_discounted_price;
       payload.stock = (atual.stock && atual.stock.min) || item.candidate_quantity || 1;

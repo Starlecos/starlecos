@@ -101,7 +101,7 @@ exports.handler = async function(event) {
 
     if (params.action === 'apply' && event.httpMethod === 'POST') {
       const body = JSON.parse(event.body || '{}');
-      const { item_id, promotion_id, promotion_type, deal_price, top_deal_price, start_date, finish_date, stock } = body;
+      const { item_id, promotion_id, promotion_type, deal_price, top_deal_price, start_date, finish_date, stock, offer_id } = body;
       // PRICE_DISCOUNT e LIGHTNING não usam promotion_id (desconto próprio e
       // campanha genérica, respectivamente) — os demais tipos exigem.
       const semPromotionId = promotion_type === 'PRICE_DISCOUNT' || promotion_type === 'LIGHTNING';
@@ -111,8 +111,19 @@ exports.handler = async function(event) {
       if (promotion_type === 'LIGHTNING' && typeof stock !== 'number') {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'stock obrigatório pra LIGHTNING' }) };
       }
+      // SMART (Co-participação Automatizada) exige offer_id além do
+      // promotion_id — o ML identifica a campanha (promotion_id) e a
+      // candidatura específica DESSE item nela (offer_id) separadamente.
+      // Achado real (18/10/2026): sem isso o ML recusa com "Offer id is
+      // required" — 32 tentativas falhando sempre. O offer_id vem do
+      // sufixo de "ref_id" que o próprio ML devolve em ?action=item
+      // (formato "CANDIDATE-{item_id}-{offer_id}").
+      if (promotion_type === 'SMART' && !offer_id) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'offer_id obrigatório pra SMART' }) };
+      }
       const payload = { promotion_type };
       if (promotion_id) payload.promotion_id = promotion_id;
+      if (offer_id) payload.offer_id = offer_id;
       if (typeof deal_price === 'number') payload.deal_price = deal_price;
       if (typeof top_deal_price === 'number') payload.top_deal_price = top_deal_price;
       if (typeof stock === 'number') payload.stock = stock;
