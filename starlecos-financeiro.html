@@ -5945,8 +5945,13 @@ async function aplicarPromocaoReal(item) {
     if ((tipoOficial === 'SMART' || tipoOficial === 'SMART_LIGHTNING') && atual.ref_id) {
       payload.offer_id = atual.ref_id;
     }
-    if (tipoOficial === 'LIGHTNING') {
-      payload.deal_price = atual.suggested_discounted_price;
+    if (tipoOficial === 'LIGHTNING' || tipoOficial === 'SMART_LIGHTNING') {
+      // SMART_LIGHTNING não tem suggested_discounted_price (só LIGHTNING
+      // comum tem) — o preço-alvo já vem direto em "price". Achado real
+      // (18/10/2026): sem deal_price/stock aqui, o ML recusa com "Invalid
+      // request." — confirmado isso derrubando 100% das tentativas de
+      // smart_lightning numa aprovação em massa.
+      payload.deal_price = atual.suggested_discounted_price != null ? atual.suggested_discounted_price : atual.price;
       payload.stock = (atual.stock && atual.stock.min) || item.candidate_quantity || 1;
     } else if (tipoOficial === 'PRICE_DISCOUNT') {
       payload.deal_price = atual.suggested_discounted_price;
