@@ -1682,6 +1682,11 @@
         <span class="table-total" id="totalPromocoesPendentes">0 pendente(s)</span>
       </div>
       <div id="resumoTiposPromocoes" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px 20px;border-bottom:1px solid var(--border);background:#FAFBFD"></div>
+      <div style="padding:16px 20px 0;border-bottom:0;background:#FAFBFD">
+        <div class="field" style="margin-bottom:0"><label>🔎 Buscar produto (vê todas as campanhas dele, inclusive automáticas)</label>
+          <input type="text" id="promo_busca_produto" placeholder="Nome do produto ou código do anúncio (MLB...)" oninput="onBuscaProdutoPromocoes()">
+        </div>
+      </div>
       <div class="form-row" style="grid-template-columns:1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
         <div class="field" style="margin-bottom:0"><label>Tipo de promoção</label>
           <select id="promo_filtro_tipo" onchange="renderTabelaPromocoes()">
@@ -5767,6 +5772,12 @@ function renderResumoTiposPromocoes() {
     }).join('');
 }
 
+let _buscaProdutoPromocoesTimer = null;
+function onBuscaProdutoPromocoes() {
+  clearTimeout(_buscaProdutoPromocoesTimer);
+  _buscaProdutoPromocoesTimer = setTimeout(renderTabelaPromocoes, 250);
+}
+
 function renderTabelaPromocoes() {
   const tbody = document.getElementById('bodyPromocoesML');
   popularFiltroTipoPromocoes();
@@ -5776,8 +5787,16 @@ function renderTabelaPromocoes() {
 
   const filtroTipo = document.getElementById('promo_filtro_tipo').value;
   const filtroStatus = document.getElementById('promo_filtro_status').value;
+  // Busca por produto ignora o filtro de status — o ponto dela é ver TUDO
+  // que existe pra aquele produto de uma vez (inclusive "automatico", que
+  // nem aparece como opção no filtro de status), igual a tela por-produto
+  // do próprio ML (achado real 18/10/2026: Enzo abriu 1 produto no ML e
+  // viu 7 campanhas; aqui só filtrava por tipo/status global, sem jeito
+  // de juntar tudo de 1 produto só).
+  const buscaProduto = (document.getElementById('promo_busca_produto').value || '').trim().toLowerCase();
   const lista = _promocoesLista.filter(p =>
-    (!filtroTipo || p.promo_type === filtroTipo) && (!filtroStatus || p.status === filtroStatus));
+    (!filtroTipo || p.promo_type === filtroTipo) &&
+    (buscaProduto ? ((p.titulo || '').toLowerCase().includes(buscaProduto) || (p.item_id || '').toLowerCase().includes(buscaProduto)) : (!filtroStatus || p.status === filtroStatus)));
 
   if (!_promocoesLista.length) {
     tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🎯</div><p>Nenhuma promoção sincronizada ainda — clique em "Buscar Promoções"</p></div></td></tr>';
