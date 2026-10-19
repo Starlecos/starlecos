@@ -5642,9 +5642,16 @@ async function sincronizarPromocoesML() {
         } else {
           // Sem id próprio (LIGHTNING/PRICE_DISCOUNT — a doc oficial não
           // devolve um identificador que distinga a candidatura específica
-          // desse item), só existe uma oferta relevante por vez desse tipo
-          // pro item, então "qualquer uma decidida" é seguro aqui.
-          match = entradas.find(p => p.status !== 'candidate');
+          // desse item). Só reconcilia (marca aplicado) quando NÃO sobra
+          // nenhuma candidate viva desse tipo pro item — achado real
+          // (19/10/2026): PRICE_DISCOUNT pode ter uma campanha "started"
+          // (já ativa, antiga, sem relação nenhuma com a proposta nova)
+          // coexistindo com uma candidate nova ao mesmo tempo; o match
+          // antigo ("qualquer uma !== candidate") fechava a pendente nova
+          // por engano usando a antiga como prova, mesmo com a proposta de
+          // verdade ainda em aberto pro Enzo decidir.
+          const aindaTemCandidate = entradas.some(p => p.status === 'candidate');
+          if (!aindaTemCandidate) match = entradas.find(p => p.status !== 'candidate');
         }
         if (match) {
           await sbPatch('ml_promocoes', 'id=eq.' + row.id, {
