@@ -5618,8 +5618,10 @@ async function sincronizarPromocoesML() {
     // pendente cujo item foi escaneado agora e corrige sozinho.
     statusEl.textContent = 'Reconciliando pendentes com o estado real no ML...';
     let reconciliadas = 0;
+    let pendentesAtuais = [];
+    const idsReconciliados = new Set();
     try {
-      const pendentesAtuais = await sbGet('ml_promocoes', 'select=id,item_id,promo_type,promotion_id&status=eq.pendente');
+      pendentesAtuais = await sbGet('ml_promocoes', 'select=id,item_id,promo_type,promotion_id&status=eq.pendente');
       for (const row of pendentesAtuais) {
         const promos = todasPromosPorId[row.item_id];
         if (!promos) continue; // item não escaneado nessa rodada (falhou ou não é MLB válido)
@@ -5650,11 +5652,35 @@ async function sincronizarPromocoesML() {
             preco_final: match.price != null ? match.price : undefined
           });
           reconciliadas++;
+          idsReconciliados.add(row.id);
         }
       }
     } catch (e) { console.warn('Erro na reconciliação de pendentes:', e); }
 
-    if (!candidatos.length) {
+    // LIGHTNING e PRICE_DISCOUNT não têm id/ref_id próprio estável pra
+    // candidate em si (achado real 19/10/2026: o "id" do LIGHTNING é um
+    // valor genérico fixo "LGH-MLB1000", igual pra qualquer candidata de
+    // qualquer item; PRICE_DISCOUNT não manda id nenhum) — por isso sempre
+    // usavam a MESMA chave sintética "NOID-{tipo}", e depois que a
+    // primeira proposta era decidida uma proposta NOVA do ML nunca virava
+    // linha pendente de novo (o on_conflict ignorava por já existir uma
+    // linha "NOID-{tipo}" antiga já resolvida). Só deixa passar candidata
+    // nova desses 2 tipos quando não existe mais nenhuma pendente real
+    // desse tipo/item (a antiga foi decidida); enquanto tiver uma
+    // pendente em aberto, ignora a repetida (mesmo comportamento de antes
+    // pra esse caso).
+    const aindaPendentesSemId = new Set(
+      pendentesAtuais
+        .filter(r => !idsReconciliados.has(r.id) && (r.promo_type === 'lightning' || r.promo_type === 'price_discount'))
+        .map(r => r.item_id + '|' + r.promo_type)
+    );
+    const candidatosFiltrados = candidatos.filter(c => {
+      const tipo = (c.promo.type || '').toLowerCase();
+      if (tipo !== 'lightning' && tipo !== 'price_discount') return true;
+      return !aindaPendentesSemId.has(c.item_id + '|' + tipo);
+    });
+
+    if (!candidatosFiltrados.length) {
       statusEl.textContent = 'Nenhuma candidata nova.';
       if (reconciliadas) await carregarPromocoesML();
       notify(
@@ -5665,8 +5691,8 @@ async function sincronizarPromocoesML() {
       return;
     }
 
-    statusEl.textContent = `Buscando dados de ${new Set(candidatos.map(c => c.item_id)).size} anúncio(s)...`;
-    const idsUnicos = [...new Set(candidatos.map(c => c.item_id))];
+    statusEl.textContent = `Buscando dados de ${new Set(candidatosFiltrados.map(c => c.item_id)).size} anúncio(s)...`;
+    const idsUnicos = [...new Set(candidatosFiltrados.map(c => c.item_id))];
     const infoPorId = {};
     for (let i = 0; i < idsUnicos.length; i += 20) {
       const lote = idsUnicos.slice(i, i + 20);
@@ -5675,7 +5701,7 @@ async function sincronizarPromocoesML() {
       (data || []).forEach(e => { if (e.body) infoPorId[e.body.id] = e.body; });
     }
 
-    const linhas = candidatos.map(c => {
+    const linhas = candidatosFiltrados.map(c => {
       const info = infoPorId[c.item_id] || {};
       const p = c.promo;
       const tipo = (p.type || '').toLowerCase();
@@ -5688,7 +5714,13 @@ async function sincronizarPromocoesML() {
       // início na chave quando ela existe, pra uma janela nova sempre
       // virar uma linha nova, sem perder a deduplicação dentro da mesma
       // janela (mesmo id + mesma data = mesma linha, continua ignorando).
-      const promotionId = idComJanela(p.id || p.ref_id || ('NOID-' + tipo), p.start_date);
+      // lightning/price_discount já passaram pelo filtro acima (só chegam
+      // aqui quando não há pendente aberta desse tipo/item) — usa uma
+      // chave nunca-antes-vista pra garantir que o on_conflict não
+      // confunda essa proposta nova com a linha antiga já resolvida.
+      const promotionId = (tipo === 'lightning' || tipo === 'price_discount')
+        ? ('NOID-' + tipo + '-' + new Date().toISOString())
+        : idComJanela(p.id || p.ref_id || ('NOID-' + tipo), p.start_date);
       let nome = p.name || PROMO_TYPE_LABEL[tipo] || p.type;
       let candidateQuantity = null;
       if (tipo === 'lightning' && p.stock) {
