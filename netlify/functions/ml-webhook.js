@@ -47,6 +47,18 @@ async function obterTokenML() {
   return tokenData.access_token;
 }
 
+// Achado real (19/10/2026): o ML tem 2 campos de SKU que podem ficar
+// dessincronizados — "seller_custom_field" (legado) e o atributo
+// "SELLER_SKU" (o que aparece na tela "SKU" do painel atual do vendedor,
+// o que o Enzo realmente edita). Pra item SEM variação, este código usava
+// só o campo legado — se o Enzo trocasse a cor/SKU de um anúncio pelo
+// painel novo, o legado ficava com o valor antigo pra sempre (ML não
+// propaga a edição pra lá), e toda venda real desse anúncio baixava
+// estoque do produto ERRADO (caso real: MLB7154325152 virou "Azul
+// Marinho" mas o legado ainda dizia "Cinza" — toda venda baixava o
+// Cinza-PP, que nunca vendeu de verdade). Agora prioriza o atributo
+// SELLER_SKU (igual já era feito pra item COM variação) e só cai pro
+// campo legado se o atributo não existir.
 async function buscarSkuItem(accessToken, itemId, variationId) {
   const headers = { Authorization: 'Bearer ' + accessToken };
   if (variationId) {
@@ -57,7 +69,8 @@ async function buscarSkuItem(accessToken, itemId, variationId) {
   }
   const res = await fetch('https://api.mercadolibre.com/items/' + itemId, { headers });
   const data = await res.json();
-  return data.seller_custom_field || null;
+  const attr = (data.attributes || []).find(a => a.id === 'SELLER_SKU');
+  return (attr && attr.value_name) || data.seller_custom_field || null;
 }
 
 async function aplicarMovimento(canal, pedidoId, sku, delta, motivo) {
