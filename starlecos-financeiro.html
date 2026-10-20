@@ -2553,12 +2553,30 @@ async function buscarFreteML(shippingId) {
   } catch(e) { return 0; }
 }
 
-async function fetchMLOrders(offset) {
-  const res = await fetch('/.netlify/functions/ml-orders?user_id=' + mlUserId + '&limit=50&offset=' + offset, {
-    headers: { 'Authorization': 'Bearer ' + mlToken }
-  });
-  if (res.status === 401) return null;
-  return res.json();
+// Tenta de novo em falha transitória (mesmo achado real já documentado na
+// sincronização de promoções: o ML às vezes falha sob carga/rede sem ser
+// erro definitivo) — achado real 19/10/2026: aqui não tinha retry nenhum,
+// uma página falhando no meio da paginação só parava o loop em silêncio e
+// o Enzo via "✅ importado!" mesmo com pedido faltando. Depois de esgotar
+// as tentativas, agora estoura erro de verdade em vez de fingir sucesso.
+async function fetchMLOrders(offset, tentativa) {
+  const t = tentativa || 0;
+  let res;
+  try {
+    res = await fetch('/.netlify/functions/ml-orders?user_id=' + mlUserId + '&limit=50&offset=' + offset, {
+      headers: { 'Authorization': 'Bearer ' + mlToken }
+    });
+  } catch (e) {
+    if (t < 2) { await new Promise(r => setTimeout(r, 800 * (t + 1))); return fetchMLOrders(offset, t + 1); }
+    throw new Error('Falha de rede buscando pedidos ML (offset ' + offset + ') depois de 3 tentativas.');
+  }
+  if (res.status === 401) return null; // sessão expirada — tratado à parte, não é falha transitória
+  const data = await res.json();
+  if (!res.ok || !data || !Array.isArray(data.results)) {
+    if (t < 2) { await new Promise(r => setTimeout(r, 800 * (t + 1))); return fetchMLOrders(offset, t + 1); }
+    throw new Error('ML não devolveu pedidos válidos no offset ' + offset + ' depois de 3 tentativas.');
+  }
+  return data;
 }
 
 async function sincronizarPedidosML() {
@@ -2595,14 +2613,19 @@ async function sincronizarPedidosML() {
     const totalML = primeiro.paging ? primeiro.paging.total : primeiro.results.length;
     const todasOrders = [...primeiro.results];
     let offsetPage = 50;
+    let paradaPorSessao = false;
     while (offsetPage < totalML) {
       const pagina = await fetchMLOrders(offsetPage);
-      if (!pagina || !pagina.results || !pagina.results.length) break;
+      if (!pagina) { paradaPorSessao = true; break; } // 401 no meio da importação
+      if (!pagina.results.length) break; // chegou ao fim de verdade
       todasOrders.push(...pagina.results);
       offsetPage += 50;
       notify('🔄 Carregando... ' + todasOrders.length + '/' + totalML);
     }
     console.log('Total pedidos no ML:', todasOrders.length);
+    if (paradaPorSessao) {
+      notify('⚠️ Sessão ML expirou no meio da importação — só ' + todasOrders.length + '/' + totalML + ' pedidos foram lidos. Reconecte e sincronize de novo.', 'err');
+    }
 
     // 3b. Corrige pedidos multi-item já gravados só com o 1º item (produto,
     //     quantidade E taxa de venda — a taxa também só contava o 1º item)
