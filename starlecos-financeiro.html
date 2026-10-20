@@ -1670,7 +1670,7 @@
       <div class="section-title">🎯 Promoções ML <span class="section-badge">Sugeridas pelo Mercado Livre</span></div>
     </div>
     <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
-      Via API oficial do Mercado Livre (sem navegador/Tampermonkey). Clique em "🔄 Buscar Promoções" pra checar candidatas novas (DEAL, Co-participação, Desconto Individual, Oferta Relâmpago) em todo o catálogo. Aprovar aplica na hora, direto — não depende de nenhum ciclo externo.
+      Via API oficial do Mercado Livre (sem navegador/Tampermonkey). Clique em "🔄 Buscar Promoções" pra checar candidatas novas (Com Redução de Tarifas, Desconto por Porcentagem, Oferta Relâmpago, Cupom do Vendedor...) em todo o catálogo. Aprovar aplica na hora, direto — não depende de nenhum ciclo externo.
     </div>
     <div style="padding:0 16px 10px">
       <button class="btn-add jade" id="btnSyncPromocoes" onclick="sincronizarPromocoesML()">🔄 Buscar Promoções</button>
@@ -5459,15 +5459,24 @@ function estaMarcadoPromocao(p) {
   return p.status === 'pendente' && p.desconto_percentual != null && p.desconto_percentual <= CHECKBOX_DESCONTO_MAX_PADRAO;
 }
 
+// Nomes batidos contra o texto real que o próprio ML usa no painel de
+// promoções do produto (achado real 19/10/2026, conferido por preço e
+// percentual pra ter certeza do mapeamento): smart = "Com redução de
+// tarifas", price_discount = "Desconto por porcentagem". smart_lightning
+// usa o MESMO texto "Oferta Relâmpago" que o lightning comum no painel do
+// ML (confirmado: a candidata "Oferta relâmpago" com janela fixa
+// 22/out 0h-12h era na verdade uma smart_lightning) — o Enzo preferiu
+// manter os 2 cards com o mesmo nome aqui também, só diferenciados pelo
+// número entre parênteses, em vez de inventar um nome que o ML não usa.
 const PROMO_TYPE_LABEL = {
   deal: 'Campanha Tradicional', tier: 'Campanha Tradicional',
   marketplace_campaign: 'Co-participação',
-  price_discount: 'Desconto Individual',
+  price_discount: 'Desconto por Porcentagem',
   lightning: 'Oferta Relâmpago',
   volume: 'Desconto por Quantidade',
   seller_campaign: 'Campanha do Vendedor',
-  pre_negotiated: 'Pré-acordado', smart: 'Co-participação Automatizada',
-  smart_lightning: 'Oferta Relâmpago Automática',
+  pre_negotiated: 'Pré-acordado', smart: 'Com Redução de Tarifas',
+  smart_lightning: 'Oferta Relâmpago',
   price_matching: 'Preço Competitivo', unhealthy_stock: 'Liquidação Estoque Full',
   seller_coupon_campaign: 'Cupom do Vendedor'
 };
