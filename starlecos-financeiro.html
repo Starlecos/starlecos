@@ -5664,30 +5664,28 @@ async function sincronizarPromocoesML() {
       }
     } catch (e) { console.warn('Erro na reconciliação de pendentes:', e); }
 
+    // Pendentes que sobraram depois da reconciliação (não decididas nesse
+    // round). Servem pra decidir, pra cada candidata ao vivo, se ela é uma
+    // pendente que JÁ conhecemos (precisa só atualizar preço/desconto —
+    // achado real 19/10/2026: "11.11 da Black" ficou travada com
+    // 17,9%/R$188,86 desde 02/10 porque o ML recalcula o preço sugerido
+    // com frequência e o insert antigo só gravava uma vez, "ignore
+    // -duplicates" nunca deixava atualizar de novo) ou uma candidata de
+    // verdade nova (vira linha nova).
+    const pendentesAbertas = pendentesAtuais.filter(r => !idsReconciliados.has(r.id));
+    const pendentePorChaveExata = new Map(pendentesAbertas.map(r => [r.item_id + '|' + r.promotion_id, r.id]));
     // LIGHTNING e PRICE_DISCOUNT não têm id/ref_id próprio estável pra
     // candidate em si (achado real 19/10/2026: o "id" do LIGHTNING é um
     // valor genérico fixo "LGH-MLB1000", igual pra qualquer candidata de
-    // qualquer item; PRICE_DISCOUNT não manda id nenhum) — por isso sempre
-    // usavam a MESMA chave sintética "NOID-{tipo}", e depois que a
-    // primeira proposta era decidida uma proposta NOVA do ML nunca virava
-    // linha pendente de novo (o on_conflict ignorava por já existir uma
-    // linha "NOID-{tipo}" antiga já resolvida). Só deixa passar candidata
-    // nova desses 2 tipos quando não existe mais nenhuma pendente real
-    // desse tipo/item (a antiga foi decidida); enquanto tiver uma
-    // pendente em aberto, ignora a repetida (mesmo comportamento de antes
-    // pra esse caso).
-    const aindaPendentesSemId = new Set(
-      pendentesAtuais
-        .filter(r => !idsReconciliados.has(r.id) && (r.promo_type === 'lightning' || r.promo_type === 'price_discount'))
-        .map(r => r.item_id + '|' + r.promo_type)
+    // qualquer item; PRICE_DISCOUNT não manda id nenhum), então casam por
+    // item+tipo (só existe uma relevante por vez desse tipo pro item).
+    const pendentePorTipoSemId = new Map(
+      pendentesAbertas
+        .filter(r => r.promo_type === 'lightning' || r.promo_type === 'price_discount')
+        .map(r => [r.item_id + '|' + r.promo_type, r.id])
     );
-    const candidatosFiltrados = candidatos.filter(c => {
-      const tipo = (c.promo.type || '').toLowerCase();
-      if (tipo !== 'lightning' && tipo !== 'price_discount') return true;
-      return !aindaPendentesSemId.has(c.item_id + '|' + tipo);
-    });
 
-    if (!candidatosFiltrados.length) {
+    if (!candidatos.length) {
       statusEl.textContent = 'Nenhuma candidata nova.';
       if (reconciliadas) await carregarPromocoesML();
       notify(
@@ -5698,8 +5696,8 @@ async function sincronizarPromocoesML() {
       return;
     }
 
-    statusEl.textContent = `Buscando dados de ${new Set(candidatosFiltrados.map(c => c.item_id)).size} anúncio(s)...`;
-    const idsUnicos = [...new Set(candidatosFiltrados.map(c => c.item_id))];
+    statusEl.textContent = `Buscando dados de ${new Set(candidatos.map(c => c.item_id)).size} anúncio(s)...`;
+    const idsUnicos = [...new Set(candidatos.map(c => c.item_id))];
     const infoPorId = {};
     for (let i = 0; i < idsUnicos.length; i += 20) {
       const lote = idsUnicos.slice(i, i + 20);
@@ -5708,26 +5706,13 @@ async function sincronizarPromocoesML() {
       (data || []).forEach(e => { if (e.body) infoPorId[e.body.id] = e.body; });
     }
 
-    const linhas = candidatosFiltrados.map(c => {
+    const agora = new Date().toISOString();
+    const paraInserir = [];
+    const paraAtualizar = [];
+    candidatos.forEach(c => {
       const info = infoPorId[c.item_id] || {};
       const p = c.promo;
       const tipo = (p.type || '').toLowerCase();
-      // O ML reusa o MESMO promotion_id pra janelas diferentes de uma
-      // campanha recorrente (achado real 27/09/2026: "10.10" propôs de
-      // novo pro MLB4323601961 com data 28/set–13/out usando o mesmíssimo
-      // id "P-MLB18061082" já decidido em 19/09) — como a chave de
-      // conflito é (item_id, promotion_id), a proposta nova nunca entrava,
-      // "ignore-duplicates" descartava por já existir. Anexa a data de
-      // início na chave quando ela existe, pra uma janela nova sempre
-      // virar uma linha nova, sem perder a deduplicação dentro da mesma
-      // janela (mesmo id + mesma data = mesma linha, continua ignorando).
-      // lightning/price_discount já passaram pelo filtro acima (só chegam
-      // aqui quando não há pendente aberta desse tipo/item) — usa uma
-      // chave nunca-antes-vista pra garantir que o on_conflict não
-      // confunda essa proposta nova com a linha antiga já resolvida.
-      const promotionId = (tipo === 'lightning' || tipo === 'price_discount')
-        ? ('NOID-' + tipo + '-' + new Date().toISOString())
-        : idComJanela(p.id || p.ref_id || ('NOID-' + tipo), p.start_date);
       let nome = p.name || PROMO_TYPE_LABEL[tipo] || p.type;
       let candidateQuantity = null;
       if (tipo === 'lightning' && p.stock) {
@@ -5737,39 +5722,94 @@ async function sincronizarPromocoesML() {
       const precoFinal = p.suggested_discounted_price != null ? p.suggested_discounted_price : (p.price || null);
       const descontoPct = (precoFinal != null && p.original_price)
         ? Math.round((1 - precoFinal / p.original_price) * 1000) / 10 : null;
-      return {
-        item_id: c.item_id, titulo: info.title || c.item_id, foto: info.thumbnail || null,
-        url_produto: info.permalink || null, promocao_nome: nome, promotion_id: promotionId,
-        promo_type: tipo, preco_original: p.original_price != null ? p.original_price : null,
-        preco_final: precoFinal, desconto_percentual: descontoPct, candidate_quantity: candidateQuantity,
-        status: 'pendente', detectado_em: new Date().toISOString(),
+      const base = {
+        promocao_nome: nome, preco_final: precoFinal, desconto_percentual: descontoPct,
+        candidate_quantity: candidateQuantity,
         _category_id: info.category_id || null, _listing_type_id: info.listing_type_id || null
       };
+
+      const semIdProprio = tipo === 'lightning' || tipo === 'price_discount';
+      // O ML reusa o MESMO promotion_id pra janelas diferentes de uma
+      // campanha recorrente (achado real 27/09/2026: "10.10" propôs de
+      // novo pro MLB4323601961 com data 28/set–13/out usando o mesmíssimo
+      // id "P-MLB18061082" já decidido em 19/09) — idComJanela anexa a
+      // data de início quando ela existe, pra uma janela nova sempre virar
+      // chave nova, sem perder a dedupe dentro da mesma janela.
+      const chaveNatural = semIdProprio ? null : idComJanela(p.id || p.ref_id || ('NOID-' + tipo), p.start_date);
+      const existenteId = semIdProprio
+        ? pendentePorTipoSemId.get(c.item_id + '|' + tipo)
+        : pendentePorChaveExata.get(c.item_id + '|' + chaveNatural);
+
+      if (existenteId) {
+        paraAtualizar.push({ id: existenteId, ...base });
+      } else {
+        // Candidata de verdade nova. lightning/price_discount usam uma
+        // chave nunca-antes-vista (sem isso, "ignore-duplicates" confunde
+        // com uma linha antiga já resolvida e descarta a proposta nova —
+        // achado real 19/10/2026).
+        const promotionId = semIdProprio ? ('NOID-' + tipo + '-' + agora + '-' + c.item_id) : chaveNatural;
+        paraInserir.push({
+          item_id: c.item_id, titulo: info.title || c.item_id, foto: info.thumbnail || null,
+          url_produto: info.permalink || null, promotion_id: promotionId, promo_type: tipo,
+          preco_original: p.original_price != null ? p.original_price : null,
+          status: 'pendente', detectado_em: agora, ...base
+        });
+      }
     });
+
+    if (!paraInserir.length && !paraAtualizar.length) {
+      statusEl.textContent = 'Nenhuma candidata nova.';
+      if (reconciliadas) await carregarPromocoesML();
+      notify(
+        (reconciliadas ? `🔄 ${reconciliadas} pendente(s) já estavam aplicadas no ML — atualizado. ` : '') +
+        'Nenhuma promoção candidata nova encontrada.' +
+        (falharam.length ? ` (${falharam.length} não verificados, ver console)` : '')
+      );
+      return;
+    }
 
     statusEl.textContent = `Calculando "você recebe" (comissão real do ML por categoria)...`;
-    await preencherVoceRecebe(linhas);
-    linhas.forEach(l => { delete l._category_id; delete l._listing_type_id; });
+    await preencherVoceRecebe([...paraInserir, ...paraAtualizar]);
+    [...paraInserir, ...paraAtualizar].forEach(l => { delete l._category_id; delete l._listing_type_id; });
 
-    statusEl.textContent = `Salvando ${linhas.length} promoção(ões)...`;
-    // on_conflict explícito é obrigatório aqui: a chave de conflito
-    // (item_id, promotion_id) não é a chave primária da tabela (é "id",
-    // identity), e sem isso o Postgres não sabe qual índice usar pra
-    // "ignore-duplicates" — achado real (12/09/2026): sem o parâmetro,
-    // qualquer linha que já existisse (ex: as recusadas na limpeza do
-    // Tampermonkey) dava 409 "duplicate key" e derrubava o insert inteiro.
-    const insertRes = await fetch(SUPABASE_URL + '/rest/v1/ml_promocoes?on_conflict=item_id,promotion_id', {
-      method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=ignore-duplicates' },
-      body: JSON.stringify(linhas)
-    });
-    if (!insertRes.ok) {
-      const erroTexto = await insertRes.text();
-      throw new Error('Supabase recusou a gravação (HTTP ' + insertRes.status + '): ' + erroTexto.slice(0, 300));
+    if (paraInserir.length) {
+      statusEl.textContent = `Salvando ${paraInserir.length} candidata(s) nova(s)...`;
+      // on_conflict explícito é obrigatório aqui: a chave de conflito
+      // (item_id, promotion_id) não é a chave primária da tabela (é "id",
+      // identity), e sem isso o Postgres não sabe qual índice usar pra
+      // "ignore-duplicates" — achado real (12/09/2026): sem o parâmetro,
+      // qualquer linha que já existisse (ex: as recusadas na limpeza do
+      // Tampermonkey) dava 409 "duplicate key" e derrubava o insert inteiro.
+      const insertRes = await fetch(SUPABASE_URL + '/rest/v1/ml_promocoes?on_conflict=item_id,promotion_id', {
+        method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=ignore-duplicates' },
+        body: JSON.stringify(paraInserir)
+      });
+      if (!insertRes.ok) {
+        const erroTexto = await insertRes.text();
+        throw new Error('Supabase recusou a gravação (HTTP ' + insertRes.status + '): ' + erroTexto.slice(0, 300));
+      }
+    }
+
+    if (paraAtualizar.length) {
+      statusEl.textContent = `Atualizando ${paraAtualizar.length} pendente(s) com o valor mais recente do ML...`;
+      const LOTE_PATCH = 20;
+      for (let i = 0; i < paraAtualizar.length; i += LOTE_PATCH) {
+        const lote = paraAtualizar.slice(i, i + LOTE_PATCH);
+        await Promise.all(lote.map(item => sbPatch('ml_promocoes', 'id=eq.' + item.id, {
+          promocao_nome: item.promocao_nome, preco_final: item.preco_final,
+          desconto_percentual: item.desconto_percentual, candidate_quantity: item.candidate_quantity,
+          voce_recebe: item.voce_recebe
+        })));
+      }
     }
 
     await carregarPromocoesML();
     statusEl.textContent = '';
-    notify(`✅ ${linhas.length} candidata(s) nova(s)!` + (reconciliadas ? ` 🔄 ${reconciliadas} pendente(s) antiga(s) já estavam aplicadas no ML — atualizado.` : ''));
+    notify(
+      `✅ ${paraInserir.length} candidata(s) nova(s)` +
+      (paraAtualizar.length ? `, ${paraAtualizar.length} atualizada(s) com o preço mais recente` : '') +
+      '!' + (reconciliadas ? ` 🔄 ${reconciliadas} pendente(s) antiga(s) já estavam aplicadas no ML — atualizado.` : '')
+    );
   } catch (e) {
     console.error(e);
     statusEl.textContent = '';
