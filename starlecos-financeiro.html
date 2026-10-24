@@ -3989,8 +3989,13 @@ function renderQuadroCampanhas(de, ate) {
       acaoTexto = r.acoes.map(a => {
         const de_ = a.valor_atual != null ? a.valor_atual : '—';
         const para = a.valor_novo != null ? a.valor_novo : '—';
-        return `${tipoLabel[a.tipo] || a.tipo}: ${de_} → ${para}`;
-      }).join('<br>');
+        const linha = `${tipoLabel[a.tipo] || a.tipo}: ${de_} → ${para}`;
+        if (a.status === 'aplicado') {
+          const dataFeita = a.aplicado_em ? new Date(a.aplicado_em).toLocaleDateString('pt-BR') : '—';
+          return linha + `<br><span style="color:var(--jade);font-size:11px">✅ Feito em ${dataFeita}</span>`;
+        }
+        return linha + `<br><button class="btn-add jade" style="padding:3px 8px;font-size:11px;margin-top:3px" onclick="marcarAcaoFeita(${a.id})">✅ Marquei que fiz</button>`;
+      }).join('<br><br>');
     } else {
       // Toda recomendação exibida aqui tem que vir do starlecos-mercadoads
       // (framework oficial) — sem heurística de fallback. Sem ação = ainda
@@ -4012,6 +4017,29 @@ function renderQuadroCampanhas(de, ate) {
       <td style="font-size:12px;max-width:200px;font-weight:600">${acaoTexto}</td>
     </tr>`;
   }).join('');
+}
+
+// Marca manualmente que o Enzo aplicou a ação pelo painel do ML (orçamento,
+// ROAS alvo, lance — tipos que o script-ponte não consegue aplicar sozinho,
+// ver aplicarAprovadas() no starlecos-ml-ads.user.js). Guarda a DATA REAL em
+// que a mudança foi feita (não necessariamente hoje — o Enzo pode marcar
+// alguns dias depois), pra poder cruzar performance antes/depois do ajuste.
+async function marcarAcaoFeita(id) {
+  const digitada = prompt('Em que data você fez essa alteração no painel do ML? (dd/mm/aaaa)', fmtData(hoje()));
+  if (!digitada) return;
+  const m = digitada.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) { notify('Data inválida, use dd/mm/aaaa.', 'err'); return; }
+  const isoData = `${m[3]}-${m[2]}-${m[1]}`;
+  try {
+    await sbPatch('ml_ads_acoes', 'id=eq.' + id, {
+      status: 'aplicado', decidido_em: new Date().toISOString(),
+      aplicado_em: isoData + 'T12:00:00', erro_msg: null
+    });
+    notify('Marcado: aplicada em ' + digitada + '.');
+    await carregarQuadroCampanhasDoBanco();
+  } catch (e) {
+    notify('Erro ao marcar ação como feita: ' + e.message, 'err');
+  }
 }
 
 // ====== CONTAS PAGAS ======
