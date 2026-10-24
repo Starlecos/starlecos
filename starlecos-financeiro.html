@@ -4533,6 +4533,10 @@ function renderDashHero() {
     nota += _dh.base
       ? ` Custo do produto por SKU/grupo do estoque em ${aC.exatos} de ${aC.pedidos} pedido(s)` + (aC.exatos < aC.pedidos ? '; o resto (antes de 29/08) é estimado pelo título.' : '.')
       : ' Carregando custo por SKU…';
+    // achado em 24/10/2026: pedido sem custo mapeado nenhum entra com
+    // custo=0 no cálculo (ag.custo em dhAgregar) sem aviso nenhum, inflando
+    // a Margem de Contribuição exibida sem o usuário saber — agora avisa.
+    if (aC.semCusto) nota += ` ⚠️ ${aC.semCusto} pedido(s) sem custo de produto mapeado (entrou com custo R$0 — margem exibida está inflada).`;
   }
   document.getElementById('dhNota').textContent = nota;
 
@@ -4809,9 +4813,10 @@ async function salvarCompromisso() {
 
   try {
     if (editId) {
-      // Atualizar: deletar e recriar (Supabase REST simplificado)
-      await sbDelete('compromissos', 'id=eq.' + editId);
-      await sbInsert('compromissos', { id: Number(editId), data, hora, categoria, titulo, descricao });
+      // Atualizar com PATCH (não delete+insert — se o insert falhasse depois
+      // do delete ter funcionado, o compromisso era apagado pra sempre sem
+      // recriar; achado em 24/10/2026, auditoria geral do Financeiro)
+      await sbPatch('compromissos', 'id=eq.' + editId, { data, hora, categoria, titulo, descricao });
       notify('✅ Compromisso atualizado!');
     } else {
       await sbInsert('compromissos', { id: Date.now(), data, hora, categoria, titulo, descricao });
