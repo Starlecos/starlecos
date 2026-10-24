@@ -2851,11 +2851,11 @@ async function carregarVendasOnline() {
   if (statusEl) { statusEl.textContent = '🟡 Conectando...'; statusEl.style.color = 'var(--amber)'; }
   try {
     const [vendas, pedidosML, pedidosShopee, pedidosShopify, contas, produtosEpa] = await Promise.all([
-      sbGet('vendas',           'select=*&order=data.desc,id.desc'),
+      sbGetAll('vendas',           'select=*&order=data.desc,id.desc'),
       sbGetAll('pedidos_ml',    'select=*&order=data.desc,id.desc'),
-      sbGet('pedidos_shopee',   'select=*&order=data.desc,id.desc').catch(() => []),
+      sbGetAll('pedidos_shopee',   'select=*&order=data.desc,id.desc').catch(() => []),
       sbGetAll('pedidos_shopify', 'select=*&order=data.desc,id.desc').catch(() => []),
-      sbGet('contas_pagas',     'select=*&order=data.desc,id.desc').catch(() => []),
+      sbGetAll('contas_pagas',     'select=*&order=data.desc,id.desc').catch(() => []),
       sbGetAll('produtos_epa',  'select=*&order=ordem.asc').catch(() => [])
     ]);
     dados.vendasOnline   = vendas;
@@ -3565,6 +3565,8 @@ async function sincronizarPedidosShopify() {
       paginas++;
       if (todasOrders.length) notify('🔄 Carregando... ' + todasOrders.length + ' pedido(s)');
     } while (pageInfo && paginas < 40); // trava de segurança
+    const truncado = !!pageInfo; // ainda tinha mais página quando a trava de 40 parou o loop
+    if (truncado) notify('⚠️ Shopify tem mais de ' + todasOrders.length + ' pedidos no período — parei na trava de 40 páginas, sincronização ficou incompleta. Rode de novo pra continuar.', 'err');
 
     // 3. Só pedidos efetivamente pagos entram no Financeiro — boleto/pix gerado e não
     //    pago (Shopify mostra como "Expirado" na tela dele, mas a API não expõe esse
@@ -3591,8 +3593,9 @@ async function sincronizarPedidosShopify() {
 
     // 4. Filtrar só os novos
     const pedidosNovos = pedidosPagos.filter(o => !jaExistentes.has(String(o.id)));
+    const avisoTruncado = truncado ? ' ⚠️ Parei na trava de 40 páginas — ainda tinha mais pedido no período, rode de novo.' : '';
     if (!pedidosNovos.length) {
-      notify('Shopify atualizado — nenhum pedido pago novo.' + (corrigidos ? ' ' + corrigidos + ' pedido(s) com vários itens corrigido(s).' : ''));
+      notify('Shopify atualizado — nenhum pedido pago novo.' + (corrigidos ? ' ' + corrigidos + ' pedido(s) com vários itens corrigido(s).' : '') + avisoTruncado, truncado ? 'err' : 'ok');
       renderShopify();
       return;
     }
@@ -3625,7 +3628,7 @@ async function sincronizarPedidosShopify() {
     }
 
     dados.pedidosShopify = (dados.pedidosShopify || []).concat(lote);
-    notify('✅ ' + lote.length + ' pedido(s) Shopify sincronizado(s)!' + (corrigidos ? ' ' + corrigidos + ' com vários itens corrigido(s).' : ''));
+    notify((truncado ? '⚠️ ' : '✅ ') + lote.length + ' pedido(s) Shopify sincronizado(s)!' + (corrigidos ? ' ' + corrigidos + ' com vários itens corrigido(s).' : '') + avisoTruncado, truncado ? 'err' : 'ok');
     atualizarTudo();
   } catch(e) {
     console.error(e);
@@ -5681,7 +5684,7 @@ async function sincronizarPromocoesML() {
     let pendentesAtuais = [];
     const idsReconciliados = new Set();
     try {
-      pendentesAtuais = await sbGet('ml_promocoes', 'select=id,item_id,promo_type,promotion_id&status=eq.pendente');
+      pendentesAtuais = await sbGetAll('ml_promocoes', 'select=id,item_id,promo_type,promotion_id&status=eq.pendente');
       for (const row of pendentesAtuais) {
         const promos = todasPromosPorId[row.item_id];
         if (!promos) continue; // item não escaneado nessa rodada (falhou ou não é MLB válido)
@@ -6373,7 +6376,7 @@ async function importarExtratoMP(event) {
     // IDs já existentes em contas_pagas (pelo campo comprovante) pra não duplicar
     let existentes = [];
     try {
-      const atuais = await sbGet('contas_pagas', 'select=comprovante&comprovante=like.MP*');
+      const atuais = await sbGetAll('contas_pagas', 'select=comprovante&comprovante=like.MP*');
       existentes = atuais.map(c => c.comprovante);
     } catch(e) { /* segue sem checar duplicidade se falhar */ }
 
