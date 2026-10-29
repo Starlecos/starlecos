@@ -1713,9 +1713,14 @@
           </select>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);background:#FAFBFD">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;flex-wrap:wrap">
         <button class="btn-add jade" id="btnAprovarEmMassa" onclick="aprovarEmMassa()">☑️ Aprovar selecionadas</button>
-        <span style="font-size:12px;color:var(--muted)">Pré-marcadas sozinho: pendentes com desconto até 9% (ver CHECKBOX_DESCONTO_MAX_PADRAO no JS). Desmarque/marque manualmente antes de aprovar.</span>
+        <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:6px">
+          <label style="margin-bottom:0;white-space:nowrap;font-size:12px">Marcar sozinho até</label>
+          <input type="number" id="promo_desconto_max_auto" min="0" max="100" step="0.5" style="width:64px;padding:6px 8px" onchange="aplicarDescontoMaxAuto()">
+          <label style="margin-bottom:0;white-space:nowrap;font-size:12px">% de desconto</label>
+        </div>
+        <span style="font-size:12px;color:var(--muted)">Desmarque/marque manualmente antes de aprovar.</span>
         <span id="aprovarEmMassaStatus" style="font-size:12px;color:var(--muted);margin-left:auto"></span>
       </div>
       <table>
@@ -2961,6 +2966,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById(id);
     if (el) el.value = hoje();
   });
+  const promoMaxEl = document.getElementById('promo_desconto_max_auto');
+  if (promoMaxEl) promoMaxEl.value = CHECKBOX_DESCONTO_MAX_PADRAO;
   // Preencher select de categorias de contas pagas
   const cpCat = document.getElementById('cp_categoria');
   if (cpCat) {
@@ -5510,12 +5517,35 @@ let _promocoesLista = [];
 // do Enzo, 18/10/2026). Fica salvo por id em _promoCheckState só quando o
 // Enzo mexe manualmente — senão (primeira vez vendo aquela linha) usa a
 // regra automática, pra não perder o estado quando filtro/ordenação
-// reconstrói a tabela.
-const CHECKBOX_DESCONTO_MAX_PADRAO = 9;
+// reconstrói a tabela. O limite em si agora é editável no campo
+// "promo_desconto_max_auto" (pedido do Enzo, 28/10/2026) e persiste no
+// localStorage — antes era fixo em 9% direto no código.
+let CHECKBOX_DESCONTO_MAX_PADRAO = parseFloat(localStorage.getItem('starlecos_promo_desconto_max_auto')) || 9;
 let _promoCheckState = {};
 function estaMarcadoPromocao(p) {
   if (p.id in _promoCheckState) return _promoCheckState[p.id];
   return p.status === 'pendente' && p.desconto_percentual != null && p.desconto_percentual <= CHECKBOX_DESCONTO_MAX_PADRAO;
+}
+
+// Chamada quando o Enzo digita um novo limite no campo — além de valer
+// pra qualquer pendente nova que apareça depois (CHECKBOX_DESCONTO_MAX_PADRAO
+// atualizado), marca JÁ, agora, toda pendente existente com desconto até
+// esse valor, mesmo as que ele tinha desmarcado manualmente antes.
+function aplicarDescontoMaxAuto() {
+  const el = document.getElementById('promo_desconto_max_auto');
+  const val = parseFloat(el.value);
+  if (isNaN(val) || val < 0) { notify('Digite um percentual válido.', 'err'); return; }
+  CHECKBOX_DESCONTO_MAX_PADRAO = val;
+  localStorage.setItem('starlecos_promo_desconto_max_auto', String(val));
+  let marcadas = 0;
+  _promocoesLista.forEach(p => {
+    if (p.status === 'pendente' && p.desconto_percentual != null && p.desconto_percentual <= val) {
+      if (_promoCheckState[p.id] !== true) marcadas++;
+      _promoCheckState[p.id] = true;
+    }
+  });
+  renderTabelaPromocoes();
+  notify('✅ ' + marcadas + ' pendente(s) com até ' + val + '% de desconto marcada(s) pra aprovar.');
 }
 
 // Nomes batidos contra o texto real que o próprio ML usa no painel de
