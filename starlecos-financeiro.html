@@ -4001,7 +4001,20 @@ function renderQuadroCampanhas(de, ate) {
         const para = a.valor_novo != null ? a.valor_novo : '—';
         const linha = `${tipoLabel[a.tipo] || a.tipo}: ${de_} → ${para}`;
         if (a.status === 'aplicado') {
-          const dataFeita = a.aplicado_em ? new Date(a.aplicado_em).toLocaleDateString('pt-BR') : '—';
+          const dataObj = a.aplicado_em ? new Date(a.aplicado_em) : null;
+          const dataFeita = dataObj ? dataObj.toLocaleDateString('pt-BR') : '—';
+          // Depois de 7 dias do último ajuste salvo, libera de novo o botão
+          // pra registrar um novo ciclo (pedido do Enzo, 01/11/2026) — em
+          // vez de ficar marcado "feito" pra sempre e nunca mais pedir
+          // revisão. Não inventa um valor novo de ROAS/orçamento (isso
+          // exige análise real do agente starlecos-mercadoads) — só sinaliza
+          // que já passou tempo suficiente pra reavaliar e libera o clique.
+          const diasDesde = dataObj ? Math.floor((Date.now() - dataObj.getTime()) / 86400000) : null;
+          if (diasDesde != null && diasDesde >= 7) {
+            return linha
+              + `<br><span style="color:var(--amber);font-size:11px">🔁 Feito em ${dataFeita} (há ${diasDesde}d) — pronto pra novo ciclo</span>`
+              + `<br><button class="btn-add jade" style="padding:3px 8px;font-size:11px;margin-top:3px" onclick="marcarAcaoFeita(${a.id}, true)">✅ Marquei que fiz de novo</button>`;
+          }
           return linha + `<br><span style="color:var(--jade);font-size:11px">✅ Feito em ${dataFeita}</span>`;
         }
         return linha + `<br><button class="btn-add jade" style="padding:3px 8px;font-size:11px;margin-top:3px" onclick="marcarAcaoFeita(${a.id})">✅ Marquei que fiz</button>`;
@@ -4034,17 +4047,36 @@ function renderQuadroCampanhas(de, ate) {
 // ver aplicarAprovadas() no starlecos-ml-ads.user.js). Guarda a DATA REAL em
 // que a mudança foi feita (não necessariamente hoje — o Enzo pode marcar
 // alguns dias depois), pra poder cruzar performance antes/depois do ajuste.
-async function marcarAcaoFeita(id) {
+async function marcarAcaoFeita(id, novoCiclo) {
   const digitada = prompt('Em que data você fez essa alteração no painel do ML? (dd/mm/aaaa)', fmtData(hoje()));
   if (!digitada) return;
   const m = digitada.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!m) { notify('Data inválida, use dd/mm/aaaa.', 'err'); return; }
   const isoData = `${m[3]}-${m[2]}-${m[1]}`;
   try {
-    await sbPatch('ml_ads_acoes', 'id=eq.' + id, {
-      status: 'aplicado', decidido_em: new Date().toISOString(),
-      aplicado_em: isoData + 'T12:00:00', erro_msg: null
-    });
+    if (novoCiclo) {
+      // Mais de 7 dias desde o último ajuste salvo nessa mesma ação — em
+      // vez de sobrescrever a data anterior (perderia o histórico de quando
+      // cada ciclo foi feito), cria um registro novo marcando esse ciclo.
+      // Não inventa valor_novo nenhum (isso é análise real, fica pro agente
+      // starlecos-mercadoads) — só carrega o valor atual pra frente.
+      const original = _quadroCampanhasLista.flatMap(c => c.acoes).find(a => a.id === id);
+      if (!original) { notify('Ação original não encontrada — recarregue a tela.', 'err'); return; }
+      await sbInsert('ml_ads_acoes', {
+        tipo: original.tipo, campanha_id: original.campanha_id, ad_group_id: original.ad_group_id,
+        item_id: original.item_id, titulo: original.titulo,
+        valor_atual: original.valor_novo != null ? original.valor_novo : original.valor_atual,
+        valor_novo: original.valor_novo, origem: 'manual_ciclo',
+        motivo: 'Novo ciclo de ajuste periódico (ciclo anterior aplicado em ' + fmtData(dataBR(original.aplicado_em)) + ').',
+        status: 'aplicado', criado_em: new Date().toISOString(),
+        decidido_em: new Date().toISOString(), aplicado_em: isoData + 'T12:00:00'
+      });
+    } else {
+      await sbPatch('ml_ads_acoes', 'id=eq.' + id, {
+        status: 'aplicado', decidido_em: new Date().toISOString(),
+        aplicado_em: isoData + 'T12:00:00', erro_msg: null
+      });
+    }
     notify('Marcado: aplicada em ' + digitada + '.');
     await carregarQuadroCampanhasDoBanco();
   } catch (e) {
