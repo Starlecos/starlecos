@@ -1619,7 +1619,7 @@
         <span class="table-total" id="totalAdsCusto">R$ 0,00 investido</span>
       </div>
       <div style="padding:10px 16px;font-size:12px;color:var(--muted)">
-        Classificação automática (heurística) por CAMPANHA: ALERTA_SEM_CONVERSAO = gastou &gt;R$3 sem venda · MANTER_OBSERVANDO = menos de 10 cliques no período · ESCALAR/OTIMIZAR_LANCES/ROLLBACK comparam ACOS real contra o ACOS alvo. "Análise" e "Ação" vêm do <code>starlecos-mercadoads</code> (framework oficial de esteiras/estágios, cruzando com o histórico de estoque pra separar queda por ruptura de queda por mídia) — valores concretos de ROAS alvo/orçamento pra você ajustar direto no painel do ML.
+        Classificação automática (heurística) por CAMPANHA: ALERTA_SEM_CONVERSAO = gastou &gt;R$3 sem venda · MANTER_OBSERVANDO = menos de 10 cliques no período · ESCALAR/OTIMIZAR_LANCES/ROLLBACK comparam ACOS real contra o ACOS alvo · SEM_ALTERACAO_CICLO = os 2 últimos ciclos de ROAS alvo/Orçamento marcados "feito" (com 7+ dias de intervalo) ficaram com o mesmo valor — tem prioridade sobre as outras classificações. "Análise" e "Ação" vêm do <code>starlecos-mercadoads</code> (framework oficial de esteiras/estágios, cruzando com o histórico de estoque pra separar queda por ruptura de queda por mídia) — valores concretos de ROAS alvo/orçamento pra você ajustar direto no painel do ML.
       </div>
       <div class="form-row" style="grid-template-columns:1fr 1fr;padding:16px 20px;border-bottom:1px solid var(--border);background:#FAFBFD;margin-bottom:0">
         <div class="field" style="margin-bottom:0"><label>Classificação</label>
@@ -1630,6 +1630,7 @@
             <option value="ALERTA_SEM_CONVERSAO">🔴 ALERTA_SEM_CONVERSAO</option>
             <option value="ESCALAR">🟢 ESCALAR</option>
             <option value="MANTER_OBSERVANDO">⚪ MANTER_OBSERVANDO</option>
+            <option value="SEM_ALTERACAO_CICLO">🔵 SEM_ALTERACAO_CICLO</option>
           </select>
         </div>
         <div class="field" style="margin-bottom:0"><label>Tem ação recomendada?</label>
@@ -3846,8 +3847,36 @@ function classificarAnuncio(ad, campanhasMap) {
 
 const CLASSIFICACAO_BADGE = {
   ESCALAR: 'badge-green', OTIMIZAR_LANCES: 'badge-amber', ROLLBACK: 'badge-red',
-  ALERTA_SEM_CONVERSAO: 'badge-red', MANTER_OBSERVANDO: 'badge-gray'
+  ALERTA_SEM_CONVERSAO: 'badge-red', MANTER_OBSERVANDO: 'badge-gray',
+  SEM_ALTERACAO_CICLO: 'badge-navy'
 };
+
+// Compara, por tipo (ROAS alvo e Orçamento) separadamente, os 2 últimos
+// ciclos "aplicado" de uma campanha (ver marcarAcaoFeita/novo ciclo, pedido
+// do Enzo em 01/11/2026) — se NENHUM dos dois tipos mudou de valor entre o
+// último ciclo e o anterior, a campanha fica estagnada: o Enzo clicou "fiz
+// de novo" mas o número não mudou. Precisa de pelo menos 2 ciclos aplicados
+// de algum dos tipos pra opinar; sem isso não dá pra saber se "não mudou"
+// ou "nunca foi comparado".
+function statusCicloCampanha(acoes) {
+  let temHistoricoSuficiente = false;
+  for (const tipo of ['roas_alvo', 'orcamento']) {
+    const doTipo = acoes
+      .filter(a => a.tipo === tipo && a.status === 'aplicado' && a.aplicado_em)
+      .sort((a, b) => new Date(b.aplicado_em) - new Date(a.aplicado_em));
+    if (doTipo.length < 2) continue;
+    temHistoricoSuficiente = true;
+    if (doTipo[0].valor_novo !== doTipo[1].valor_novo) return 'com_alteracao';
+  }
+  return temHistoricoSuficiente ? 'sem_alteracao' : 'sem_dados';
+}
+
+// classe final: SEM_ALTERACAO_CICLO tem prioridade sobre a heurística de
+// performance quando a campanha está estagnada (sem mudar ROAS/orçamento
+// entre os 2 últimos ciclos) — senão, segue a classificação normal.
+function classeComCiclo(classeBase, acoes) {
+  return statusCicloCampanha(acoes) === 'sem_alteracao' ? 'SEM_ALTERACAO_CICLO' : classeBase;
+}
 
 // Heurística de apoio, agora por CAMPANHA (não por anúncio/ad_group) — a
 // leitura fina (framework oficial de esteiras + cruzamento com estoque) é
@@ -3887,13 +3916,14 @@ async function montarQuadroCampanhas(campanhas, de, ate) {
 
   _quadroCampanhasLista = campanhas.map(c => {
     const m = c.metrics || {};
+    const acoes = acoesDaCampanha(acoesPorCampanha, c.id);
     return {
       campanha_id: c.id, nome: c.name, status: c.status, budget: c.budget || 0,
       acosTarget: c.acos_target || 0, roasTarget: c.roas_target || 0,
       acos: m.acos || 0, roas: m.roas || 0, custo: m.cost || 0,
       receita: m.total_amount || 0, unidades: m.units_quantity || 0,
-      classe: classificarCampanha(c),
-      acoes: acoesDaCampanha(acoesPorCampanha, c.id)
+      classe: classeComCiclo(classificarCampanha(c), acoes),
+      acoes
     };
   });
   renderQuadroCampanhas(de, ate);
@@ -3912,14 +3942,18 @@ async function carregarQuadroCampanhasDoBanco() {
     const acoesPorCampanha = {};
     acoes.forEach(a => { if (a.campanha_id) (acoesPorCampanha[a.campanha_id] = acoesPorCampanha[a.campanha_id] || []).push(a); });
 
-    _quadroCampanhasLista = snapshot.map(row => ({
-      campanha_id: row.campanha_id, nome: row.campanha_nome, status: row.status, budget: row.budget || 0,
-      acosTarget: row.acos_target || 0, roasTarget: row.roas_target || 0,
-      acos: row.acos_real || 0, roas: row.roas_real || 0, custo: row.custo || 0,
-      receita: row.receita_total || 0, unidades: row.unidades_total || 0,
-      classe: classificarCampanha({ metrics: { cost: row.custo, units_quantity: row.unidades_total, clicks: row.clicks, acos: row.acos_real }, acos_target: row.acos_target }),
-      acoes: acoesDaCampanha(acoesPorCampanha, row.campanha_id)
-    }));
+    _quadroCampanhasLista = snapshot.map(row => {
+      const acoes = acoesDaCampanha(acoesPorCampanha, row.campanha_id);
+      const classeBase = classificarCampanha({ metrics: { cost: row.custo, units_quantity: row.unidades_total, clicks: row.clicks, acos: row.acos_real }, acos_target: row.acos_target });
+      return {
+        campanha_id: row.campanha_id, nome: row.campanha_nome, status: row.status, budget: row.budget || 0,
+        acosTarget: row.acos_target || 0, roasTarget: row.roas_target || 0,
+        acos: row.acos_real || 0, roas: row.roas_real || 0, custo: row.custo || 0,
+        receita: row.receita_total || 0, unidades: row.unidades_total || 0,
+        classe: classeComCiclo(classeBase, acoes),
+        acoes
+      };
+    });
     const per = snapshot[0] || {};
     renderQuadroCampanhas(per.periodo_de, per.periodo_ate);
   } catch (e) { console.error('Erro ao carregar quadro de campanhas do banco:', e); }
