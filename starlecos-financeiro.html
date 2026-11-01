@@ -3896,16 +3896,29 @@ const CLASSIFICACAO_BADGE = {
 // de algum dos tipos pra opinar; sem isso não dá pra saber se "não mudou"
 // ou "nunca foi comparado".
 function statusCicloCampanha(acoes) {
-  let temHistoricoSuficiente = false;
+  // Achado em 01/11/2026 (print do Enzo): uma campanha com só 1 ciclo
+  // aplicado há mais de 7 dias (ainda sem um 2º ciclo registrado, botão
+  // "novo ciclo" visível mas não clicado) tinha que cair aqui também — não
+  // só quando já existem 2 ciclos pra comparar. "Sem alteração" inclui o
+  // caso óbvio de "nem mexeu de novo depois de 7 dias", não só "mexeu e
+  // manteve o mesmo valor".
+  let algumSinalDeEstagnacao = false;
   for (const tipo of ['roas_alvo', 'orcamento']) {
     const doTipo = acoes
       .filter(a => a.tipo === tipo && a.status === 'aplicado' && a.aplicado_em)
       .sort((a, b) => new Date(b.aplicado_em) - new Date(a.aplicado_em));
-    if (doTipo.length < 2) continue;
-    temHistoricoSuficiente = true;
-    if (doTipo[0].valor_novo !== doTipo[1].valor_novo) return 'com_alteracao';
+    if (!doTipo.length) continue; // nunca teve ação desse tipo — não opina
+    if (doTipo.length >= 2) {
+      if (doTipo[0].valor_novo !== doTipo[1].valor_novo) return 'com_alteracao';
+      algumSinalDeEstagnacao = true; // 2+ ciclos, todos com o mesmo valor
+      continue;
+    }
+    // só 1 ciclo desse tipo — só conta como estagnado depois de 7 dias
+    // (antes disso é cedo demais pra cobrar um novo ajuste)
+    const diasDesde = Math.floor((Date.now() - new Date(doTipo[0].aplicado_em).getTime()) / 86400000);
+    if (diasDesde >= 7) algumSinalDeEstagnacao = true;
   }
-  return temHistoricoSuficiente ? 'sem_alteracao' : 'sem_dados';
+  return algumSinalDeEstagnacao ? 'sem_alteracao' : 'sem_dados';
 }
 
 // classe final: SEM_ALTERACAO_CICLO tem prioridade sobre a heurística de
