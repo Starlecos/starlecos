@@ -4027,7 +4027,7 @@ function renderQuadroCampanhas(de, ate) {
   const custoTotal = _quadroCampanhasLista.reduce((a, c) => a + c.custo, 0);
   const receitaTotal = _quadroCampanhasLista.reduce((a, c) => a + c.receita, 0);
   const unidadesTotal = _quadroCampanhasLista.reduce((a, c) => a + c.unidades, 0);
-  const acosGeral = custoTotal > 0 ? (custoTotal / receitaTotal * 100) : 0;
+  const acosGeral = receitaTotal > 0 ? (custoTotal / receitaTotal * 100) : 0;
   const roasGeral = custoTotal > 0 ? (receitaTotal / custoTotal) : 0;
 
   document.getElementById('totalAdsCusto').textContent = fmt(custoTotal) + ' investido';
@@ -6611,12 +6611,15 @@ async function importarExtratoMP(event) {
 async function carregarMPPagamentos() {
   try {
     const [pendentes, classificados] = await Promise.all([
-      sbGet('mp_pagamentos_pendentes', 'select=*&classificado=eq.false&order=data.desc&limit=100'),
-      sbGet('mp_pagamentos_pendentes', 'select=*&classificado=eq.true&order=data.desc&limit=100')
+      sbGetAll('mp_pagamentos_pendentes', 'select=*&classificado=eq.false&order=data.desc'),
+      sbGetAll('mp_pagamentos_pendentes', 'select=*&classificado=eq.true&order=data.desc')
     ]);
     renderMPPendentes(pendentes);
     renderMPClassificados(classificados);
-  } catch(e) { console.warn('Erro carregar MP pagamentos:', e); }
+  } catch(e) {
+    console.warn('Erro carregar MP pagamentos:', e);
+    notify('⚠️ Não consegui carregar os pagamentos do Mercado Pago (' + e.message + ').', 'err');
+  }
 }
 
 const CAT_MP_KEY = 'starlecos_categorias_despesa'; // chave unificada
