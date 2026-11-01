@@ -2866,7 +2866,14 @@ async function carregarVendasOnline() {
     ]);
     dados.vendasOnline   = vendas;
     dados.pedidosML      = pedidosML.map(v => ({ ...v, taxaVenda: v.taxa_venda, taxaFrete: v.taxa_frete }));
-    if (pedidosShopee.length) dados.vendasShopee = pedidosShopee;
+    // Achado em 01/11/2026: addPedidoShopee/importarCSVShopee só gravavam no
+    // localStorage, nunca no Supabase (bug corrigido agora) — então pode
+    // existir lançamento antigo que só vive localmente. Mescla em vez de
+    // sobrescrever, senão o primeiro load depois de sincronizar qualquer
+    // pedido novo apagava tudo que ainda não tinha ido pro banco.
+    const idsShopeeDB = new Set(pedidosShopee.map(p => p.id));
+    const shopeeLocalNaoSincronizado = (dados.vendasShopee || []).filter(v => !idsShopeeDB.has(v.id));
+    dados.vendasShopee = pedidosShopee.concat(shopeeLocalNaoSincronizado);
     dados.pedidosShopify = pedidosShopify;
     if (contas.length)        dados.contasPagas  = contas;
     _produtosEpaLista = produtosEpa;
@@ -3296,7 +3303,7 @@ function renderML() {
 }
 
 // ====== MÁQUINA CARTÃO ======
-function addPedidoShopee() {
+async function addPedidoShopee() {
   const data    = document.getElementById('sh_data').value;
   const pedido  = document.getElementById('sh_pedido').value.trim();
   const produto = document.getElementById('sh_produto').value.trim();
@@ -3309,7 +3316,19 @@ function addPedidoShopee() {
     notify('Preencha: data, produto e valor bruto.', 'err'); return;
   }
 
-  dados.vendasShopee.push({ id: Date.now(), data, pedido: pedido || '#SH' + Date.now(), produto, qtd, bruto, taxa, liquido: bruto - taxa, status });
+  // Achado em 01/11/2026: isso só gravava no localStorage, nunca no
+  // Supabase — se um dia a tabela pedidos_shopee recebesse QUALQUER linha
+  // (de outro caminho), o próximo carregarVendasOnline() apagava tudo que
+  // só existia aqui. Agora grava no banco igual Vendas Online/Contas Pagas.
+  const nova = { id: Date.now(), data, pedido: pedido || '#SH' + Date.now(), produto, qtd, bruto, taxa, liquido: bruto - taxa, status };
+  try {
+    await sbInsert('pedidos_shopee', nova);
+  } catch (e) {
+    console.error('Erro ao salvar pedido Shopee no Supabase:', e);
+    notify('⚠️ Erro ao salvar no Supabase — pedido NÃO registrado. Tente de novo.', 'err');
+    return;
+  }
+  dados.vendasShopee.push(nova);
   salvar();
   document.getElementById('sh_pedido').value = '';
   document.getElementById('sh_produto').value = '';
@@ -3323,7 +3342,7 @@ function importarCSVShopee(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     // CSV da Shopee usa ponto e vírgula como separador
     const lines = e.target.result.split('\n').filter(l => l.trim());
     if (lines.length < 2) { notify('CSV sem dados válidos', 'err'); return; }
@@ -3331,6 +3350,7 @@ function importarCSVShopee(event) {
     const SEP = ';';
     const headers = lines[0].split(SEP).map(h => h.trim().replace(/"/g,''));
     let importados = 0;
+    const lote = [];
 
     for (let i = 1; i < lines.length; i++) {
       // Parser robusto — respeita vírgulas dentro de aspas
@@ -3366,9 +3386,26 @@ function importarCSVShopee(event) {
       if (!produto) continue;
       if (status === 'Cancelado' && bruto === 0) continue;
 
-      dados.vendasShopee.push({ id: Date.now() + i, data, pedido, produto, qtd, bruto, taxa, liquido, status });
+      lote.push({ id: Date.now() + i, data, pedido, produto, qtd, bruto, taxa, liquido, status });
       importados++;
     }
+
+    // Achado em 01/11/2026: isso só gravava no localStorage, nunca no
+    // Supabase (mesmo bug do addPedidoShopee) — agora grava no banco em
+    // lotes de 100, igual sincronizarPedidosShopify().
+    const LOTE = 100;
+    for (let j = 0; j < lote.length; j += LOTE) {
+      const parte = lote.slice(j, j + LOTE);
+      try {
+        const res = await fetch(SUPABASE_URL + '/rest/v1/pedidos_shopee', {
+          method: 'POST', headers: { ...SB_HEADERS, 'Prefer': 'return=minimal,resolution=merge-duplicates' },
+          body: JSON.stringify(parte)
+        });
+        if (!res.ok) console.warn('Erro ao salvar lote Shopee no Supabase:', await res.text());
+      } catch (err) { console.warn('Erro ao salvar lote Shopee no Supabase:', err); }
+    }
+
+    dados.vendasShopee = dados.vendasShopee.concat(lote);
     salvar();
     notify('✅ ' + importados + ' pedido(s) importado(s) da Shopee!');
     event.target.value = '';
@@ -3910,7 +3947,8 @@ function acoesDaCampanha(acoesPorCampanha, campanhaId) {
 // Monta o quadro a partir de um sync fresco (dado que acabou de vir da API do ML)
 async function montarQuadroCampanhas(campanhas, de, ate) {
   let acoes = [];
-  try { acoes = await sbGet('ml_ads_acoes', 'select=*&order=criado_em.desc'); } catch (e) {}
+  try { acoes = await sbGetAll('ml_ads_acoes', 'select=*&order=criado_em.desc'); }
+  catch (e) { notify('⚠️ Não consegui carregar as ações recomendadas (' + e.message + ') — quadro sem Análise/Ação.', 'err'); }
   const acoesPorCampanha = {};
   acoes.forEach(a => { if (a.campanha_id) (acoesPorCampanha[a.campanha_id] = acoesPorCampanha[a.campanha_id] || []).push(a); });
 
@@ -3936,8 +3974,8 @@ async function carregarQuadroCampanhasDoBanco() {
     const ultimo = await sbGet('mercadoads_campanhas', 'select=sincronizado_em&order=sincronizado_em.desc&limit=1');
     if (!ultimo.length) { _quadroCampanhasLista = []; renderQuadroCampanhas(); return; }
     const [snapshot, acoes] = await Promise.all([
-      sbGet('mercadoads_campanhas', 'select=*&sincronizado_em=eq.' + encodeURIComponent(ultimo[0].sincronizado_em)),
-      sbGet('ml_ads_acoes', 'select=*&order=criado_em.desc').catch(() => [])
+      sbGetAll('mercadoads_campanhas', 'select=*&sincronizado_em=eq.' + encodeURIComponent(ultimo[0].sincronizado_em)),
+      sbGetAll('ml_ads_acoes', 'select=*&order=criado_em.desc').catch(e => { notify('⚠️ Não consegui carregar as ações recomendadas (' + e.message + ') — quadro sem Análise/Ação.', 'err'); return []; })
     ]);
     const acoesPorCampanha = {};
     acoes.forEach(a => { if (a.campanha_id) (acoesPorCampanha[a.campanha_id] = acoesPorCampanha[a.campanha_id] || []).push(a); });
@@ -4189,6 +4227,13 @@ async function del(colecao, id) {
       salvar();
       notify('Registro removido.');
     } catch(e) { notify('Erro ao remover do Supabase', 'err'); }
+  } else if (colecao === 'vendasShopee') {
+    try {
+      await sbDelete('pedidos_shopee', 'id=eq.' + id);
+    } catch(e) { /* pode ser um lançamento antigo que só existe localmente, sem linha no banco pra remover */ }
+    dados.vendasShopee = dados.vendasShopee.filter(v => v.id !== id);
+    salvar();
+    notify('Registro removido.');
   } else {
     dados[colecao] = dados[colecao].filter(v => v.id !== id);
     salvar();
