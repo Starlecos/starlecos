@@ -3902,6 +3902,16 @@ function statusCicloCampanha(acoes) {
   // só quando já existem 2 ciclos pra comparar. "Sem alteração" inclui o
   // caso óbvio de "nem mexeu de novo depois de 7 dias", não só "mexeu e
   // manteve o mesmo valor".
+  //
+  // 01/11/2026 (pedido do Enzo): o agente starlecos-mercadoads passou a
+  // rodar revisão periódica de 7 dias e, quando decide que PRECISA mudar
+  // ROAS alvo/orçamento, enfileira uma ação nova com status='pendente'.
+  // Essa pendência tem prioridade sobre qualquer histórico "aplicado" —
+  // a campanha não pode ficar presa em SEM_ALTERACAO_CICLO com uma
+  // recomendação de mudança esperando o Enzo aplicar.
+  if (acoes.some(a => (a.tipo === 'roas_alvo' || a.tipo === 'orcamento') && a.status === 'pendente')) {
+    return 'com_alteracao';
+  }
   let algumSinalDeEstagnacao = false;
   for (const tipo of ['roas_alvo', 'orcamento']) {
     const doTipo = acoes
