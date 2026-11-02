@@ -1656,10 +1656,11 @@
             <th>Classificação</th>
             <th>Análise</th>
             <th>Ação</th>
+            <th>Revisar</th>
           </tr>
         </thead>
         <tbody id="bodyMercadoAds">
-          <tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
+          <tr><td colspan="13"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -4058,7 +4059,7 @@ function renderQuadroCampanhas(de, ate) {
     </div>`;
 
   if (!_quadroCampanhasLista.length) {
-    body.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>';
+    body.innerHTML = '<tr><td colspan="13"><div class="empty-state"><div class="empty-icon">📢</div><p>Clique em "Buscar Performance" pra consultar</p></div></td></tr>';
     return;
   }
 
@@ -4072,7 +4073,7 @@ function renderQuadroCampanhas(de, ate) {
   });
 
   if (!lista.length) {
-    body.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhuma campanha com esse filtro</p></div></td></tr>';
+    body.innerHTML = '<tr><td colspan="13"><div class="empty-state"><div class="empty-icon">🔎</div><p>Nenhuma campanha com esse filtro</p></div></td></tr>';
     return;
   }
 
@@ -4133,6 +4134,7 @@ function renderQuadroCampanhas(de, ate) {
       <td><span class="badge ${badge}">${r.classe}</span></td>
       <td style="font-size:12px;max-width:340px;white-space:pre-wrap">${analiseTexto}</td>
       <td style="font-size:12px;max-width:200px;font-weight:600">${acaoTexto}</td>
+      <td><button class="btn-add" style="padding:4px 8px;font-size:11px" onclick="revisarCampanhaAgora(${r.campanha_id})">🔍 Revisar agora</button></td>
     </tr>`;
   }).join('');
 }
@@ -4176,6 +4178,36 @@ async function marcarAcaoFeita(id, novoCiclo) {
     await carregarQuadroCampanhasDoBanco();
   } catch (e) {
     notify('Erro ao marcar ação como feita: ' + e.message, 'err');
+  }
+}
+
+// Botão "🔍 Revisar agora" (pedido do Enzo, 01/11/2026) — diferente da
+// revisão de 7 dias feita pelo agente starlecos-mercadoads via Claude Code
+// (essa exige o Enzo avisar que quer rodar), este botão chama direto uma
+// function do Netlify que liga pra API da Anthropic e decide na hora, sem
+// precisar de ninguém no meio. Pede a data a partir de qual comparar (
+// normalmente a data do último ajuste salvo, mostrada em "Feito em
+// dd/mm/aaaa" na coluna Ação) — compara a janela de performance desde essa
+// data contra a anterior e contra o último valor aplicado.
+async function revisarCampanhaAgora(campanhaId) {
+  const digitada = prompt('A partir de que data comparar a performance? (dd/mm/aaaa — normalmente a data do último "Feito em" dessa campanha)', fmtData(hoje()));
+  if (!digitada) return;
+  const m = digitada.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) { notify('Data inválida, use dd/mm/aaaa.', 'err'); return; }
+  const dataDesde = `${m[3]}-${m[2]}-${m[1]}`;
+  notify('🔎 Analisando campanha, aguarde...');
+  try {
+    const res = await fetch('/.netlify/functions/revisar-campanha-ads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campanha_id: campanhaId, data_desde: dataDesde })
+    });
+    const data = await res.json();
+    if (!res.ok) { notify('⚠️ ' + (data.error || 'Erro na análise'), 'err'); return; }
+    notify((data.mudou ? '🔔 ' : '✅ ') + data.resumo);
+    await carregarQuadroCampanhasDoBanco();
+  } catch (e) {
+    notify('Erro ao chamar a análise: ' + e.message, 'err');
   }
 }
 

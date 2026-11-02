@@ -1,0 +1,38 @@
+{
+  "_fonte": "C:\\Users\\pedro\\Assistente_Pedro\\projetos\\starlecos\\estrategia-product-ads-starlecos.md — manter sincronizado manualmente se a tabela oficial mudar lá.",
+  "dois_mandamentos": [
+    "Descanso do algoritmo: nunca alterar lance/orçamento diariamente — esperar 24-48h sem mexer depois de qualquer mudança.",
+    "Uso diário ininterrupto: pausar 15-30 dias/mês custa até 90% do potencial de entrega."
+  ],
+  "taxonomia": {
+    "ALERTA_SEM_CONVERSAO": "custo > R$3,00 e unidades_total == 0 no período",
+    "MANTER_OBSERVANDO": "clicks < 10 no período (dado insuficiente)",
+    "ESCALAR": "acos_real <= acos_target da campanha atual",
+    "OTIMIZAR_LANCES": "acos_target < acos_real <= acos_target * 2",
+    "ROLLBACK": "acos_real > acos_target * 2"
+  },
+  "regra_desintoxicacao": "Gatilho: >R$3,00 gasto sem NENHUMA venda, OU ACOS explode acima da meta por 3 dias seguidos. Ação: pausar 3 dias. Reativação só em 'Acos Elevado' ou 'Recorrência de Vendas' por 30 dias de reanálise.",
+  "regra_valor_exato": "Ao recomendar orçamento/ROAS objetivo, usar SEMPRE o valor literal da tabela de parâmetros abaixo pela campanha nomeada mais próxima do caso — nunca calcular/interpolar um valor próprio.",
+  "tabela_parametros": [
+    { "nome": "01A - High Performance Stage1", "orcamento_dia": 4500, "roas_objetivo": 12.5, "acos_objetivo": 8, "acos_maximo_aceito": 10 },
+    { "nome": "01B - High Performance Stage2", "orcamento_dia": 1800, "roas_objetivo": 14.3, "acos_objetivo": 7, "acos_maximo_aceito": 10 },
+    { "nome": "01C - High Performance Stage3", "orcamento_dia": 2200, "roas_objetivo": 12.5, "acos_objetivo": 8, "acos_maximo_aceito": 10 },
+    { "nome": "Aceleração Dinâmica 20/8", "orcamento_dia": 20000, "roas_objetivo": 12.5, "acos_objetivo": 8, "acos_maximo_aceito": 10 },
+    { "nome": "Aceleração Dinâmica 850/22", "orcamento_dia": 850, "roas_objetivo": 4.5, "acos_objetivo": 22, "acos_maximo_aceito": 10 },
+    { "nome": "Aceleração Dinâmica 20/20", "orcamento_dia": 20000, "roas_objetivo": 5.0, "acos_objetivo": 20, "acos_maximo_aceito": 20 },
+    { "nome": "Aceleração Dinâmica 10000/8", "orcamento_dia": 10000, "roas_objetivo": 12.5, "acos_objetivo": 8, "acos_maximo_aceito": 10 },
+    { "nome": "Aceleração Dinâmica 50/6", "orcamento_dia": 50000, "roas_objetivo": 16.7, "acos_objetivo": 6, "acos_maximo_aceito": 10 },
+    { "nome": "Alavanca Full", "orcamento_dia": 1000, "roas_objetivo": 2.2, "acos_objetivo": 45, "acos_maximo_aceito": 20, "obs": "só com Mercado Envios Full confirmado" },
+    { "nome": "Anúncio Novo Stage1", "orcamento_dia": 5000, "roas_objetivo": 12.5, "acos_objetivo": 8, "acos_maximo_aceito": 10 },
+    { "nome": "Anúncio Novo Stage2", "orcamento_dia": 15000, "roas_objetivo": 33.3, "acos_objetivo": 3, "acos_maximo_aceito": 10 },
+    { "nome": "Anúncio Novo Stage3", "orcamento_dia": 10000, "roas_objetivo": 12.5, "acos_objetivo": 8, "acos_maximo_aceito": 10 },
+    { "nome": "Acos Elevado", "orcamento_dia": 150, "orcamento_dia_alt": 50, "roas_objetivo": 16.7, "acos_objetivo": 6, "acos_maximo_aceito": 20 },
+    { "nome": "Rentabilidade Estável", "orcamento_dia": 1000, "roas_objetivo": 12.5, "acos_objetivo": 8, "acos_maximo_aceito": null },
+    { "nome": "Recorrência de Vendas", "orcamento_dia": 15, "roas_objetivo": 20.0, "acos_objetivo": 5, "acos_maximo_aceito": 10 },
+    { "nome": "Catálogo Stage 1", "orcamento_dia": 600, "roas_objetivo": 20.0, "acos_objetivo": 5, "acos_maximo_aceito": 10 },
+    { "nome": "Catálogo Stage 2 (1506)", "orcamento_dia": 150, "roas_objetivo": 16.7, "acos_objetivo": 6, "acos_maximo_aceito": 10 },
+    { "nome": "Catálogo Stage 3", "orcamento_dia": 15000, "roas_objetivo": 12.5, "acos_objetivo": 8, "acos_maximo_aceito": 10 },
+    { "nome": "MUITOD0 20K20", "orcamento_dia": 10000, "roas_objetivo": 5.0, "acos_objetivo": 20, "acos_maximo_aceito": 10 },
+    { "nome": "Pouco D0 15K3", "orcamento_dia": 15000, "roas_objetivo": 33.3, "acos_objetivo": 3, "acos_maximo_aceito": 10 }
+  ]
+}
