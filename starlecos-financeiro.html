@@ -1004,9 +1004,37 @@
     cursor:pointer; font-family:'Inter',sans-serif; transition:background .2s;
   }
   .btn-login:hover { background:#581C87; }
+
+  /* ===== MODAL GENÉRICO DE DETALHES (análise/histórico de ações do Mercado Ads) ===== */
+  #detalhesOverlay {
+    display:none; position:fixed; inset:0; z-index:9998;
+    background:rgba(15,45,92,0.55);
+    align-items:center; justify-content:center; padding:24px;
+  }
+  .detalhes-box {
+    background:white; border-radius:14px; padding:24px 28px;
+    width:100%; max-width:540px; max-height:80vh; overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,0.3);
+  }
+  .detalhes-box h3 { font-size:16px; font-weight:800; color:#0F2D5C; margin-bottom:14px; }
+  .detalhes-box .detalhes-conteudo { font-size:13px; line-height:1.5; white-space:pre-wrap; }
+  .detalhes-box .btn-fechar-detalhes {
+    margin-top:18px; background:#EEF3F9; color:#0F2D5C; border:none;
+    padding:9px 16px; border-radius:8px; font-size:13px; font-weight:700;
+    cursor:pointer; font-family:'Inter',sans-serif;
+  }
 </style>
 </head>
 <body>
+
+<!-- ===== MODAL GENÉRICO DE DETALHES (análise/histórico — Mercado Ads) ===== -->
+<div id="detalhesOverlay" onclick="if(event.target===this)fecharDetalhesModal()">
+  <div class="detalhes-box">
+    <h3 id="detalhesTitulo"></h3>
+    <div class="detalhes-conteudo" id="detalhesConteudo"></div>
+    <button class="btn-fechar-detalhes" onclick="fecharDetalhesModal()">Fechar</button>
+  </div>
+</div>
 
 <!-- ===== TELA DE LOGIN ===== -->
 <div id="loginOverlay">
@@ -4077,49 +4105,22 @@ function renderQuadroCampanhas(de, ate) {
     return;
   }
 
-  const tipoLabel = { orcamento: '💰 Orçamento', roas_alvo: '🎯 ROAS Alvo', lance: '🎯 Lance/ROAS' };
-
   body.innerHTML = [...lista].sort((a, b) => b.custo - a.custo).map(r => {
     const badge = CLASSIFICACAO_BADGE[r.classe] || 'badge-gray';
-    // Análise = diagnóstico completo (motivo de cada ação, texto livre do
-    // starlecos-mercadoads); Ação = valores concretos, curto e estruturado
-    // (ex: "🎯 ROAS Alvo: 5,00x → 8,00x"), uma campanha pode ter mais de
-    // uma ação ao mesmo tempo (orçamento e ROAS alvo, por exemplo).
-    let analiseTexto = '—';
-    let acaoTexto = '—';
+    // Análise (texto livre do motivo) e histórico completo de ações não
+    // ficam mais escritos direto na célula (pedido do Enzo, 08/11/2026 —
+    // poluía a tabela com texto longo) — vira botão que abre modal com o
+    // conteúdo completo (verAnaliseCampanha/verHistoricoCampanha). Na
+    // célula de Ação, mostra só a ação mais recente (r.acoes[0], já vem
+    // ordenado desc por criado_em) + botão pra ver as anteriores.
+    let celAnalise = '<span style="color:var(--muted)">⏳ Sem análise do agente ainda</span>';
+    let celAcao = '<span style="color:var(--muted)">⏳ Sem análise do agente ainda</span>';
     if (r.acoes.length) {
-      analiseTexto = r.acoes.map(a => a.motivo).filter(Boolean).join('<br><br>') || '—';
-      // Data da análise mais recente — deixa visível quando está defasada
-      const maisRecente = r.acoes.map(a => a.criado_em).filter(Boolean).sort().pop();
-      if (maisRecente) analiseTexto += `<br><span style="color:var(--muted);font-size:11px">Análise de ${new Date(maisRecente).toLocaleDateString('pt-BR')}</span>`;
-      acaoTexto = r.acoes.map(a => {
-        const de_ = a.valor_atual != null ? a.valor_atual : '—';
-        const para = a.valor_novo != null ? a.valor_novo : '—';
-        const linha = `${tipoLabel[a.tipo] || a.tipo}: ${de_} → ${para}`;
-        if (a.status === 'aplicado') {
-          const dataObj = a.aplicado_em ? new Date(a.aplicado_em) : null;
-          const dataFeita = dataObj ? dataObj.toLocaleDateString('pt-BR') : '—';
-          // Depois de 7 dias do último ajuste salvo, libera de novo o botão
-          // pra registrar um novo ciclo (pedido do Enzo, 01/11/2026) — em
-          // vez de ficar marcado "feito" pra sempre e nunca mais pedir
-          // revisão. Não inventa um valor novo de ROAS/orçamento (isso
-          // exige análise real do agente starlecos-mercadoads) — só sinaliza
-          // que já passou tempo suficiente pra reavaliar e libera o clique.
-          const diasDesde = dataObj ? Math.floor((Date.now() - dataObj.getTime()) / 86400000) : null;
-          if (diasDesde != null && diasDesde >= 7) {
-            return linha
-              + `<br><span style="color:var(--amber);font-size:11px">🔁 Feito em ${dataFeita} (há ${diasDesde}d) — pronto pra novo ciclo</span>`
-              + `<br><button class="btn-add jade" style="padding:3px 8px;font-size:11px;margin-top:3px" onclick="marcarAcaoFeita(${a.id}, true)">✅ Marquei que fiz de novo</button>`;
-          }
-          return linha + `<br><span style="color:var(--jade);font-size:11px">✅ Feito em ${dataFeita}</span>`;
-        }
-        return linha + `<br><button class="btn-add jade" style="padding:3px 8px;font-size:11px;margin-top:3px" onclick="marcarAcaoFeita(${a.id})">✅ Marquei que fiz</button>`;
-      }).join('<br><br>');
-    } else {
-      // Toda recomendação exibida aqui tem que vir do starlecos-mercadoads
-      // (framework oficial) — sem heurística de fallback. Sem ação = ainda
-      // não foi analisada, e o status diz isso em vez de inventar número.
-      analiseTexto = acaoTexto = '<span style="color:var(--muted)">⏳ Sem análise do agente ainda</span>';
+      celAnalise = `<button class="btn-add" style="padding:4px 8px;font-size:11px" onclick="verAnaliseCampanha(${r.campanha_id})">👁 Ver análise</button>`;
+      celAcao = formatarLinhaAcao(r.acoes[0]);
+      if (r.acoes.length > 1) {
+        celAcao += `<br><button class="btn-add" style="padding:3px 8px;font-size:11px;margin-top:4px" onclick="verHistoricoCampanha(${r.campanha_id})">📜 Ver histórico (${r.acoes.length})</button>`;
+      }
     }
     return `<tr>
       <td style="font-weight:600">${r.nome}</td>
@@ -4132,11 +4133,71 @@ function renderQuadroCampanhas(de, ate) {
       <td class="val-pos">${fmt(r.receita)}</td>
       <td>${r.unidades}</td>
       <td><span class="badge ${badge}">${r.classe}</span></td>
-      <td style="font-size:12px;max-width:340px;white-space:pre-wrap">${analiseTexto}</td>
-      <td style="font-size:12px;max-width:200px;font-weight:600">${acaoTexto}</td>
+      <td style="font-size:12px;max-width:160px">${celAnalise}</td>
+      <td style="font-size:12px;max-width:200px;font-weight:600">${celAcao}</td>
       <td><button class="btn-add" style="padding:4px 8px;font-size:11px" onclick="revisarCampanhaAgora(${r.campanha_id})">🔍 Revisar agora</button></td>
     </tr>`;
   }).join('');
+}
+
+const TIPO_LABEL_ACAO = { orcamento: '💰 Orçamento', roas_alvo: '🎯 ROAS Alvo', lance: '🎯 Lance/ROAS' };
+
+// Monta o HTML de uma única ação (valor de→para + status/botão de
+// confirmação) — usado tanto na célula "Ação" (só a mais recente) quanto
+// no modal de histórico completo (todas).
+function formatarLinhaAcao(a) {
+  const de_ = a.valor_atual != null ? a.valor_atual : '—';
+  const para = a.valor_novo != null ? a.valor_novo : '—';
+  const linha = `${TIPO_LABEL_ACAO[a.tipo] || a.tipo}: ${de_} → ${para}`;
+  if (a.status === 'aplicado') {
+    const dataObj = a.aplicado_em ? new Date(a.aplicado_em) : null;
+    const dataFeita = dataObj ? dataObj.toLocaleDateString('pt-BR') : '—';
+    // Depois de 7 dias do último ajuste salvo, libera de novo o botão
+    // pra registrar um novo ciclo (pedido do Enzo, 01/11/2026) — em
+    // vez de ficar marcado "feito" pra sempre e nunca mais pedir
+    // revisão. Não inventa um valor novo de ROAS/orçamento (isso
+    // exige análise real do agente starlecos-mercadoads) — só sinaliza
+    // que já passou tempo suficiente pra reavaliar e libera o clique.
+    const diasDesde = dataObj ? Math.floor((Date.now() - dataObj.getTime()) / 86400000) : null;
+    if (diasDesde != null && diasDesde >= 7) {
+      return linha
+        + `<br><span style="color:var(--amber);font-size:11px">🔁 Feito em ${dataFeita} (há ${diasDesde}d) — pronto pra novo ciclo</span>`
+        + `<br><button class="btn-add jade" style="padding:3px 8px;font-size:11px;margin-top:3px" onclick="marcarAcaoFeita(${a.id}, true)">✅ Marquei que fiz de novo</button>`;
+    }
+    return linha + `<br><span style="color:var(--jade);font-size:11px">✅ Feito em ${dataFeita}</span>`;
+  }
+  return linha + `<br><button class="btn-add jade" style="padding:3px 8px;font-size:11px;margin-top:3px" onclick="marcarAcaoFeita(${a.id})">✅ Marquei que fiz</button>`;
+}
+
+function abrirDetalhesModal(titulo, htmlConteudo) {
+  document.getElementById('detalhesTitulo').textContent = titulo;
+  document.getElementById('detalhesConteudo').innerHTML = htmlConteudo;
+  document.getElementById('detalhesOverlay').style.display = 'flex';
+}
+function fecharDetalhesModal() {
+  document.getElementById('detalhesOverlay').style.display = 'none';
+}
+
+// Análise = diagnóstico completo (motivo de cada ação, texto livre do
+// starlecos-mercadoads) — fica escondido até o Enzo pedir pra ver (botão
+// "Ver análise"), em vez de poluir a tabela.
+function verAnaliseCampanha(campanhaId) {
+  const r = _quadroCampanhasLista.find(x => x.campanha_id === campanhaId);
+  if (!r || !r.acoes.length) return;
+  let html = r.acoes.map(a => a.motivo).filter(Boolean).join('<br><br>') || '—';
+  const maisRecente = r.acoes.map(a => a.criado_em).filter(Boolean).sort().pop();
+  if (maisRecente) html += `<br><span style="color:var(--muted);font-size:11px">Análise de ${new Date(maisRecente).toLocaleDateString('pt-BR')}</span>`;
+  abrirDetalhesModal('Análise — ' + r.nome, html);
+}
+
+// Histórico completo de ações (todos os ciclos já registrados dessa
+// campanha, não só o mais recente) — fica escondido até o Enzo pedir
+// (botão "Ver histórico"), a célula principal mostra só a última.
+function verHistoricoCampanha(campanhaId) {
+  const r = _quadroCampanhasLista.find(x => x.campanha_id === campanhaId);
+  if (!r || !r.acoes.length) return;
+  const html = r.acoes.map(formatarLinhaAcao).join('<br><br>');
+  abrirDetalhesModal('Histórico de mudanças — ' + r.nome, html);
 }
 
 // Marca manualmente que o Enzo aplicou a ação pelo painel do ML (orçamento,
