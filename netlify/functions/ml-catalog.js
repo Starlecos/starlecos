@@ -5,10 +5,13 @@
 //   ?action=search&status=active|paused  -> pagina /users/{seller}/items/search,
 //     devolve todos os item_id daquele status (offset até 1000 por chamada
 //     de busca, que é o limite da API pra esse endpoint).
-//   ?action=bulk&ids=ID1,ID2,...         -> multiget /items?ids=... (até 20
-//     por chamada), devolve title/status/sub_status/variations/category_id/
-//     listing_type_id de cada um (os 2 últimos usados pra estimar comissão
-//     real via ml-promocoes.js?action=fee).
+//   ?action=bulk&ids=ID1,ID2,...         -> multiget /items/bulk?ids=... (até
+//     20 por chamada — endpoint novo, o antigo /items?ids= foi desativado
+//     pelo ML em 12/11/2026 com 403 "ResourceDeprecated"), devolve
+//     title/status/sub_status/variations/category_id/listing_type_id de cada
+//     um (os 2 últimos usados pra estimar comissão real via
+//     ml-promocoes.js?action=fee). Resposta vem como [{body:{...}}] — sem
+//     campo "code" (id que não existe mais vem só como {} vazio).
 const SUPABASE_URL = 'https://pfaounkchpyfhlsdailo.supabase.co';
 const ML_APP_ID = '6624742243995383';
 const SELLER_ID = '1781620508';
@@ -79,7 +82,7 @@ exports.handler = async function(event) {
     if (params.action === 'bulk') {
       const ids = (params.ids || '').split(',').filter(Boolean);
       if (!ids.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'ids obrigatório' }) };
-      const url = 'https://api.mercadolibre.com/items?ids=' + ids.join(',') + '&attributes=id,title,status,sub_status,variations,thumbnail,permalink,category_id,listing_type_id';
+      const url = 'https://api.mercadolibre.com/items/bulk?ids=' + ids.join(',') + '&attributes=body.id,body.title,body.status,body.sub_status,body.variations,body.thumbnail,body.permalink,body.category_id,body.listing_type_id';
       const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
       const data = await res.json();
       return { statusCode: res.status, headers, body: JSON.stringify(data) };

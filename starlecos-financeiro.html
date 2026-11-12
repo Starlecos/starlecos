@@ -1851,14 +1851,15 @@
         </div>
       </div>
 
-      <!-- RESUMO POR ESTAMPA -->
+      <!-- RESUMO POR PRODUTO E ESTAMPA -->
       <div class="table-card" id="confResumoCard" style="display:none">
         <div class="table-header">
-          <span class="table-header-title">📊 Resumo por Estampa</span>
+          <span class="table-header-title">📊 Resumo por Produto e Estampa</span>
         </div>
         <table class="conf-grade-table" style="min-width:unset">
           <thead>
             <tr>
+              <th style="text-align:left">Produto</th>
               <th style="text-align:left">Estampa</th>
               <th>Total</th>
             </tr>
@@ -1866,7 +1867,7 @@
           <tbody id="confResumoBody"></tbody>
           <tfoot>
             <tr class="total-row" id="confResumoTotal" style="display:none">
-              <td>TOTAL</td>
+              <td colspan="2">TOTAL</td>
               <td id="confResumoTotalVal">0</td>
             </tr>
           </tfoot>
@@ -2006,11 +2007,11 @@
 
     <div class="table-card" style="margin-bottom:28px">
       <div class="table-header">
-        <span class="table-header-title">📊 Por produto</span>
+        <span class="table-header-title">📊 Por Produto e Estampa</span>
       </div>
       <table>
-        <thead><tr><th>Produto</th><th>SKUs cadastrados</th><th>SKUs com estoque</th><th>SKUs zerados</th><th>Peças em estoque</th><th>Custo unit.</th><th>Custo total</th><th>Venda unit.</th><th>Venda total</th></tr></thead>
-        <tbody id="epaTabelaProdutos"><tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Carregando...</p></div></td></tr></tbody>
+        <thead><tr><th>Produto</th><th>Estampa</th><th>SKUs cadastrados</th><th>SKUs com estoque</th><th>SKUs zerados</th><th>Peças em estoque</th><th>Custo unit.</th><th>Custo total</th><th>Venda unit.</th><th>Venda total</th></tr></thead>
+        <tbody id="epaTabelaProdutos"><tr><td colspan="10"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Carregando...</p></div></td></tr></tbody>
       </table>
     </div>
 
@@ -6521,32 +6522,40 @@ function renderResumoEstoqueProdutoAcabado(lista) {
       <div class="sum-sub">1 a 3 unidades</div>
     </div>`;
 
+  // Agrupado por produto+estampa (pedido do Enzo, 12/11/2026 — antes
+  // juntava todo mundo só por produto, misturando estampas diferentes
+  // na mesma linha). Continua somando todos os tamanhos juntos (nunca
+  // quebrou por tamanho aqui).
   const porProduto = {};
   lista.forEach(v => {
     const p = v.produto || '—';
-    if (!porProduto[p]) porProduto[p] = { skus: 0, comEstoque: 0, zerados: 0, pecas: 0 };
-    porProduto[p].skus++;
-    porProduto[p].pecas += (v.quantidade||0);
-    if ((v.quantidade||0) > 0) porProduto[p].comEstoque++;
-    else if (!TAMANHOS_SEM_ANUNCIO_EPA.includes(v.tamanho)) porProduto[p].zerados++;
+    const est = v.estampa || '—';
+    const chave = p + '||' + est;
+    if (!porProduto[chave]) porProduto[chave] = { produto: p, estampa: est, skus: 0, comEstoque: 0, zerados: 0, pecas: 0 };
+    porProduto[chave].skus++;
+    porProduto[chave].pecas += (v.quantidade||0);
+    if ((v.quantidade||0) > 0) porProduto[chave].comEstoque++;
+    else if (!TAMANHOS_SEM_ANUNCIO_EPA.includes(v.tamanho)) porProduto[chave].zerados++;
   });
-  const produtos = Object.keys(porProduto).sort();
-  if (!produtos.length) {
-    document.getElementById('epaTabelaProdutos').innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Nenhum SKU cadastrado</p></div></td></tr>`;
+  const chaves = Object.keys(porProduto).sort(function(a,b){
+    return (porProduto[a].produto+porProduto[a].estampa).localeCompare(porProduto[b].produto+porProduto[b].estampa,'pt-BR',{sensitivity:'base'});
+  });
+  if (!chaves.length) {
+    document.getElementById('epaTabelaProdutos').innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">🏷️</div><p>Nenhum SKU cadastrado</p></div></td></tr>`;
   } else {
     let totSkus = 0, totComEstoque = 0, totZerados = 0, totPecas = 0, totCusto = 0, totVenda = 0;
-    const linhas = produtos.map(p => {
-      const r = porProduto[p];
-      const cv = custoVendaProdutoEPA(p);
+    const linhas = chaves.map(chave => {
+      const r = porProduto[chave];
+      const cv = custoVendaProdutoEPA(r.produto);
       const custoTotalNum = cv ? cv.custo * r.pecas : 0;
       const vendaTotalNum = cv ? cv.venda * r.pecas : 0;
       totSkus += r.skus; totComEstoque += r.comEstoque; totZerados += r.zerados; totPecas += r.pecas;
       totCusto += custoTotalNum; totVenda += vendaTotalNum;
       const custoUnit = cv ? fmt(cv.custo) : '—';
       const vendaUnit = cv ? fmt(cv.venda) : '—';
-      return `<tr><td style="font-weight:600">${p}</td><td>${r.skus}</td><td class="val-pos">${r.comEstoque}</td><td class="val-neg">${r.zerados}</td><td style="font-weight:700">${r.pecas} un</td><td>${custoUnit}</td><td>${cv ? fmt(custoTotalNum) : '—'}</td><td>${vendaUnit}</td><td class="val-pos" style="font-weight:600">${cv ? fmt(vendaTotalNum) : '—'}</td></tr>`;
+      return `<tr><td style="font-weight:600">${r.produto}</td><td style="color:var(--muted)">${r.estampa}</td><td>${r.skus}</td><td class="val-pos">${r.comEstoque}</td><td class="val-neg">${r.zerados}</td><td style="font-weight:700">${r.pecas} un</td><td>${custoUnit}</td><td>${cv ? fmt(custoTotalNum) : '—'}</td><td>${vendaUnit}</td><td class="val-pos" style="font-weight:600">${cv ? fmt(vendaTotalNum) : '—'}</td></tr>`;
     }).join('');
-    const linhaTotal = `<tr style="background:#FAFBFD;border-top:2px solid var(--border)"><td style="font-weight:700">TOTAL</td><td style="font-weight:700">${totSkus}</td><td class="val-pos" style="font-weight:700">${totComEstoque}</td><td class="val-neg" style="font-weight:700">${totZerados}</td><td style="font-weight:700">${totPecas} un</td><td>—</td><td style="font-weight:700">${fmt(totCusto)}</td><td>—</td><td class="val-pos" style="font-weight:700">${fmt(totVenda)}</td></tr>`;
+    const linhaTotal = `<tr style="background:#FAFBFD;border-top:2px solid var(--border)"><td colspan="2" style="font-weight:700">TOTAL</td><td style="font-weight:700">${totSkus}</td><td class="val-pos" style="font-weight:700">${totComEstoque}</td><td class="val-neg" style="font-weight:700">${totZerados}</td><td style="font-weight:700">${totPecas} un</td><td>—</td><td style="font-weight:700">${fmt(totCusto)}</td><td>—</td><td class="val-pos" style="font-weight:700">${fmt(totVenda)}</td></tr>`;
     document.getElementById('epaTabelaProdutos').innerHTML = linhas + linhaTotal;
   }
 
@@ -6984,7 +6993,7 @@ function renderGradeConfeccao() {
 
   var totTam = {}; TAMANHOS.forEach(function(t){ totTam[t]=0; });
   var totGeral = 0;
-  var resumoEstampa = {}; // { estampa: total }
+  var resumoEstampa = {}; // { 'produto||estampa': { produto, estampa, total } } — agrupado por produto+estampa, soma todos os tamanhos (pedido do Enzo, 12/11/2026)
 
   body.innerHTML = ordenados.map(function(item) {
     var cells = TAMANHOS.map(function(t) {
@@ -6993,9 +7002,12 @@ function renderGradeConfeccao() {
     }).join('');
     totGeral += item.total;
 
-    // Acumular resumo por estampa
-    var keyEst = (item.estampa || '—');
-    resumoEstampa[keyEst] = (resumoEstampa[keyEst] || 0) + item.total;
+    // Acumular resumo por produto+estampa (sem olhar tamanho)
+    var prodKey = (item.produto || '—');
+    var estKey  = (item.estampa || '—');
+    var keyComposta = prodKey + '||' + estKey;
+    if (!resumoEstampa[keyComposta]) resumoEstampa[keyComposta] = { produto: prodKey, estampa: estKey, total: 0 };
+    resumoEstampa[keyComposta].total += item.total;
 
     return '<tr>' +
       '<td style="font-size:12px">' + item.produto + '</td>' +
@@ -7018,13 +7030,15 @@ function renderGradeConfeccao() {
   }
   if (totalBadge) totalBadge.textContent = totGeral + ' peças';
 
-  // Resumo por estampa (ordenado alfabeticamente)
+  // Resumo por produto+estampa (ordenado alfabeticamente por produto, depois estampa)
   if (resumoBody) {
-    var estKeys = Object.keys(resumoEstampa).sort(function(a,b){ return a.localeCompare(b,'pt-BR',{sensitivity:'base'}); });
-    resumoBody.innerHTML = estKeys.map(function(est) {
+    var linhasResumo = Object.keys(resumoEstampa).map(function(k){ return resumoEstampa[k]; });
+    linhasResumo.sort(function(a,b){ return (a.produto+a.estampa).localeCompare(b.produto+b.estampa,'pt-BR',{sensitivity:'base'}); });
+    resumoBody.innerHTML = linhasResumo.map(function(r) {
       return '<tr>' +
-        '<td style="font-size:12px"><span style="background:var(--amber-light);color:var(--amber);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">' + est + '</span></td>' +
-        '<td style="text-align:center;font-weight:700;color:var(--jade)">' + resumoEstampa[est] + '</td>' +
+        '<td style="font-size:12px">' + r.produto + '</td>' +
+        '<td style="font-size:12px"><span style="background:var(--amber-light);color:var(--amber);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">' + r.estampa + '</span></td>' +
+        '<td style="text-align:center;font-weight:700;color:var(--jade)">' + r.total + '</td>' +
       '</tr>';
     }).join('');
   }

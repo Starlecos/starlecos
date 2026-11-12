@@ -78,18 +78,27 @@ exports.handler = async function(event) {
     estRows.forEach(e => { interno[e.sku] = e.quantidade || 0; });
 
     // 3) Estado real no ML, em lotes de até 20 anúncios (multiget)
+    //
+    // 12/11/2026: /items?ids= (endpoint antigo) começou a devolver 403
+    // "ResourceDeprecated" — ML migrou pra /items/bulk?ids= (aviso oficial
+    // de deprecação desde pelo menos out/2026, prazo 25/10/2026). Testado
+    // direto contra a API real: o endpoint novo funciona igual, só muda
+    // attributes (precisa prefixo "body."), e a resposta não tem mais o
+    // campo "code" — item que não existe mais vem como {} vazio em vez de
+    // {code:404,...}, por isso o filtro abaixo checa x.body em vez de
+    // x.code === 200.
     const accessToken = await obterTokenML();
     const ids = [...new Set(listagens.map(l => l.ml_item_id))];
     const mlPorItem = {};
     for (let i = 0; i < ids.length; i += 20) {
       const lote = ids.slice(i, i + 20);
       const res = await fetch(
-        'https://api.mercadolibre.com/items?ids=' + lote.join(',') + '&attributes=id,title,available_quantity,status,variations',
+        'https://api.mercadolibre.com/items/bulk?ids=' + lote.join(',') + '&attributes=body.id,body.title,body.available_quantity,body.status,body.variations',
         { headers: { Authorization: 'Bearer ' + accessToken } }
       );
       const arr = await res.json();
       if (!Array.isArray(arr)) throw new Error('Multiget ML falhou (' + res.status + '): ' + JSON.stringify(arr).slice(0, 300));
-      arr.forEach(x => { if (x.code === 200 && x.body) mlPorItem[x.body.id] = x.body; });
+      arr.forEach(x => { if (x.body && x.body.id) mlPorItem[x.body.id] = x.body; });
     }
 
     // 4) Compara
